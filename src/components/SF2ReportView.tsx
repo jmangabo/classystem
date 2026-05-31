@@ -1,7 +1,8 @@
 import { formatStudentName } from "../utils";
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Student, School } from '../types';
-import { Download, FileText, Calendar, Printer } from 'lucide-react';
+import { Download, FileText, Calendar, Printer, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx-js-style';
 import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas-pro";
@@ -53,6 +54,7 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
     }
     return '';
   });
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
 
   const handleExportPDF = async () => {
     console.log("PDF button clicked");
@@ -600,6 +602,86 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
     XLSX.writeFile(workbook, `SF2_${section.name}_${currentMonthData.month}.xlsx`);
   };
 
+  const renderStudentRowModal = (student: Student, index: number) => {
+    const dailyData = student.dailyAttendance?.[selectedMonthKey] || student.dailyAttendance?.[currentMonthData!.month] || {};
+    let presentCount = 0;
+    
+    // We only count actual marked presence in the defined school days
+    schoolDaysInMonth.forEach(dayInfo => {
+        if (dailyData[dayInfo.day]) {
+            presentCount++;
+        }
+    });
+
+    const totalDays = schoolDaysInMonth.length;
+    let absentCount = totalDays - presentCount;
+    if (absentCount < 0) absentCount = 0;
+
+    return (
+      <tr key={`modal-row-${student.id}`} className="text-[9px] h-[22px] leading-tight transition-none">
+        <td className="border border-black p-0.5 text-center font-bold h-[22px] leading-none">{index + 1}</td>
+        <td className="border border-black px-1.5 py-0.5 font-bold text-[7.5pt] whitespace-nowrap leading-none h-[22px]">
+          <div className="flex flex-col">
+            <span>{formatStudentName(student)}</span>
+            {(student.status === 'Dropped Out' || student.status === 'Transferred Out') && (
+              <span className="text-[5.5px] uppercase font-black text-red-600">({student.status === 'Dropped Out' ? 'Dropped' : 'Transferred'})</span>
+            )}
+          </div>
+        </td>
+        {schoolDaysInMonth.map(dayInfo => {
+           const isPresent = !!dailyData[dayInfo.day];
+           return (
+             <td key={`m-att-${student.id}-${dayInfo.dateStr}`} className="border border-black p-0 text-center min-w-[15px] h-[22px] align-middle">
+               <div className="flex items-center justify-center h-full w-full">
+                 {!isPresent ? <span className="font-bold text-red-600 leading-none text-[8.5px]">X</span> : <span className="text-slate-300 leading-none text-[8px]">.</span>}
+               </div>
+             </td>
+           );
+        })}
+        {Array.from({ length: Math.max(0, 25 - schoolDaysInMonth.length) }).map((_, i) => (
+           <td key={`m-empty-${student.id}-${i}`} className="border border-black p-0 h-[22px] bg-slate-50" />
+        ))}
+        <td className="border border-black p-0.5 text-center font-bold bg-white leading-none h-[22px] text-[8.5px]">{absentCount > 0 ? absentCount : ''}</td>
+        <td className="border border-black p-0.5 text-center bg-white h-[22px]" />
+        <td className="border border-black px-1 py-0.5 truncate max-w-[160px] text-[7.5px] h-[22px] leading-none font-semibold">
+          {student.status === 'Dropped Out' && (() => {
+            const dParts = student.dropoutDate?.split('-');
+            if (dParts?.length === 3) {
+              const dropYear = parseInt(dParts[0]);
+              const dropMonth = parseInt(dParts[1]) - 1;
+              if (currentMonthData!.year === dropYear && monthIndices[currentMonthData!.month] === dropMonth) {
+                return <span className="text-red-700">D/O: {new Date(student.dropoutDate!).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>;
+              }
+            }
+            return null;
+          })()}
+          {student.status === 'Transferred Out' && (() => {
+            const dParts = student.dropoutDate?.split('-');
+            if (dParts?.length === 3) {
+              const dropYear = parseInt(dParts[0]);
+              const dropMonth = parseInt(dParts[1]) - 1;
+              if (currentMonthData!.year === dropYear && monthIndices[currentMonthData!.month] === dropMonth) {
+                return <span className="text-blue-700">T/O: {new Date(student.dropoutDate!).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>;
+              }
+            }
+            return null;
+          })()}
+          {student.isTransferredIn && (() => {
+            const foaParts = student.dateOfFirstAttendance?.split('-');
+            if (foaParts?.length === 3) {
+              const foaYear = parseInt(foaParts[0]);
+              const foaMonth = parseInt(foaParts[1]) - 1;
+              if (currentMonthData!.year === foaYear && monthIndices[currentMonthData!.month] === foaMonth) {
+                return <span className="text-emerald-700">T/I: {new Date(student.dateOfFirstAttendance!).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>;
+              }
+            }
+            return null;
+          })()}
+        </td>
+      </tr>
+    );
+  };
+
   const renderStudentRow = (student: Student, index: number) => {
     const dailyData = student.dailyAttendance?.[selectedMonthKey] || student.dailyAttendance?.[currentMonthData!.month] || {};
     let presentCount = 0;
@@ -697,6 +779,13 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
         </div>
 
         <div className="flex items-center gap-3">
+          <button 
+            onClick={() => setIsPrintModalOpen(true)}
+            className="flex items-center gap-2 px-6 h-12 bg-slate-950 hover:bg-slate-900 border border-slate-800 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-100 hover:scale-105 transition-all active:scale-95"
+          >
+            <Printer size={16} />
+            View & Print Form
+          </button>
           <button 
             onClick={handleExportPDF}
             className="flex items-center gap-2 px-6 h-12 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-100 hover:scale-105 transition-all active:scale-95"

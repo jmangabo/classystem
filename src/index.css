@@ -98,27 +98,43 @@
     body > *:not(#root) {
       display: none !important;
     }
-    /* If the modal is open, ensure main app content is hidden */
-    #root > div:not(.fixed) {
+    /* Ensure only the active report card modal container is visible */
+    #root > div > *:not(.print-modal-container) {
       display: none !important;
     }
-    /* Force the fixed modal to be static for print flow */
-    div.fixed.inset-0 {
+    #root > div {
+      display: block !important;
+      height: auto !important;
+      min-height: 0 !important;
+      background: white !important;
+      padding: 0 !important;
+      margin: 0 !important;
+    }
+    /* Reset fixed/scrolling properties of wrapper when printing */
+    .print-modal-container {
       position: absolute !important;
       top: 0 !important;
       left: 0 !important;
       width: 100% !important;
       height: auto !important;
+      max-height: none !important;
       overflow: visible !important;
       display: block !important;
-      z-index: 0 !important;
+      z-index: 99999 !important;
       background: white !important;
       padding: 0 !important;
+      margin: 0 !important;
     }
+    /* Hide top bar controls and other non-printable items */
+    .print\:hidden {
+      display: none !important;
+    }
+    /* Perfect A4 Landscape sizing for the card elements */
     .print-card {
-      width: 100% !important;
-      max-width: 297mm !important;
+      width: 297mm !important;
       height: 210mm !important;
+      max-width: 297mm !important;
+      max-height: 210mm !important;
       padding: 0.5in !important;
       margin: 0 auto !important;
       border: 1px solid black !important;
@@ -127,6 +143,26 @@
       display: flex !important;
       box-shadow: none !important;
       border-radius: 0 !important;
+      box-sizing: border-box !important;
+      background: white !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    .print-card-sf2 {
+      width: 297mm !important;
+      max-width: 297mm !important;
+      padding: 0.5in !important;
+      margin: 0 auto !important;
+      border: 1px solid black !important;
+      display: flex !important;
+      flex-direction: column !important;
+      box-shadow: none !important;
+      border-radius: 0 !important;
+      box-sizing: border-box !important;
+      background: white !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      page-break-after: avoid !important;
     }
   }
 }

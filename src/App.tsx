@@ -74,7 +74,8 @@ import {
   UserX,
   Coins,
   Printer,
-  Tag
+  Tag,
+  FileSpreadsheet
 } from "lucide-react";
 
 import { SystemDocumentationView } from "./components/SystemDocumentationView";
@@ -8143,15 +8144,15 @@ function GradebookView({
       createCell("Learner Name", { bold: true, color: "FFFFFF", bg: "107C41", align: "center" }),
       
       // WW Header
-      createCell("Written Works (WW)", { bold: true, color: "FFFFFF", bg: "107C41", align: "center" }),
+      createCell(`Written Works (WW) - ${selectedSubject.wwWeight || 30}%`, { bold: true, color: "FFFFFF", bg: "107C41", align: "center" }),
       ...new Array(7).fill(createCell("", { bg: "107C41" })), // pad WW
       
       // PT Header
-      createCell("Performance Tasks (PT)", { bold: true, color: "FFFFFF", bg: "107C41", align: "center" }),
+      createCell(`Performance Tasks (PT) - ${selectedSubject.ptWeight || 50}%`, { bold: true, color: "FFFFFF", bg: "107C41", align: "center" }),
       ...new Array(7).fill(createCell("", { bg: "107C41" })), // pad PT
       
       // SA Header
-      createCell("Summative Assessment (SA)", { bold: true, color: "FFFFFF", bg: "107C41", align: "center" }),
+      createCell(`Summative Assessment (SA) - ${selectedSubject.taWeight || 20}%`, { bold: true, color: "FFFFFF", bg: "107C41", align: "center" }),
       ...new Array(5).fill(createCell("", { bg: "107C41" })), // pad SA
       
       createCell("Initial Grade", { bold: true, color: "FFFFFF", bg: "107C41", align: "center" }),
@@ -8196,6 +8197,42 @@ function GradebookView({
     dataRows.push(headerRow1);
     dataRows.push(headerRow2);
 
+    // 8. Row 8: HIGHEST POSSIBLE SCORE (HPS) Row
+    const refStudent = students[0] || { grades: {} };
+    const refData = getStudentTermData(refStudent as Student);
+    const gWWMax = (refData.writtenWorks?.maxScores || []).reduce((a: number, b: number) => a + b, 0);
+    const gPTMax = (refData.performanceTasks?.maxScores || []).reduce((a: number, b: number) => a + b, 0);
+    const gSTMax = (refData.summativeTests?.maxScores || []).reduce((a: number, b: number) => a + b, 0);
+    const gExamMax = refData.termExam?.maxScore || 0;
+    const gTAMax = gSTMax + gExamMax;
+
+    const hpsRow = [
+      createCell("HIGHEST POSSIBLE SCORE (HPS)", { bold: true, bg: "FFF2CC", color: "333333", align: "left" }),
+      
+      // WW HPS 1-5
+      ...(refData.writtenWorks?.maxScores || [0,0,0,0,0]).map(v => createCell(v || 0, { bold: true, bg: "FFF2CC", align: "center" })),
+      createCell(gWWMax, { bold: true, bg: "FFE599", align: "center" }),
+      createCell("100.0", { bold: true, bg: "FFE599", align: "center" }),
+      createCell(selectedSubject.wwWeight ? `${selectedSubject.wwWeight.toFixed(0)}%` : "-", { bold: true, bg: "FFD966", align: "center" }),
+      
+      // PT HPS 1-5
+      ...(refData.performanceTasks?.maxScores || [0,0,0,0,0]).map(v => createCell(v || 0, { bold: true, bg: "FFF2CC", align: "center" })),
+      createCell(gPTMax, { bold: true, bg: "FFE599", align: "center" }),
+      createCell("100.0", { bold: true, bg: "FFE599", align: "center" }),
+      createCell(selectedSubject.ptWeight ? `${selectedSubject.ptWeight.toFixed(0)}%` : "-", { bold: true, bg: "FFD966", align: "center" }),
+      
+      // ST HPS 1-2
+      ...(refData.summativeTests?.maxScores || [0,0]).map(v => createCell(v || 0, { bold: true, bg: "FFF2CC", align: "center" })),
+      createCell(gExamMax, { bold: true, bg: "FFF2CC", align: "center" }),
+      createCell(gTAMax, { bold: true, bg: "FFE599", align: "center" }),
+      createCell("100.0", { bold: true, bg: "FFE599", align: "center" }),
+      createCell(selectedSubject.taWeight ? `${selectedSubject.taWeight.toFixed(0)}%` : "-", { bold: true, bg: "FFD966", align: "center" }),
+      
+      createCell("100.00", { bold: true, bg: "FFE599", align: "center" }),
+      createCell("100", { bold: true, bg: "FFE599", align: "center" })
+    ];
+    dataRows.push(hpsRow);
+
     let currentSex = '';
     
     sortedStudents.forEach(student => {
@@ -8208,36 +8245,192 @@ function GradebookView({
         
         // Push beautiful colored full row for Male and Female separation exactly like SF10
         dataRows.push([
-          createCell(sexLabel, { bold: true, bg: "D9EAD3", color: "137E3E", size: 10, align: "left" }),
+          createCell(sexLabel + " LEARNERS", { bold: true, bg: "D9EAD3", color: "137E3E", size: 10, align: "left" }),
           ...new Array(24).fill(createCell("", { bg: "D9EAD3" }))
         ]);
       }
 
       const g = calculateGrade(student, selectedSubject, activeTerm);
       const data = getStudentTermData(student);
+      
+      const wwMax = (refData.writtenWorks?.maxScores || []).reduce((a: number, b: number) => a + b, 0);
+      const ptMax = (refData.performanceTasks?.maxScores || []).reduce((a: number, b: number) => a + b, 0);
+      const taMax = (refData.summativeTests?.maxScores || []).reduce((a: number, b: number) => a + b, 0) + (refData.termExam?.maxScore || 0);
+
       const row = [
         createCell(formatStudentName(student), { align: "left" }),
-        ...(data.writtenWorks?.scores || [0,0,0,0,0]).map(v => createCell(v, { align: "center" })),
-        createCell(g.ww.total, { bold: true, align: "center", bg: "F9FAFB" }), 
-        createCell(g.ww.ps.toFixed(1), { align: "center", bg: "F3F4F6" }), 
-        createCell(g.ww.ws.toFixed(2), { align: "center", bg: "E5E7EB" }),
         
-        ...(data.performanceTasks?.scores || [0,0,0,0,0]).map(v => createCell(v, { align: "center" })),
-        createCell(g.pt.total, { bold: true, align: "center", bg: "F9FAFB" }), 
-        createCell(g.pt.ps.toFixed(1), { align: "center", bg: "F3F4F6" }), 
-        createCell(g.pt.ws.toFixed(2), { align: "center", bg: "E5E7EB" }),
+        // Written Works
+        ...(data.writtenWorks?.scores || [0,0,0,0,0]).map((v, i) => {
+          const hasHps = (refData.writtenWorks?.maxScores?.[i] || 0) > 0;
+          return createCell(hasHps ? v : "-", { align: "center" });
+        }),
+        createCell(wwMax > 0 ? g.ww.total : "-", { bold: true, align: "center", bg: "F9FAFB" }), 
+        createCell(wwMax > 0 ? g.ww.ps.toFixed(1) : "-", { align: "center", bg: "F3F4F6" }), 
+        createCell(wwMax > 0 ? g.ww.ws.toFixed(2) : "-", { align: "center", bg: "E5E7EB" }),
         
-        ...(data.summativeTests?.scores || [0,0]).map(v => createCell(v, { align: "center" })),
-        createCell(data.termExam?.score || 0, { align: "center" }),
-        createCell(g.ta.total, { bold: true, align: "center", bg: "F9FAFB" }), 
-        createCell(g.ta.ps.toFixed(1), { align: "center", bg: "F3F4F6" }), 
-        createCell(g.ta.ws.toFixed(2), { align: "center", bg: "E5E7EB" }),
+        // Performance Tasks
+        ...(data.performanceTasks?.scores || [0,0,0,0,0]).map((v, i) => {
+          const hasHps = (refData.performanceTasks?.maxScores?.[i] || 0) > 0;
+          return createCell(hasHps ? v : "-", { align: "center" });
+        }),
+        createCell(ptMax > 0 ? g.pt.total : "-", { bold: true, align: "center", bg: "F9FAFB" }), 
+        createCell(ptMax > 0 ? g.pt.ps.toFixed(1) : "-", { align: "center", bg: "F3F4F6" }), 
+        createCell(ptMax > 0 ? g.pt.ws.toFixed(2) : "-", { align: "center", bg: "E5E7EB" }),
         
-        createCell(g.initial.toFixed(2), { bold: true, align: "center", bg: "FFE599" }), // Classic soft amber
-        createCell(g.final, { bold: true, align: "center", bg: "FFE599", color: g.final >= 75 ? "107C41" : "DE350B" }) // Green if Passing, Dark Red if Fail
+        // Summative Tests
+        ...(data.summativeTests?.scores || [0,0]).map((v, i) => {
+          const hasHps = (refData.summativeTests?.maxScores?.[i] || 0) > 0;
+          return createCell(hasHps ? v : "-", { align: "center" });
+        }),
+        createCell((refData.termExam?.maxScore || 0) > 0 ? (data.termExam?.score || 0) : "-", { align: "center" }),
+        createCell(taMax > 0 ? g.ta.total : "-", { bold: true, align: "center", bg: "F9FAFB" }), 
+        createCell(taMax > 0 ? g.ta.ps.toFixed(1) : "-", { align: "center", bg: "F3F4F6" }), 
+        createCell(taMax > 0 ? g.ta.ws.toFixed(2) : "-", { align: "center", bg: "E5E7EB" }),
+        
+        createCell(g.hasData ? g.initial.toFixed(2) : "-", { bold: true, align: "center", bg: "FFE599" }), 
+        createCell(g.hasData ? g.final : "-", { bold: true, align: "center", bg: "FFE599", color: g.final >= 75 ? "107C41" : "DE350B" })
       ];
       dataRows.push(row);
     });
+
+    // 9. Add statistics & Signatures section at bottom
+    const statMale = calculateMPS(studentsMale);
+    const statFemale = calculateMPS(studentsFemale);
+    const statOverall = calculateMPS(students);
+
+    // Padding spacers
+    dataRows.push(new Array(25).fill(createCell("", { borderTheme: "none" })));
+    dataRows.push(new Array(25).fill(createCell("", { borderTheme: "none" })));
+
+    const summaryStartRow = dataRows.length;
+    merges.push({ s: { r: summaryStartRow, c: 0 }, e: { r: summaryStartRow, c: 9 } });
+
+    dataRows.push([
+      createCell("CLASS GRADE SUMMARY & PROFILE STATISTICS", { bold: true, size: 11, bg: "1F4E78", color: "FFFFFF", align: "left" }),
+      ...new Array(24).fill(createCell("", { borderTheme: "none" }))
+    ]);
+
+    dataRows.push([
+      createCell("METRIC / INDICATOR", { bold: true, bg: "D9E1F2", align: "left" }),
+      createCell("MALE", { bold: true, bg: "D9E1F2", align: "center" }),
+      createCell("FEMALE", { bold: true, bg: "D9E1F2", align: "center" }),
+      createCell("TOTAL (CLASS)", { bold: true, bg: "D9E1F2", align: "center" }),
+      ...new Array(21).fill(createCell("", { borderTheme: "none" }))
+    ]);
+
+    dataRows.push([
+      createCell("No. of Learners Enrolled", { align: "left" }),
+      createCell(statMale.takers, { align: "center" }),
+      createCell(statFemale.takers, { align: "center" }),
+      createCell(statOverall.takers, { bold: true, align: "center" }),
+      ...new Array(21).fill(createCell("", { borderTheme: "none" }))
+    ]);
+
+    dataRows.push([
+      createCell("No. of Learners Passed (>= 75)", { align: "left" }),
+      createCell(statMale.passed, { align: "center" }),
+      createCell(statFemale.passed, { align: "center" }),
+      createCell(statOverall.passed, { bold: true, align: "center" }),
+      ...new Array(21).fill(createCell("", { borderTheme: "none" }))
+    ]);
+
+    dataRows.push([
+      createCell("Percentage of Passing (%)", { align: "left" }),
+      createCell(statMale.takers > 0 ? `${statMale.pctPassed.toFixed(1)}%` : "-", { align: "center" }),
+      createCell(statFemale.takers > 0 ? `${statFemale.pctPassed.toFixed(1)}%` : "-", { align: "center" }),
+      createCell(statOverall.takers > 0 ? `${statOverall.pctPassed.toFixed(1)}%` : "-", { bold: true, align: "center" }),
+      ...new Array(21).fill(createCell("", { borderTheme: "none" }))
+    ]);
+
+    dataRows.push([
+      createCell("Mean Percentage Score (MPS) / Average", { align: "left" }),
+      createCell(statMale.takers > 0 ? statMale.mps.toFixed(2) : "-", { align: "center" }),
+      createCell(statFemale.takers > 0 ? statFemale.mps.toFixed(2) : "-", { align: "center" }),
+      createCell(statOverall.takers > 0 ? statOverall.mps.toFixed(2) : "-", { bold: true, align: "center" }),
+      ...new Array(21).fill(createCell("", { borderTheme: "none" }))
+    ]);
+
+    dataRows.push([
+      createCell("Learners in Advancing Level (90-100)", { align: "left" }),
+      createCell(statMale.advancing, { align: "center" }),
+      createCell(statFemale.advancing, { align: "center" }),
+      createCell(statOverall.advancing, { bold: true, align: "center" }),
+      ...new Array(21).fill(createCell("", { borderTheme: "none" }))
+    ]);
+
+    dataRows.push([
+      createCell("Learners in Benchmarking Level (80-89)", { align: "left" }),
+      createCell(statMale.benchmarking, { align: "center" }),
+      createCell(statFemale.benchmarking, { align: "center" }),
+      createCell(statOverall.benchmarking, { bold: true, align: "center" }),
+      ...new Array(21).fill(createCell("", { borderTheme: "none" }))
+    ]);
+
+    dataRows.push([
+      createCell("Learners in Connecting Level (75-79)", { align: "left" }),
+      createCell(statMale.connecting, { align: "center" }),
+      createCell(statFemale.connecting, { align: "center" }),
+      createCell(statOverall.connecting, { bold: true, align: "center" }),
+      ...new Array(21).fill(createCell("", { borderTheme: "none" }))
+    ]);
+
+    dataRows.push([
+      createCell("Learners in Developing/Emerging Level (< 75)", { align: "left" }),
+      createCell(statMale.developing + statMale.emerging, { align: "center" }),
+      createCell(statFemale.developing + statFemale.emerging, { align: "center" }),
+      createCell(statOverall.developing + statOverall.emerging, { bold: true, align: "center" }),
+      ...new Array(21).fill(createCell("", { borderTheme: "none" }))
+    ]);
+
+    // Spacers for signatures
+    dataRows.push(new Array(25).fill(createCell("", { borderTheme: "none" })));
+    dataRows.push(new Array(25).fill(createCell("", { borderTheme: "none" })));
+
+    const sigStartRow = dataRows.length;
+    merges.push({ s: { r: sigStartRow, c: 1 }, e: { r: sigStartRow, c: 6 } });
+    merges.push({ s: { r: sigStartRow, c: 16 }, e: { r: sigStartRow, c: 21 } });
+    
+    dataRows.push([
+      createCell("", { borderTheme: "none" }),
+      createCell("Prepared by:", { bold: true, italic: true, align: "left", borderTheme: "none" }),
+      ...new Array(5).fill(createCell("", { borderTheme: "none" })),
+      ...new Array(9).fill(createCell("", { borderTheme: "none" })),
+      createCell("Checked & Approved by:", { bold: true, italic: true, align: "left", borderTheme: "none" }),
+      ...new Array(5).fill(createCell("", { borderTheme: "none" })),
+      ...new Array(3).fill(createCell("", { borderTheme: "none" }))
+    ]);
+
+    dataRows.push(new Array(25).fill(createCell("", { borderTheme: "none" })));
+
+    const teacherName = currentUser?.name || currentUser?.displayName || currentUser?.email || "N/A";
+    const adviserName = selectedSection.adviserName || "N/A";
+
+    merges.push({ s: { r: sigStartRow + 2, c: 1 }, e: { r: sigStartRow + 2, c: 6 } });
+    merges.push({ s: { r: sigStartRow + 2, c: 16 }, e: { r: sigStartRow + 2, c: 21 } });
+
+    dataRows.push([
+      createCell("", { borderTheme: "none" }),
+      createCell(teacherName.toUpperCase(), { bold: true, align: "center", borderTheme: "none" }),
+      ...new Array(5).fill(createCell("", { borderTheme: "none" })),
+      ...new Array(9).fill(createCell("", { borderTheme: "none" })),
+      createCell(adviserName.toUpperCase(), { bold: true, align: "center", borderTheme: "none" }),
+      ...new Array(5).fill(createCell("", { borderTheme: "none" })),
+      ...new Array(3).fill(createCell("", { borderTheme: "none" }))
+    ]);
+
+    merges.push({ s: { r: sigStartRow + 3, c: 1 }, e: { r: sigStartRow + 3, c: 6 } });
+    merges.push({ s: { r: sigStartRow + 3, c: 16 }, e: { r: sigStartRow + 3, c: 21 } });
+    
+    dataRows.push([
+      createCell("", { borderTheme: "none" }),
+      createCell("Subject Teacher", { size: 9, align: "center", borderTheme: "none" }),
+      ...new Array(5).fill(createCell("", { borderTheme: "none" })),
+      ...new Array(9).fill(createCell("", { borderTheme: "none" })),
+      createCell("Class Adviser / Principal", { size: 9, align: "center", borderTheme: "none" }),
+      ...new Array(5).fill(createCell("", { borderTheme: "none" })),
+      ...new Array(3).fill(createCell("", { borderTheme: "none" }))
+    ]);
 
     const worksheet = XLSX.utils.aoa_to_sheet(dataRows);
     worksheet["!merges"] = merges;
@@ -10589,7 +10782,6 @@ function MATATAGReportCardModal({
   isStudentView?: boolean,
   globalNumTerms?: number
 }) {
-  const [isExporting, setIsExporting] = useState(false);
   const [useDescriptiveGrading, setUseDescriptiveGrading] = useState(false);
   const isGrade1To3 = useMemo(() => {
     const levelStr = section.gradeLevel?.toString() || "";
@@ -10931,34 +11123,1686 @@ function MATATAGReportCardModal({
     return valid.length === expectedTerms.length ? Math.round(valid.reduce((a, b) => a + b, 0) / expectedTerms.length) : 0;
   };
 
-  const exportPDF = async () => {
-    if (!cardRef.current) return;
-    setIsExporting(true);
+
+
+  const exportWord = () => {
     try {
-      const pdf = new jsPDF('l', 'mm', 'a4');
-      const pages = cardRef.current.children;
-      
-      for (let i = 0; i < pages.length; i++) {
-        const page = pages[i] as HTMLElement;
-        const canvas = await html2canvas(page, {
-          scale: 2,
-          useCORS: true,
-          backgroundColor: '#ffffff'
+      // Build Observed Values HTML block
+      const coreValuesData = [
+        {
+          val: "1. Maka-Diyos",
+          rows: [
+            { key: "diyos-1", txt: "Expresses one's spiritual beliefs while respecting the spiritual beliefs of others." },
+            { key: "diyos-2", txt: "Shows adherence to ethical principles by upholding truth in all undertakings." }
+          ]
+        },
+        {
+          val: "2. Makatao",
+          rows: [
+            { key: "tao-1", txt: "Is sensitive to individual, social, and cultural differences." },
+            { key: "tao-2", txt: "Demonstrates contributions towards solidarity." }
+          ]
+        },
+        {
+          val: "3. Maka-Kalikasan",
+          rows: [
+            { key: "kalikasan-1", txt: "Cares for environment and utilizes resources wisely, judiciously and economically." }
+          ]
+        },
+        {
+          val: "4. Maka-Bansa",
+          rows: [
+            { key: "bansa-1", txt: "Demonstrates pride in being a Filipino; exercises the rights and responsibilities of a Filipino citizen." },
+            { key: "bansa-2", txt: "Demonstrates appropriate behavior in carrying out activities in school, community and country." }
+          ]
+        }
+      ];
+
+      let observedValuesHtml = "";
+      coreValuesData.forEach(cv => {
+        cv.rows.forEach((row, rIdx) => {
+          observedValuesHtml += `<tr style="font-size: 8pt;">`;
+          if (rIdx === 0) {
+            observedValuesHtml += `<td rowspan="${cv.rows.length}" style="border: 1px solid #000000; padding: 4px; font-weight: bold; background-color: #f8fafc; vertical-align: top; width: 100px;">${cv.val}</td>`;
+          }
+          observedValuesHtml += `<td style="border: 1px solid #000000; padding: 4px;">${row.txt}</td>`;
+          termsToShow.forEach(q => {
+            const isReleased = isTermReleased(q);
+            const val = isReleased ? (student.observedValues?.[q]?.[row.key] || '') : 'LOCKED';
+            observedValuesHtml += `<td style="border: 1px solid #000000; padding: 4px; text-align: center; font-weight: bold; color: ${isReleased ? '#000000' : '#94a3b8'};">${val}</td>`;
+          });
+          observedValuesHtml += `</tr>`;
         });
-        const imgData = canvas.toDataURL('image/png');
-        const pdfWidth = pdf.internal.pageSize.getWidth();
-        const pdfHeight = pdf.internal.pageSize.getHeight();
-        
-        if (i > 0) pdf.addPage('a4', 'l');
-        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      });
+
+      // Build Attendance HTML block
+      let attendanceHtml = "";
+      const hasCalendarMatch = calendar && calendar.length > 0;
+      if (hasCalendarMatch) {
+        const monthsByTerm: Record<string, number> = {};
+        visibleAttendanceEntries.forEach(e => {
+          monthsByTerm[e.term] = (monthsByTerm[e.term] || 0) + 1;
+        });
+
+        attendanceHtml += `
+        <div class="section-title" style="margin-top: 15px;">ATTENDANCE RECORD</div>
+        <table class="data-table">
+          <thead>
+            <tr style="background-color: #f1f5f9; font-weight: bold;">
+              <th style="border: 1px solid #000000; padding: 4px; text-align: left; width: 110px;">Month</th>
+              ${Object.keys(monthsByTerm).sort().map(term => `
+                <th colspan="${monthsByTerm[term]}" style="border: 1px solid #000000; padding: 4px; text-align: center; color: #4f46e5;">Term ${term}</th>
+              `).join('')}
+              <th style="border: 1px solid #000000; padding: 4px; text-align: center; background-color: #e2e8f0; width: 45px;">TOTAL</th>
+            </tr>
+            <tr style="font-weight: bold; background-color: #f8fafc;">
+              <th style="border: 1px solid #000000; padding: 4px; text-align: left;"></th>
+              ${visibleAttendanceEntries.map(entry => `
+                <th style="border: 1px solid #000000; padding: 4px; text-align: center;">${entry.month.substring(0, 3).toUpperCase()}</th>
+              `).join('')}
+              <th style="border: 1px solid #000000; padding: 4px; text-align: center; background-color: #e2e8f0;"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="border: 1px solid #000000; padding: 4px; font-weight: bold;">No. of School Days</td>
+              ${visibleAttendanceEntries.map(entry => `
+                <td style="border: 1px solid #000000; padding: 4px; text-align: center;">${calendarMap[entry.key] || 0}</td>
+              `).join('')}
+              <td style="border: 1px solid #000000; padding: 4px; text-align: center; font-weight: bold; background-color: #f1f5f9;">${attendanceTotals.s}</td>
+            </tr>
+            <tr>
+              <td style="border: 1px solid #000000; padding: 4px; font-weight: bold;">No. of Days Present</td>
+              ${visibleAttendanceEntries.map(entry => {
+                const data = studentAttendance[entry.key] || studentAttendance[entry.month] || { present: 0 };
+                return `<td style="border: 1px solid #000000; padding: 4px; text-align: center; font-weight: bold;">${data.present || 0}</td>`;
+              }).join('')}
+              <td style="border: 1px solid #000000; padding: 4px; text-align: center; font-weight: bold; background-color: #f1f5f9;">${attendanceTotals.p}</td>
+            </tr>
+            <tr>
+              <td style="border: 1px solid #000000; padding: 4px; font-weight: bold;">No. of Days Absent</td>
+              ${visibleAttendanceEntries.map(entry => {
+                const data = studentAttendance[entry.key] || studentAttendance[entry.month] || { absent: 0 };
+                return `<td style="border: 1px solid #000000; padding: 4px; text-align: center;">${data.absent || 0}</td>`;
+              }).join('')}
+              <td style="border: 1px solid #000000; padding: 4px; text-align: center; font-weight: bold; background-color: #f1f5f9;">${attendanceTotals.a}</td>
+            </tr>
+          </tbody>
+        </table>
+        `;
+      } else {
+        attendanceHtml += `
+        <div class="section-title" style="margin-top: 15px;">ATTENDANCE RECORD</div>
+        <div style="border: 1px dashed #000000; padding: 15px; text-align: center; color: #94a3b8; font-style: italic; font-size: 8.5pt;">
+          School Calendar Not Configured for SY ${section.schoolYear || ""}
+        </div>
+        `;
       }
-      
-      pdf.save(`${formatStudentName(student)}_SF9_MATATAG.pdf`);
+
+      // Build Cover block HTML
+      const logoHeaderHtml = `
+      <div style="text-align: center; margin-bottom: 12px; margin-top: 5px;">
+        <table style="width: 100%; border: none; border-collapse: collapse; margin-bottom: 10px;">
+          <tr style="border: none;">
+            <td style="text-align: right; width: 48%; padding-right: 15px; border: none; vertical-align: middle;">
+              ${depEdLogo ? `<img src="${depEdLogo}" style="height: 55px; width: 55px; object-fit: contain;" />` : `<div style="font-size: 7.5pt; font-weight: bold; border: 1px solid #a1a1a1; display: inline-block; padding: 8px;">DEPED LOGO</div>`}
+            </td>
+            <td style="text-align: left; width: 48%; padding-left: 15px; border: none; vertical-align: middle;">
+              ${schoolLogo ? `<img src="${schoolLogo}" style="height: 55px; width: 55px; object-fit: contain;" />` : `<div style="font-size: 7.5pt; font-weight: bold; border: 1px solid #a1a1a1; display: inline-block; padding: 8px;">SCHOOL LOGO</div>`}
+            </td>
+          </tr>
+        </table>
+        <div style="font-size: 9.5pt; font-weight: bold; text-transform: uppercase;">Republic of the Philippines</div>
+        <div style="font-size: 13pt; font-weight: 800; text-transform: uppercase; color: #1a365d;">Department of Education</div>
+        <div style="font-size: 9pt; font-weight: bold; text-transform: uppercase; margin-top: 2px;">${section.region || "N/A"} &bull; ${section.division || "N/A"}</div>
+        <div style="font-size: 11pt; font-weight: 800; text-transform: uppercase; text-decoration: underline; margin-top: 8px; color: #1a365d;">${section.schoolName || "N/A"}</div>
+        
+        <div style="font-size: 10.5pt; font-weight: bold; border: 1px solid #1a365d; padding: 6px; margin: 15px 0; text-transform: uppercase; letter-spacing: 0.5px; background-color: #f1f5f9; color: #1a365d; border-radius: 4px;">
+          Learner's Progress Report Card (SF9)
+        </div>
+      </div>
+
+      <div style="border: 1px solid #1e293b; padding: 10px; border-radius: 4px; background-color: #ffffff; margin-top: 5px;">
+        <table style="width: 100%; border: none; border-collapse: collapse; font-size: 8.5pt;">
+          <tr style="border: none; border-bottom: 1px solid #e1e8f0;">
+            <td style="padding: 4px 0; font-weight: bold; width: 120px; border: none; color: #475569;">LRN:</td>
+            <td style="padding: 4px 0; font-weight: bold; border: none; font-size: 9.5pt; letter-spacing: 0.5px;">${student.lrn || student.studentNumber || '-'}</td>
+          </tr>
+          <tr style="border: none; border-bottom: 1px solid #e1e8f0;">
+            <td style="padding: 4px 0; font-weight: bold; border: none; color: #475569;">NAME:</td>
+            <td style="padding: 4px 0; font-weight: bold; border: none; text-transform: uppercase; font-size: 9.5pt;">${formatStudentName(student)}</td>
+          </tr>
+          <tr style="border: none; border-bottom: 1px solid #e1e8f0;">
+            <td style="padding: 4px 0; font-weight: bold; border: none; color: #475569;">AGE:</td>
+            <td style="padding: 4px 0; font-weight: bold; border: none; font-size: 9.5pt;">${student.age || '-'}</td>
+          </tr>
+          <tr style="border: none; border-bottom: 1px solid #e1e8f0;">
+            <td style="padding: 4px 0; font-weight: bold; border: none; color: #475569;">SEX:</td>
+            <td style="padding: 4px 0; font-weight: bold; border: none; text-transform: uppercase; font-size: 9.5pt;">${student.sex || '-'}</td>
+          </tr>
+          <tr style="border: none; border-bottom: 1px solid #e1e8f0;">
+            <td style="padding: 4px 0; font-weight: bold; border: none; color: #475569;">GRADE & SECTION:</td>
+            <td style="padding: 4px 0; font-weight: bold; border: none; text-transform: uppercase; font-size: 9.5pt;">${(Number(section.gradeLevel) === 0) ? "Kindergarten" : `Grade ${section.gradeLevel}`} - ${section.name}</td>
+          </tr>
+          <tr style="border: none;">
+            <td style="padding: 4px 0; font-weight: bold; border: none; color: #475569;">SCHOOL YEAR:</td>
+            <td style="padding: 4px 0; font-weight: bold; border: none; font-size: 9.5pt;">${section.schoolYear || 'N/A'}</td>
+          </tr>
+        </table>
+      </div>
+      `;
+
+      // Build Page 2 Left (Message, signatures and transfer block)
+      const parentMessageAndTransferHtml = `
+      <div style="font-style: italic; font-size: 8.5pt; margin-bottom: 10px; line-height: 1.35; color: #1e293b;">
+        <p style="font-weight: bold; not-italic: true; margin-bottom: 4px; font-size: 9pt;">Dear Parent,</p>
+        <p style="margin-bottom: 5px;">This report card shows the ability and progress your child has made in different learning areas as well as his/her core values.</p>
+        <p style="margin-bottom: 8px;">The school welcomes you should you desire to know more about your child's progress.</p>
+      </div>
+
+      <table style="width: 100%; border: none; border-collapse: collapse; margin-top: 10px; margin-bottom: 15px; font-size: 8pt;">
+        <tr style="border: none;">
+          <td style="width: 46%; border: none; text-align: center; vertical-align: top;">
+            <div style="border-bottom: 1px solid #000000; font-weight: bold; padding-bottom: 2px; font-size: 8.5pt; height: 16px;">
+              ${(section.adviserName || "N/A").toUpperCase()}
+            </div>
+            <div style="font-weight: bold; margin-top: 2px; text-transform: uppercase; font-size: 7.5pt; color: #1e293b;">Class Adviser</div>
+            <div style="font-size: 6.5pt; color: #64748b;">(Signature over Printed Name)</div>
+          </td>
+          <td style="width: 8%; border: none;"></td>
+          <td style="width: 46%; border: none; text-align: center; vertical-align: top;">
+            <div style="border-bottom: 1px solid #000000; font-weight: bold; padding-bottom: 2px; font-size: 8.5pt; height: 16px;">
+              ${(schoolHead || section.headOfSchool || "N/A").toUpperCase()}
+            </div>
+            <div style="font-weight: bold; margin-top: 2px; text-transform: uppercase; font-size: 7.5pt; color: #1e293b;">School Head / Principal</div>
+            <div style="font-size: 6.5pt; color: #64748b;">(Signature over Printed Name)</div>
+          </td>
+        </tr>
+      </table>
+
+      <div class="section-title">Parents' / Guardians' Signature</div>
+      <table style="width: 100%; border: none; border-collapse: collapse; font-size: 8pt; margin-bottom: 12px;">
+        <tr style="border: none;">
+          ${termsToShow.map(q => `
+            <td style="border: none; text-align: center; width: ${100 / termsToShow.length}%; padding: 3px;">
+              <div style="border-bottom: 1px solid #000000; height: 22px; vertical-align: bottom;">
+                ${student.signatures?.[q] ? `<img src="${student.signatures[q]}" style="max-height: 20px; max-width: 45px; object-fit: contain;" />` : ''}
+              </div>
+              <div style="font-weight: bold; margin-top: 2px; text-transform: uppercase; font-size: 7pt; color: #334155;">Term ${q}</div>
+            </td>
+          `).join('')}
+        </tr>
+      </table>
+
+      <div class="transfer-box">
+        <div class="transfer-title">Certificate of Transfer</div>
+        <p style="margin-bottom: 4px; font-size: 8pt; color: #1e293b;">Admitted to Grade: <span style="border-bottom: 1px solid #000000; font-weight: bold; width: 50px; display: inline-block;">&nbsp;</span> Section: <span style="border-bottom: 1px solid #000000; font-weight: bold; width: 80px; display: inline-block;">&nbsp;</span></p>
+        <p style="margin-bottom: 6px; font-size: 8pt; color: #1e293b;">Eligible for Admission to Grade: <span style="border-bottom: 1px solid #000000; font-weight: bold; width: 120px; display: inline-block;">&nbsp;</span></p>
+        
+        <table style="width: 100%; border: none; border-collapse: collapse; margin-top: 10px; font-size: 7.5pt;">
+          <tr style="border: none;">
+            <td style="width: 46%; text-align: center; border: none; vertical-align: top;">
+              <div style="border-bottom: 1px solid #000000; font-weight: bold; font-size: 8pt; height: 14px;">
+                ${(section.adviserName || "N/A").toUpperCase()}
+              </div>
+              <div style="font-size: 6.5pt; font-weight: bold; text-transform: uppercase; margin-top: 2px; color: #475569;">Class Adviser</div>
+            </td>
+            <td style="width: 8%; border: none;"></td>
+            <td style="width: 46%; text-align: center; border: none; vertical-align: top;">
+              <div style="border-bottom: 1px solid #000000; font-weight: bold; font-size: 8pt; height: 14px;">
+                ${(schoolHead || section.headOfSchool || "N/A").toUpperCase()}
+              </div>
+              <div style="font-size: 6.5pt; font-weight: bold; text-transform: uppercase; margin-top: 2px; color: #475569;">Principal</div>
+            </td>
+          </tr>
+        </table>
+      </div>
+
+      <div class="transfer-box" style="margin-top: 8px;">
+        <div class="transfer-title" style="font-size: 8pt; border-bottom: 1px solid #e2e8f0; padding-bottom: 1px; margin-bottom: 4px;">Cancellation of Eligibility to Transfer</div>
+        <p style="margin-bottom: 4px; font-size: 8pt; color: #1e293b;">Admitted in: <span style="border-bottom: 1px solid #000000; font-weight: bold; width: 80px; display: inline-block;">&nbsp;</span> Date: <span style="border-bottom: 1px solid #000000; font-weight: bold; width: 70px; display: inline-block;">&nbsp;</span></p>
+        
+        <table style="width: 100%; border: none; border-collapse: collapse; margin-top: 6px; font-size: 7.5pt;">
+          <tr style="border: none;">
+            <td style="width: 50%; border: none;"></td>
+            <td style="width: 50%; text-align: center; border: none; vertical-align: top;">
+              <div style="border-bottom: 1px solid #000000; font-weight: bold; font-size: 8pt; height: 14px;">
+                ${(schoolHead || section.headOfSchool || "N/A").toUpperCase()}
+              </div>
+              <div style="font-size: 6.5pt; font-weight: bold; text-transform: uppercase; margin-top: 2px; color: #475569;">Principal</div>
+            </td>
+          </tr>
+        </table>
+      </div>
+      `;
+
+      // Build Academics progress Table HTML
+      let dropoutTerm = -1;
+      const isInactive = student.status === 'Transferred Out' || student.status === 'Dropped Out';
+      if (isInactive && student.dropoutDate && calendar) {
+        const dDate = new Date(student.dropoutDate);
+        const mName = dDate.toLocaleString('default', { month: 'long' });
+        const calMatch = calendar.find((c: any) => c.month === mName);
+        if (calMatch) {
+          dropoutTerm = parseInt(calMatch.term || '0');
+        }
+      }
+      const totalCols = numTerms === 4 ? 4 : 3;
+      const totalRows = displaySubjectsList.reduce((acc, entry) => acc + 1 + (entry.type === 'mapeh' ? entry.components.length : 0), 0);
+
+      let academicsRowsHtml = "";
+      displaySubjectsList.forEach((entry, idx) => {
+        const q1 = getEntryGrades(entry, 1);
+        const q2 = getEntryGrades(entry, 2);
+        const q3 = getEntryGrades(entry, 3);
+        const q4 = numTerms === 4 ? getEntryGrades(entry, 4 as any) : 0;
+        const fin = getEntryGrades(entry, 'final');
+
+        const showTermGrade = (q: number) => {
+          if (dropoutTerm > 0 && q >= dropoutTerm) return false;
+          return true;
+        };
+
+        const getGradeStringForCell = (val: number, termNum: number) => {
+          if (entry.subject?.offeredTerms && !entry.subject.offeredTerms.includes(termNum)) {
+            return "-";
+          }
+          if (!isTermReleased(termNum)) {
+            return "LOCKED";
+          }
+          if (val > 0) {
+            if (useDescriptiveGrading && isGrade1To3) {
+              return getDescriptiveGrade(val);
+            }
+            return val.toString();
+          }
+          return "";
+        };
+
+        const isMapehParent = entry.type === 'mapeh';
+        const rowBgColor = isMapehParent 
+          ? `background-color: #f1f5f9; font-weight: bold;` 
+          : (idx % 2 === 0 ? `background-color: #f8fafc;` : ``);
+
+        academicsRowsHtml += `<tr style="${rowBgColor} font-size: 8pt;">`;
+        academicsRowsHtml += `<td style="border: 1px solid #000000; padding: 4px; font-weight: bold; text-transform: uppercase;">${entry.subject.name}</td>`;
+
+        if (semView === 'all' || semView === '1st') {
+          if (showTermGrade(1)) {
+            academicsRowsHtml += `<td style="border: 1px solid #000000; padding: 4px; text-align: center;">${getGradeStringForCell(q1, 1)}</td>`;
+          } else if (dropoutTerm === 1 && idx === 0) {
+            academicsRowsHtml += `<td rowspan="${totalRows}" colspan="${totalCols - dropoutTerm + 1}" style="border: 1px solid #000000; padding: 8px; text-align: center; vertical-align: middle; background-color: #fff1f2; color: #be123c; font-weight: bold; font-size: 9.5pt;">${student.status?.toUpperCase()}<br/><span style="font-size: 7.5pt; font-weight: normal; color: #475569;">Effective: ${student.dropoutDate ? new Date(student.dropoutDate).toLocaleDateString() : 'N/A'}${student.dropoutReason ? `<br/>Reason: ` + student.dropoutReason : ''}</span></td>`;
+          }
+        }
+        if (semView === 'all' || semView === '1st') {
+          if (showTermGrade(2)) {
+            academicsRowsHtml += `<td style="border: 1px solid #000000; padding: 4px; text-align: center;">${getGradeStringForCell(q2, 2)}</td>`;
+          } else if (dropoutTerm === 2 && idx === 0) {
+            academicsRowsHtml += `<td rowspan="${totalRows}" colspan="${totalCols - dropoutTerm + 1}" style="border: 1px solid #000000; padding: 8px; text-align: center; vertical-align: middle; background-color: #fff1f2; color: #be123c; font-weight: bold; font-size: 9.5pt;">${student.status?.toUpperCase()}<br/><span style="font-size: 7.5pt; font-weight: normal; color: #475569;">Effective: ${student.dropoutDate ? new Date(student.dropoutDate).toLocaleDateString() : 'N/A'}${student.dropoutReason ? `<br/>Reason: ` + student.dropoutReason : ''}</span></td>`;
+          }
+        }
+        if (semView === 'all' || semView === '2nd') {
+          if (showTermGrade(3)) {
+            academicsRowsHtml += `<td style="border: 1px solid #000000; padding: 4px; text-align: center;">${getGradeStringForCell(q3, 3)}</td>`;
+          } else if (dropoutTerm === 3 && idx === 0) {
+            academicsRowsHtml += `<td rowspan="${totalRows}" colspan="${totalCols - dropoutTerm + 1}" style="border: 1px solid #000000; padding: 8px; text-align: center; vertical-align: middle; background-color: #fff1f2; color: #be123c; font-weight: bold; font-size: 9.5pt;">${student.status?.toUpperCase()}<br/><span style="font-size: 7.5pt; font-weight: normal; color: #475569;">Effective: ${student.dropoutDate ? new Date(student.dropoutDate).toLocaleDateString() : 'N/A'}${student.dropoutReason ? `<br/>Reason: ` + student.dropoutReason : ''}</span></td>`;
+          }
+        }
+        if ((semView === 'all' || semView === '2nd') && numTerms === 4) {
+          if (showTermGrade(4)) {
+            academicsRowsHtml += `<td style="border: 1px solid #000000; padding: 4px; text-align: center;">${getGradeStringForCell(q4, 4)}</td>`;
+          } else if (numTerms === 4 && dropoutTerm === 4 && idx === 0) {
+            academicsRowsHtml += `<td rowspan="${totalRows}" colspan="${totalCols - dropoutTerm + 1}" style="border: 1px solid #000000; padding: 8px; text-align: center; vertical-align: middle; background-color: #fff1f2; color: #be123c; font-weight: bold; font-size: 9.5pt;">${student.status?.toUpperCase()}<br/><span style="font-size: 7.5pt; font-weight: normal; color: #475569;">Effective: ${student.dropoutDate ? new Date(student.dropoutDate).toLocaleDateString() : 'N/A'}${student.dropoutReason ? `<br/>Reason: ` + student.dropoutReason : ''}</span></td>`;
+          }
+        }
+
+        // Final Grade cell
+        const allReleased = Array.from({ length: numTerms }, (_, i) => isTermReleased(i + 1)).every(v => v);
+        if (!allReleased && isStudentView) {
+          academicsRowsHtml += `<td style="border: 1px solid #000000; padding: 4px; text-align: center; color: #94a3b8; font-style: italic;">LOCKED</td>`;
+        } else if (fin > 0) {
+          if (useDescriptiveGrading && isGrade1To3) {
+            academicsRowsHtml += `<td style="border: 1px solid #000000; padding: 4px; text-align: center; font-weight: bold; color: #4f46e5;">${getDescriptiveGrade(fin)}</td>`;
+          } else {
+            academicsRowsHtml += `<td style="border: 1px solid #000000; padding: 4px; text-align: center; font-weight: bold; background-color: #ecfdf5;">${fin}</td>`;
+          }
+        } else {
+          academicsRowsHtml += `<td style="border: 1px solid #000000; padding: 4px;"></td>`;
+        }
+
+        // Remarks cell
+        if (!allReleased && isStudentView) {
+          academicsRowsHtml += `<td style="border: 1px solid #000000; padding: 4px; text-align: center;"></td>`;
+        } else if (fin > 0) {
+          const isPassed = fin >= 75;
+          academicsRowsHtml += `<td style="border: 1px solid #000000; padding: 4px; text-align: center; font-weight: bold; color: ${isPassed ? '#047857' : '#b91c1c'};">${isPassed ? 'PASSED' : 'FAILED'}</td>`;
+        } else {
+          academicsRowsHtml += `<td style="border: 1px solid #000000; padding: 4px;"></td>`;
+        }
+
+        academicsRowsHtml += `</tr>`;
+
+        // Components MAPEH
+        if (entry.type === 'mapeh' && entry.components) {
+          entry.components.forEach((comp: any) => {
+            const cq1 = getSubjectTermGrade(comp, 1);
+            const cq2 = getSubjectTermGrade(comp, 2);
+            const cq3 = getSubjectTermGrade(comp, 3);
+            const cq4 = q4 > 0 ? getSubjectTermGrade(comp, 4) : 0;
+            
+            const getCompCellString = (val: number, termNum: number) => {
+              if (comp.offeredTerms && !comp.offeredTerms.includes(termNum)) {
+                return "-";
+              }
+              if (!isTermReleased(termNum)) {
+                return "LOCKED";
+              }
+              if (val > 0) {
+                if (useDescriptiveGrading && isGrade1To3) {
+                  return getDescriptiveGrade(val);
+                }
+                return val.toString();
+              }
+              return "";
+            };
+
+            academicsRowsHtml += `<tr style="font-size: 7.5pt; font-style: italic;">`;
+            academicsRowsHtml += `<td style="border: 1px solid #000000; padding: 3px; padding-left: 15px; color: #475569;">&nbsp;&nbsp;&nbsp;&bull; ${comp.name}</td>`;
+
+            if (semView === 'all' || semView === '1st') {
+              if (showTermGrade(1)) {
+                academicsRowsHtml += `<td style="border: 1px solid #000000; padding: 3px; text-align: center;">${getCompCellString(cq1, 1)}</td>`;
+              }
+            }
+            if (semView === 'all' || semView === '1st') {
+              if (showTermGrade(2)) {
+                academicsRowsHtml += `<td style="border: 1px solid #000000; padding: 3px; text-align: center;">${getCompCellString(cq2, 2)}</td>`;
+              }
+            }
+            if (semView === 'all' || semView === '2nd') {
+              if (showTermGrade(3)) {
+                academicsRowsHtml += `<td style="border: 1px solid #000000; padding: 3px; text-align: center;">${getCompCellString(cq3, 3)}</td>`;
+              }
+            }
+            if ((semView === 'all' || semView === '2nd') && numTerms === 4) {
+              if (showTermGrade(4)) {
+                academicsRowsHtml += `<td style="border: 1px solid #000000; padding: 3px; text-align: center;">${getCompCellString(cq4, 4)}</td>`;
+              }
+            }
+
+            academicsRowsHtml += `<td style="border: 1px solid #000000; padding: 3px;"></td>`;
+            academicsRowsHtml += `<td style="border: 1px solid #000000; padding: 3px;"></td>`;
+            academicsRowsHtml += `</tr>`;
+          });
+        }
+      });
+
+      // GPA General Average HTML setup
+      const overallAvg = calculateGeneralAverage();
+      let avgCellHtml = "";
+      const allReleased = Array.from({ length: numTerms }, (_, i) => isTermReleased(i + 1)).every(v => v);
+      if (!allReleased && isStudentView) {
+        avgCellHtml = `<td style="border: 1px solid #000000; padding: 4px; text-align: center; color: #94a3b8; font-style: italic; background-color: #f1f5f9;">LOCKED</td><td style="border: 1px solid #000000; padding: 4px; background-color: #f1f5f9;"></td>`;
+      } else if (overallAvg > 0) {
+        if (useDescriptiveGrading && isGrade1To3) {
+          avgCellHtml = `
+            <td style="border: 1px solid #000000; padding: 4px; text-align: center; font-weight: bold; color: #4f46e5; background-color: #fff1f2;">${getDescriptiveGrade(overallAvg)}</td>
+            <td style="border: 1px solid #000000; padding: 4px; text-align: center; font-weight: bold; color: ${overallAvg >= 75 ? '#047857' : '#b91c1c'}; background-color: #f1f5f9;">${overallAvg >= 75 ? 'PASSED' : 'FAILED'}</td>
+          `;
+        } else {
+          avgCellHtml = `
+            <td style="border: 1px solid #000000; padding: 4px; text-align: center; font-weight: bold; background-color: #ffe4e6; color: #991b1b; font-size: 8.5pt;">${overallAvg}</td>
+            <td style="border: 1px solid #000000; padding: 4px; text-align: center; font-weight: bold; color: ${overallAvg >= 75 ? '#047857' : '#b91c1c'}; background-color: #f1f5f9;">${overallAvg >= 75 ? 'PASSED' : 'FAILED'}</td>
+          `;
+        }
+      } else {
+        avgCellHtml = `<td style="border: 1px solid #000000; padding: 4px; background-color: #f1f5f9;"></td><td style="border: 1px solid #000000; padding: 4px; background-color: #f1f5f9;"></td>`;
+      }
+
+      const termSpanDigits = (semView === 'all') ? numTerms : 2;
+      academicsRowsHtml += `
+      <tr style="background-color: #d9e1f2; font-weight: bold; font-size: 8.5pt;">
+        <td style="border: 1px solid #000000; padding: 4px; font-weight: bold; text-transform: uppercase;">GENERAL AVERAGE</td>
+        <td colspan="${termSpanDigits}" style="border: 1px solid #000000;"></td>
+        ${avgCellHtml}
+      </tr>
+      `;
+
+      // Master headers list for term count
+      const numTermHeaders = (semView === 'all') 
+        ? Array.from({ length: numTerms }, (_, i) => i + 1) 
+        : (semView === '1st' ? [1, 2] : [3, 4].filter(x => x <= numTerms));
+
+      const academicsTableHtml = `
+      <div class="section-title">REPORT ON LEARNING PROGRESS AND ASSESSMENT</div>
+      <table class="data-table">
+        <thead>
+          <tr style="background-color: #1e293b; color: #ffffff; font-weight: bold; font-size: 8pt; text-transform: uppercase;">
+            <th style="border: 1px solid #000000; padding: 5px; text-align: left; background-color: #1e293b; color: #ffffff;">Learning Area</th>
+            ${numTermHeaders.map(termNum => `
+              <th style="border: 1px solid #000000; padding: 5px; text-align: center; width: 45px; background-color: #1e293b; color: #ffffff;">Term ${termNum}</th>
+            `).join('')}
+            <th style="border: 1px solid #000000; padding: 5px; text-align: center; width: 55px; background-color: #1e293b; color: #ffffff;">Final<br/>Grade</th>
+            <th style="border: 1px solid #000000; padding: 5px; text-align: center; width: 60px; background-color: #1e293b; color: #ffffff;">Remarks</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${academicsRowsHtml}
+        </tbody>
+      </table>
+      `;
+
+      // Full HTML assembly for Word orientation
+      const wordHtmlDoc = `
+      <html xmlns:o='urn:schemas-microsoft-com:office:office' 
+            xmlns:w='urn:schemas-microsoft-com:office:word' 
+            xmlns='http://www.w3.org/TR/REC-html40'>
+      <head>
+        <meta charset="utf-8">
+        <title>SF9 Report Card Landscape</title>
+        <!--[if gte mso 9]>
+        <xml>
+          <w:WordDocument>
+            <w:View>Print</w:View>
+            <w:Zoom>100</w:Zoom>
+            <w:DoNotOptimizeForBrowser/>
+          </w:WordDocument>
+        </xml>
+        <![endif]-->
+        <style>
+          @page {
+            size: 297mm 210mm;
+            mso-page-orientation: landscape;
+            margin: 0.4in 0.4in 0.4in 0.4in;
+          }
+          @page Section1 {
+            size: 297mm 210mm;
+            mso-page-orientation: landscape;
+            margin: 0.4in 0.4in 0.4in 0.4in;
+          }
+          div.Section1 {
+            page: Section1;
+          }
+          body {
+            font-family: 'Calibri', 'Arial', sans-serif;
+            color: #000000;
+            margin: 0;
+            padding: 0;
+            background-color: #ffffff;
+            -webkit-print-color-adjust: exact;
+          }
+          table.main-grid {
+            width: 100%;
+            border-collapse: collapse;
+            border: none;
+            mso-table-lspace: 0pt;
+            mso-table-rspace: 0pt;
+          }
+          table.main-grid td {
+            border: none;
+            padding: 0;
+          }
+          .left-col {
+            width: 48%;
+            padding-right: 2%;
+            vertical-align: top;
+          }
+          .right-col {
+            width: 48%;
+            padding-left: 2%;
+            vertical-align: top;
+            border-left: 1px dashed #7f8c8d !important;
+          }
+          .section-title {
+            font-size: 10pt;
+            font-weight: bold;
+            text-transform: uppercase;
+            color: #1a365d;
+            border-bottom: 2px solid #1a365d;
+            padding-bottom: 2px;
+            margin-bottom: 8px;
+            margin-top: 8px;
+            letter-spacing: 0.5px;
+          }
+          .marking-box {
+            border: 1px solid #1e293b;
+            background-color: #f8fafc;
+            padding: 4px;
+            font-size: 7.5pt;
+            font-weight: bold;
+            color: #1e293b;
+            margin-bottom: 6px;
+            border-radius: 4px;
+          }
+          table.data-table {
+            width: 100%;
+            border-collapse: collapse;
+            border: 1px solid #000000;
+            margin-bottom: 10px;
+          }
+          table.data-table th {
+            border: 1px solid #000000;
+            background-color: #f1f5f9;
+            color: #0f172a;
+            font-weight: bold;
+            font-size: 8pt;
+            padding: 4px;
+            text-align: center;
+            text-transform: uppercase;
+          }
+          table.data-table td {
+            border: 1px solid #000000;
+            font-size: 8pt;
+            padding: 3px;
+            vertical-align: middle;
+          }
+          .transfer-box {
+            border: 1px solid #475569;
+            border-radius: 4px;
+            padding: 6px;
+            background-color: #fafbfc;
+            margin-top: 6px;
+          }
+          .transfer-title {
+            font-weight: bold;
+            font-size: 8pt;
+            text-align: center;
+            text-transform: uppercase;
+            border-bottom: 1px solid #cbd5e1;
+            padding-bottom: 1px;
+            margin-bottom: 4px;
+            color: #334155;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="Section1">
+          <!-- PAGE 1 (TABLE OF 2 COLUMNS) -->
+          <table class="main-grid" style="width: 100%;">
+            <tr>
+              <!-- PAGE 1 LEFT: OBSERVED VALUES & ATTENDANCE -->
+              <td class="left-col" style="width: 48%; padding-right: 2%; vertical-align: top;">
+                <div class="section-title" style="margin-top: 0px;">REPORT ON LEARNER'S OBSERVED VALUES</div>
+                <div class="marking-box">
+                  <strong>Marking:</strong> AO - Always Observed &nbsp;|&nbsp; SO - Sometimes Observed &nbsp;|&nbsp; RO - Rarely Observed &nbsp;|&nbsp; NO - Not Observed
+                </div>
+                <table class="data-table">
+                  <thead>
+                    <tr style="background-color: #e2e8f0; font-weight: bold;">
+                      <th colspan="2" style="border: 1px solid #000000; padding: 4px; text-align: left;">Core Values & Behavior Statements</th>
+                      <th colspan="${termsToShow.length}" style="border: 1px solid #000000; padding: 4px; text-align: center;">Term</th>
+                    </tr>
+                    <tr style="background-color: #f1f5f9; font-weight: bold;">
+                      <th style="border: 1px solid #000000; padding: 4px; text-align: left; width: 90px;">Core Values</th>
+                      <th style="border: 1px solid #000000; padding: 4px; text-align: left;">Behavior Statements</th>
+                      ${termsToShow.map(q => `<th style="border: 1px solid #000000; padding: 4px; text-align: center; width: 33px;">${q}</th>`).join('')}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${observedValuesHtml}
+                  </tbody>
+                </table>
+                ${attendanceHtml}
+              </td>
+
+              <!-- PAGE 1 RIGHT: COVER PAGE DESIGN -->
+              <td class="right-col" style="width: 48%; padding-left: 2%; vertical-align: top; border-left: 1px dashed #7f8c8d;">
+                ${logoHeaderHtml}
+              </td>
+            </tr>
+          </table>
+
+          <br style="page-break-before: always; clear: both; mso-break-type: section-break;" />
+
+          <!-- PAGE 2 (TABLE OF 2 COLUMNS) -->
+          <table class="main-grid" style="width: 100%; margin-top: 20px;">
+            <tr>
+              <!-- PAGE 2 LEFT: DEAR PARENT, PARENT SIGNATURES, CERTIFICATE OF TRANSFER -->
+              <td class="left-col" style="width: 48%; padding-right: 2%; vertical-align: top;">
+                ${parentMessageAndTransferHtml}
+              </td>
+
+              <!-- PAGE 2 RIGHT: ACADEMIC PROGRESS TABLE -->
+              <td class="right-col" style="width: 48%; padding-left: 2%; vertical-align: top; border-left: 1px dashed #7f8c8d;">
+                ${academicsTableHtml}
+              </td>
+            </tr>
+          </table>
+        </div>
+      </body>
+      </html>
+      `;
+
+      // Download trigger
+      const blob = new Blob(['\ufeff' + wordHtmlDoc], {
+        type: 'application/msword;charset=utf-8'
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${formatStudentName(student).replace(/\s+/g, '_')}_SF9_MATATAG.doc`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     } catch (err) {
-      console.error("PDF Export Error:", err);
-    } finally {
-      setIsExporting(false);
+      console.error("Word Export Error:", err);
     }
+  };
+
+  const exportExcel = () => {
+    const workbook = XLSX.utils.book_new();
+    const dataRows: any[] = [];
+    const merges: XLSX.Range[] = [];
+
+    // Columns structure based on numTerms
+    const totalCols = numTerms === 4 ? 7 : 6;
+    const maxCols = Math.max(totalCols, visibleAttendanceEntries.length + 2);
+
+    const createCell = (
+      val: any,
+      options: {
+        bold?: boolean;
+        italic?: boolean;
+        align?: 'left' | 'center' | 'right';
+        bg?: string; // Hex color without '#'
+        color?: string; // Hex for font color
+        size?: number;
+        borderTheme?: 'default' | 'none' | 'double-bottom';
+      } = {}
+    ) => {
+      const isNum = typeof val === 'number';
+      const cellObj: any = {
+        v: val === null || val === undefined ? "" : val,
+        t: isNum ? 'n' : 's'
+      };
+
+      const style: any = {
+        font: {
+          name: "Calibri",
+          sz: options.size || 10,
+          bold: !!options.bold,
+          italic: !!options.italic
+        },
+        alignment: {
+          horizontal: options.align || (isNum ? "center" : "left"),
+          vertical: "center",
+          wrapText: true
+        }
+      };
+
+      if (options.color) {
+        style.font.color = { rgb: options.color.replace('#', '') };
+      } else {
+        style.font.color = { rgb: "000000" };
+      }
+
+      if (options.bg) {
+        style.fill = {
+          patternType: "solid",
+          fgColor: { rgb: options.bg.replace('#', '') }
+        };
+      }
+
+      if (options.borderTheme === 'none') {
+        style.border = {};
+      } else {
+        const borderCol = "A6A6A6"; // Clean medium-gray border
+        style.border = {
+          top: { style: "thin", color: { rgb: borderCol } },
+          bottom: options.borderTheme === 'double-bottom' ? { style: "double", color: { rgb: "000000" } } : { style: "thin", color: { rgb: borderCol } },
+          left: { style: "thin", color: { rgb: borderCol } },
+          right: { style: "thin", color: { rgb: borderCol } }
+        };
+      }
+
+      cellObj.s = style;
+      return cellObj;
+    };
+
+    // Helper to pad rows with empty cells without borders
+    const padRowWithNone = (row: any[], length: number) => {
+      while (row.length < length) {
+        row.push(createCell("", { borderTheme: "none" }));
+      }
+      return row;
+    };
+
+    // Header Banner
+    const r0Idx = dataRows.length;
+    const r0 = [createCell("REPUBLIC OF THE PHILIPPINES", { bold: true, size: 10, align: "center", bg: "F1F5F9" })];
+    padRowWithNone(r0, maxCols);
+    dataRows.push(r0);
+    merges.push({ s: { r: r0Idx, c: 0 }, e: { r: r0Idx, c: maxCols - 1 } });
+
+    const r1Idx = dataRows.length;
+    const r1 = [createCell("DEPARTMENT OF EDUCATION", { bold: true, size: 11, align: "center", bg: "E2E8F0" })];
+    padRowWithNone(r1, maxCols);
+    dataRows.push(r1);
+    merges.push({ s: { r: r1Idx, c: 0 }, e: { r: r1Idx, c: maxCols - 1 } });
+
+    const bannerText = `LEARNER'S PROGRESS REPORT CARD (SF9) - SY ${section.schoolYear || "N/A"}`;
+    const r2Idx = dataRows.length;
+    const r2 = [createCell(bannerText, { bold: true, size: 12, bg: "1F4E78", color: "FFFFFF", align: "center" })];
+    padRowWithNone(r2, maxCols);
+    dataRows.push(r2);
+    merges.push({ s: { r: r2Idx, c: 0 }, e: { r: r2Idx, c: maxCols - 1 } });
+
+    // Spacer
+    const rSpacer = new Array(maxCols).fill(null).map(() => createCell("", { borderTheme: "none" }));
+    dataRows.push([...rSpacer]);
+
+    // Metadata Block
+    const pr1Idx = dataRows.length;
+    const profileRow1 = [
+      createCell("LEARNER'S NAME:", { bold: true, bg: "D9E1F2", size: 10 }),
+      createCell(formatStudentName(student).toUpperCase(), { bold: true, size: 10 }),
+      createCell("", { borderTheme: "none" }),
+      createCell("", { borderTheme: "none" }),
+      createCell("LRN:", { bold: true, bg: "D9E1F2", size: 10 }),
+      createCell(student.lrn || student.studentNumber || "N/A", { bold: true, size: 10 }),
+    ];
+    padRowWithNone(profileRow1, maxCols);
+    dataRows.push(profileRow1);
+    merges.push({ s: { r: pr1Idx, c: 1 }, e: { r: pr1Idx, c: 3 } }); // Span Name
+    merges.push({ s: { r: pr1Idx, c: 5 }, e: { r: pr1Idx, c: Math.min(6, maxCols - 1) } }); // Span LRN
+
+    const profileRow2 = [
+      createCell("SEX / GENDER:", { bold: true, bg: "D9E1F2", size: 10 }),
+      createCell(student.sex?.toUpperCase() || "N/A", { size: 10 }),
+      createCell("AGE:", { bold: true, bg: "D9E1F2", size: 10 }),
+      createCell(student.age || "N/A", { size: 10 }),
+      createCell("GRADE LEVEL:", { bold: true, bg: "D9E1F2", size: 10 }),
+      createCell(section.gradeLevel ? `Grade ${section.gradeLevel}` : "N/A", { size: 10 }),
+    ];
+    padRowWithNone(profileRow2, maxCols);
+    dataRows.push(profileRow2);
+
+    const pr3Idx = dataRows.length;
+    const profileRow3 = [
+      createCell("SCHOOL NAME:", { bold: true, bg: "D9E1F2", size: 10 }),
+      createCell(section.schoolName?.toUpperCase() || "N/A", { size: 10 }),
+      createCell("", { borderTheme: "none" }),
+      createCell("", { borderTheme: "none" }),
+      createCell("SECTION:", { bold: true, bg: "D9E1F2", size: 10 }),
+      createCell(section.name?.toUpperCase() || "N/A", { size: 10 }),
+    ];
+    padRowWithNone(profileRow3, maxCols);
+    dataRows.push(profileRow3);
+    merges.push({ s: { r: pr3Idx, c: 1 }, e: { r: pr3Idx, c: 3 } }); // Span School Name
+
+    const profileRow4 = [
+      createCell("DIVISION:", { bold: true, bg: "D9E1F2", size: 10 }),
+      createCell(section.division?.toUpperCase() || "N/A", { size: 10 }),
+      createCell("REGION:", { bold: true, bg: "D9E1F2", size: 10 }),
+      createCell(section.region?.toUpperCase() || "N/A", { size: 10 }),
+      createCell("SCHOOL ID:", { bold: true, bg: "D9E1F2", size: 10 }),
+      createCell(section.schoolId?.toUpperCase() || "N/A", { size: 10 }),
+    ];
+    padRowWithNone(profileRow4, maxCols);
+    dataRows.push(profileRow4);
+
+    // Spacer
+    dataRows.push([...rSpacer]);
+
+    // Academics Header Row
+    const academicHeaderIndex = dataRows.length;
+    const academicTitle = [createCell("REPORT ON LEARNING PROGRESS AND ASSESSMENT", { bold: true, size: 11, bg: "203764", color: "FFFFFF" })];
+    padRowWithNone(academicTitle, maxCols);
+    dataRows.push(academicTitle);
+    merges.push({ s: { r: academicHeaderIndex, c: 0 }, e: { r: academicHeaderIndex, c: maxCols - 1 } });
+
+    const academicHeaders = [
+      createCell("LEARNING AREA", { bold: true, bg: "D9E1F2" }),
+    ];
+    for (let q = 1; q <= numTerms; q++) {
+      academicHeaders.push(createCell(`TERM ${q}`, { bold: true, bg: "D9E1F2" }));
+    }
+    academicHeaders.push(createCell("FINAL GRADE", { bold: true, bg: "C6E0B4" }));
+    academicHeaders.push(createCell("REMARKS", { bold: true, bg: "D9E1F2" }));
+    padRowWithNone(academicHeaders, maxCols);
+    dataRows.push(academicHeaders);
+
+    // Academics Rows
+    displaySubjectsList.forEach((entry) => {
+      const qGrades = Array.from({ length: numTerms }, (_, i) => getEntryGrades(entry, (i + 1) as any));
+      const fin = getEntryGrades(entry, 'final');
+      const isMapehParent = entry.type === 'mapeh';
+
+      const academicRow = [
+        createCell(entry.subject.name.toUpperCase(), { 
+          bold: isMapehParent, 
+          bg: isMapehParent ? "F1F5F9" : undefined,
+          size: isMapehParent ? 10 : 9.5
+        })
+      ];
+
+      qGrades.forEach((g, idx) => {
+        const trm = idx + 1;
+        const isNotOffered = entry.type === 'subject' && entry.subject?.offeredTerms && !entry.subject.offeredTerms.includes(trm as any);
+        if (isNotOffered) {
+          academicRow.push(createCell("-", { align: "center", bg: isMapehParent ? "F1F5F9" : undefined }));
+        } else if (!isTermReleased(trm)) {
+          academicRow.push(createCell("LOCKED", { align: "center", italic: true, color: "94A3B8", bg: isMapehParent ? "F1F5F9" : undefined }));
+        } else if (g > 0) {
+          academicRow.push(createCell(g, { bold: isMapehParent, bg: isMapehParent ? "F1F5F9" : undefined }));
+        } else {
+          academicRow.push(createCell("", { bg: isMapehParent ? "F1F5F9" : undefined }));
+        }
+      });
+
+      const allReleased = Array.from({ length: numTerms }, (_, i) => isTermReleased(i + 1)).every(v => v);
+      if (!allReleased && isStudentView) {
+        academicRow.push(createCell("LOCKED", { bold: true, align: "center", italic: true, color: "94A3B8" }));
+      } else if (fin > 0) {
+        academicRow.push(createCell(fin, { bold: true, bg: "ECFDF5", size: 10 }));
+      } else {
+        academicRow.push(createCell("", {}));
+      }
+
+      if (!allReleased && isStudentView) {
+        academicRow.push(createCell("", {}));
+      } else if (fin > 0) {
+        academicRow.push(createCell(fin >= 75 ? "PASSED" : "FAILED", { bold: true, color: fin >= 75 ? "047857" : "B91C1C", size: 9 }));
+      } else {
+        academicRow.push(createCell("", {}));
+      }
+
+      padRowWithNone(academicRow, maxCols);
+      dataRows.push(academicRow);
+
+      if (entry.type === 'mapeh' && entry.components) {
+        entry.components.forEach((comp: any) => {
+          const compRow = [
+            createCell("    " + comp.name.toUpperCase(), { italic: true, size: 9 })
+          ];
+          for (let q = 1; q <= numTerms; q++) {
+            const cq = getSubjectTermGrade(comp, q as any);
+            const compNotOffered = comp.offeredTerms && !comp.offeredTerms.includes(q);
+            if (compNotOffered) {
+              compRow.push(createCell("-", { align: "center", italic: true, color: "94A3B8" }));
+            } else if (!isTermReleased(q)) {
+              compRow.push(createCell("LOCKED", { align: "center", italic: true, color: "94A3B8" }));
+            } else if (cq > 0) {
+              compRow.push(createCell(cq, { size: 9 }));
+            } else {
+              compRow.push(createCell("", {}));
+            }
+          }
+          compRow.push(createCell("", {}));
+          compRow.push(createCell("", {}));
+          padRowWithNone(compRow, maxCols);
+          dataRows.push(compRow);
+        });
+      }
+    });
+
+    // General Average Row
+    const overallAvg = calculateGeneralAverage();
+    const allReleased = Array.from({ length: numTerms }, (_, i) => isTermReleased(i + 1)).every(v => v);
+    
+    const avgRow = [
+      createCell("GENERAL AVERAGE", { bold: true, bg: "D9E1F2", size: 10.5 }),
+    ];
+    for (let q = 1; q <= numTerms; q++) {
+      avgRow.push(createCell("", { bg: "D9E1F2" }));
+    }
+    if (!allReleased && isStudentView) {
+      avgRow.push(createCell("LOCKED", { bold: true, align: "center", italic: true, color: "94A3B8", bg: "FEF3C7" }));
+      avgRow.push(createCell("", { bg: "D9E1F2" }));
+    } else if (overallAvg > 0) {
+      avgRow.push(createCell(overallAvg, { bold: true, bg: "FFE4E6", color: "991B1B", size: 11 }));
+      avgRow.push(createCell(overallAvg >= 75 ? "PASSED" : "FAILED", { bold: true, color: overallAvg >= 75 ? "047857" : "B91C1C", bg: "D9E1F2", size: 10 }));
+    } else {
+      avgRow.push(createCell("", { bg: "D9E1F2" }));
+      avgRow.push(createCell("", { bg: "D9E1F2" }));
+    }
+    
+    const avgRowIdx = dataRows.length;
+    padRowWithNone(avgRow, maxCols);
+    dataRows.push(avgRow);
+    merges.push({ s: { r: avgRowIdx, c: 0 }, e: { r: avgRowIdx, c: numTerms } });
+
+    // Spacer
+    dataRows.push([...rSpacer]);
+
+    // Observed Values Section
+    const obsHeaderIndex = dataRows.length;
+    const obsTitle = [createCell("REPORT ON LEARNER'S OBSERVED VALUES", { bold: true, size: 11, bg: "203764", color: "FFFFFF" })];
+    padRowWithNone(obsTitle, maxCols);
+    dataRows.push(obsTitle);
+    merges.push({ s: { r: obsHeaderIndex, c: 0 }, e: { r: obsHeaderIndex, c: maxCols - 1 } });
+
+    const obsHeadersIdx = dataRows.length;
+    const obsHeaders = [
+      createCell("CORE VALUES & BEHAVIOR STATEMENTS", { bold: true, bg: "D9E1F2" }),
+      createCell("", { bg: "D9E1F2" })
+    ];
+    for (let q = 1; q <= numTerms; q++) {
+      obsHeaders.push(createCell(`TERM ${q}`, { bold: true, bg: "D9E1F2" }));
+    }
+    padRowWithNone(obsHeaders, maxCols);
+    dataRows.push(obsHeaders);
+    merges.push({ s: { r: obsHeadersIdx, c: 0 }, e: { r: obsHeadersIdx, c: 1 } });
+
+    const valuesStructure = [
+      {
+        value: "1. Maka-Diyos",
+        statements: [
+          { key: "diyos-1", text: "Expresses one's spiritual beliefs while respecting the spiritual beliefs of others." },
+          { key: "diyos-2", text: "Shows adherence to ethical principles by upholding truth in all undertakings." }
+        ]
+      },
+      {
+        value: "2. Makatao",
+        statements: [
+          { key: "tao-1", text: "Is sensitive to individual, social, and cultural differences." },
+          { key: "tao-2", text: "Demonstrates contributions towards solidarity." }
+        ]
+      },
+      {
+        value: "3. Maka-Kalikasan",
+        statements: [
+          { key: "kalikasan-1", text: "Cares for environment and utilizes resources wisely, judiciously and economically." }
+        ]
+      },
+      {
+        value: "4. Maka-Bansa",
+        statements: [
+          { key: "bansa-1", text: "Demonstrates pride in being a Filipino; exercises the rights and responsibilities of a Filipino citizen." },
+          { key: "bansa-2", text: "Demonstrates appropriate behavior in carrying out activities in school, community and country." }
+        ]
+      }
+    ];
+
+    let rowIdxTracker = dataRows.length;
+    valuesStructure.forEach((group) => {
+      const numLines = group.statements.length;
+      
+      group.statements.forEach((stmt, sIdx) => {
+        const valueColCell = sIdx === 0 
+          ? createCell(group.value, { bold: true, bg: "F8FAFC", size: 10 })
+          : createCell("", { bg: "F8FAFC" });
+
+        const cells = [
+          valueColCell,
+          createCell(stmt.text, { size: 9 }),
+        ];
+
+        for (let q = 1; q <= numTerms; q++) {
+          const loadedVal = student.observedValues?.[q]?.[stmt.key] || "";
+          cells.push(createCell(isTermReleased(q) ? loadedVal : "LOCKED", { 
+            bold: true, 
+            align: "center", 
+            italic: !isTermReleased(q),
+            color: isTermReleased(q) ? undefined : "94A3B8"
+          }));
+        }
+
+        padRowWithNone(cells, maxCols);
+        dataRows.push(cells);
+      });
+
+      if (numLines > 1) {
+        merges.push({ s: { r: rowIdxTracker, c: 0 }, e: { r: rowIdxTracker + numLines - 1, c: 0 } });
+      }
+      rowIdxTracker += numLines;
+    });
+
+    // Spacer
+    dataRows.push([...rSpacer]);
+
+    // Attendance Block
+    const attHeaderIndex = dataRows.length;
+    const attTitle = [createCell("ATTENDANCE RECORD", { bold: true, size: 11, bg: "203764", color: "FFFFFF" })];
+    padRowWithNone(attTitle, maxCols);
+    dataRows.push(attTitle);
+    merges.push({ s: { r: attHeaderIndex, c: 0 }, e: { r: attHeaderIndex, c: maxCols - 1 } });
+
+    const attendanceHeader = [createCell("MONTH / METRIC", { bold: true, bg: "D9E1F2" })];
+    visibleAttendanceEntries.forEach(entry => {
+      attendanceHeader.push(createCell(entry.month.substring(0, 3).toUpperCase(), { bold: true, bg: "D9E1F2" }));
+    });
+    attendanceHeader.push(createCell("TOTAL", { bold: true, bg: "C6E0B4" }));
+    padRowWithNone(attendanceHeader, maxCols);
+    dataRows.push(attendanceHeader);
+
+    // School Days row
+    const schoolDaysRow = [createCell("No. of School Days", { bold: true, bg: "F8FAFC" })];
+    visibleAttendanceEntries.forEach(entry => {
+      schoolDaysRow.push(createCell(calendarMap[entry.key] || 0, { bg: "F8FAFC" }));
+    });
+    schoolDaysRow.push(createCell(attendanceTotals.s, { bold: true, bg: "E2EFDA" }));
+    padRowWithNone(schoolDaysRow, maxCols);
+    dataRows.push(schoolDaysRow);
+
+    // Days Present row
+    const daysPresentRow = [createCell("No. of Days Present", { bold: true })];
+    visibleAttendanceEntries.forEach(entry => {
+      const data = studentAttendance[entry.key] || studentAttendance[entry.month] || { present: 0 };
+      daysPresentRow.push(createCell(data.present || 0, {}));
+    });
+    daysPresentRow.push(createCell(attendanceTotals.p, { bold: true, bg: "E2EFDA" }));
+    padRowWithNone(daysPresentRow, maxCols);
+    dataRows.push(daysPresentRow);
+
+    // Days Absent row
+    const daysAbsentRow = [createCell("No. of Days Absent", { bold: true, bg: "F8FAFC" })];
+    visibleAttendanceEntries.forEach(entry => {
+      const data = studentAttendance[entry.key] || studentAttendance[entry.month] || { absent: 0 };
+      daysAbsentRow.push(createCell(data.absent || 0, { bg: "F8FAFC" }));
+    });
+    daysAbsentRow.push(createCell(attendanceTotals.a, { bold: true, bg: "E2EFDA" }));
+    padRowWithNone(daysAbsentRow, maxCols);
+    dataRows.push(daysAbsentRow);
+
+    // Spacer
+    dataRows.push([...rSpacer]);
+    dataRows.push([...rSpacer]);
+
+    // Signature Block
+    const sigStartRow = dataRows.length;
+    const sigLabelRow = [
+      createCell("PREPARED BY (CLASS ADVISER):", { bold: true, italic: true, size: 9, borderTheme: "none" }),
+      createCell("", { borderTheme: "none" }),
+      createCell("", { borderTheme: "none" }),
+      createCell("CHECKED & APPROVED BY (PRINCIPAL):", { bold: true, italic: true, size: 9, borderTheme: "none" }),
+    ];
+    padRowWithNone(sigLabelRow, maxCols);
+    dataRows.push(sigLabelRow);
+    merges.push({ s: { r: sigStartRow, c: 0 }, e: { r: sigStartRow, c: 2 } });
+    merges.push({ s: { r: sigStartRow, c: 3 }, e: { r: sigStartRow, c: 5 } });
+
+    dataRows.push([...rSpacer]);
+
+    const adviserNameText = section.adviserName || "N/A";
+    const principalNameText = schoolHead || section.headOfSchool || "N/A";
+
+    const sigNamesRow = [
+      createCell(adviserNameText.toUpperCase(), { bold: true, align: "center", size: 10, borderTheme: "none" }),
+      createCell("", { borderTheme: "none" }),
+      createCell("", { borderTheme: "none" }),
+      createCell(principalNameText.toUpperCase(), { bold: true, align: "center", size: 10, borderTheme: "none" }),
+    ];
+    padRowWithNone(sigNamesRow, maxCols);
+    dataRows.push(sigNamesRow);
+    merges.push({ s: { r: sigStartRow + 2, c: 0 }, e: { r: sigStartRow + 2, c: 2 } });
+    merges.push({ s: { r: sigStartRow + 2, c: 3 }, e: { r: sigStartRow + 2, c: 5 } });
+
+    const sigRoleRow = [
+      createCell("Class Adviser / Subject Teacher", { align: "center", size: 8, italic: true, borderTheme: "none" }),
+      createCell("", { borderTheme: "none" }),
+      createCell("", { borderTheme: "none" }),
+      createCell("School Head / Principal", { align: "center", size: 8, italic: true, borderTheme: "none" }),
+    ];
+    padRowWithNone(sigRoleRow, maxCols);
+    dataRows.push(sigRoleRow);
+    merges.push({ s: { r: sigStartRow + 3, c: 0 }, e: { r: sigStartRow + 3, c: 2 } });
+    merges.push({ s: { r: sigStartRow + 3, c: 3 }, e: { r: sigStartRow + 3, c: 5 } });
+
+    // Set Worksheet properties
+    const worksheet = XLSX.utils.aoa_to_sheet(dataRows);
+    worksheet["!merges"] = merges;
+
+    // Row heights padding
+    const rowHeights: any[] = [];
+    for (let rIdx = 0; rIdx < dataRows.length; rIdx++) {
+      if (rIdx < 3) {
+        rowHeights.push({ hpx: 24 }); // Title rows
+      } else if (rIdx === 3) {
+        rowHeights.push({ hpx: 10 }); // Spacer
+      } else if (rIdx >= 4 && rIdx <= 7) {
+        rowHeights.push({ hpx: 20 }); // Student metadata rows
+      } else if (rIdx === 8) {
+        rowHeights.push({ hpx: 12 }); // Spacer
+      } else if (rIdx === academicHeaderIndex || rIdx === obsHeaderIndex || rIdx === attHeaderIndex) {
+        rowHeights.push({ hpx: 26 }); // Section banners
+      } else if (rIdx === academicHeaderIndex + 1 || rIdx === obsHeaderIndex + 1 || rIdx === attHeaderIndex + 1) {
+        rowHeights.push({ hpx: 22 }); // Column headers
+      } else {
+        rowHeights.push({ hpx: 20 }); // General data rows
+      }
+    }
+    worksheet["!rows"] = rowHeights;
+
+    const wchs: any[] = [];
+    wchs.push({ wch: 35 }); // Col A
+    for (let c = 1; c < maxCols; c++) {
+      if (c === maxCols - 2) {
+        wchs.push({ wch: 14 }); // Final/Remarks
+      } else if (c === maxCols - 1) {
+        wchs.push({ wch: 16 }); // Remarks
+      } else {
+        wchs.push({ wch: 11 }); // Term/Attendance monthly columns
+      }
+    }
+    worksheet["!cols"] = wchs;
+
+    XLSX.utils.book_append_sheet(workbook, worksheet, "SF9 Learner Report Card");
+    const safeStudentName = formatStudentName(student).replace(/\s+/g, "_");
+    XLSX.writeFile(workbook, `SF9_Report_Card_${safeStudentName}.xlsx`);
+  };
+
+  const handlePrintCard = () => {
+    const win = window.open('', '_blank');
+    if (!win) {
+      alert("Please allow popups to print the report card.");
+      return;
+    }
+
+    const isInactive = student.status === 'Transferred Out' || student.status === 'Dropped Out';
+    let dropoutTerm = -1;
+    if (isInactive && student.dropoutDate && calendar) {
+      const dDate = new Date(student.dropoutDate);
+      const mName = dDate.toLocaleString('default', { month: 'long' });
+      const calMatch = calendar.find((c: any) => c.month === mName);
+      if (calMatch) {
+        dropoutTerm = parseInt(calMatch.term || '0');
+      }
+    }
+
+    const hasCalendarMatch = calendar && calendar.length > 0;
+
+    let academicsTableRows = "";
+    displaySubjectsList.forEach((entry, idx) => {
+      const q1 = getEntryGrades(entry, 1);
+      const q2 = getEntryGrades(entry, 2);
+      const q3 = getEntryGrades(entry, 3);
+      const q4 = numTerms === 4 ? getEntryGrades(entry, 4) : 0;
+      const fin = getEntryGrades(entry, 'final');
+
+      const showTermGrade = (q: number) => {
+        if (dropoutTerm > 0 && q >= dropoutTerm) return false;
+        return true;
+      };
+
+      const getGradeStringForCell = (val: number, termNum: number) => {
+        if (entry.subject?.offeredTerms && !entry.subject.offeredTerms.includes(termNum)) {
+          return "-";
+        }
+        if (!isTermReleased(termNum)) {
+          return "LOCKED";
+        }
+        if (val > 0) {
+          if (useDescriptiveGrading && isGrade1To3) {
+            return getDescriptiveGrade(val);
+          }
+          return val.toString();
+        }
+        return "";
+      };
+
+      const isMapehParent = entry.type === 'mapeh';
+      const rowBgColor = isMapehParent 
+        ? "background-color: #f1f5f9; font-weight: bold;" 
+        : (idx % 2 === 0 ? "background-color: #f8fafc;" : "");
+
+      academicsTableRows += `
+        <tr style="${rowBgColor} font-size: 8.5pt;">
+          <td style="border: 1px solid black; padding: 5px; text-transform: uppercase;">${entry.subject.name}</td>
+          ${(semView === 'all' || semView === '1st') ? `
+            <td style="border: 1px solid black; padding: 5px; text-align: center;">${showTermGrade(1) ? getGradeStringForCell(q1, 1) : '-'}</td>
+            <td style="border: 1px solid black; padding: 5px; text-align: center;">${showTermGrade(2) ? getGradeStringForCell(q2, 2) : '-'}</td>
+          ` : ''}
+          ${(semView === 'all' || semView === '2nd') ? `
+            <td style="border: 1px solid black; padding: 5px; text-align: center;">${showTermGrade(3) ? getGradeStringForCell(q3, 3) : '-'}</td>
+            ${numTerms === 4 ? `<td style="border: 1px solid black; padding: 5px; text-align: center;">${showTermGrade(4) ? getGradeStringForCell(q4, 4) : '-'}</td>` : ''}
+          ` : ''}
+          <td style="border: 1px solid black; padding: 5px; text-align: center; font-weight: 900; background-color: #ffffff;">
+            ${(() => {
+              const allReleased = Array.from({ length: numTerms }, (_, i) => isTermReleased(i + 1)).every(v => v);
+              if (!allReleased && isStudentView) return "LOCKED";
+              if (fin > 0) {
+                if (useDescriptiveGrading && isGrade1To3) {
+                  return getDescriptiveGrade(fin);
+                }
+                return fin;
+              }
+              return '';
+            })()}
+          </td>
+          <td style="border: 1px solid black; padding: 5px; text-align: center; font-weight: bold; text-transform: uppercase; font-size: 7.5pt;">
+            ${(() => {
+              const allReleased = Array.from({ length: numTerms }, (_, i) => isTermReleased(i + 1)).every(v => v);
+              if (!allReleased && isStudentView) return '';
+              if (useDescriptiveGrading && isGrade1To3 && fin > 0) {
+                return getDescriptiveRemark(fin);
+              }
+              return fin >= 75 ? "Passed" : fin > 0 ? "Failed" : '';
+            })()}
+          </td>
+        </tr>
+      `;
+
+      if (entry.type === 'mapeh') {
+        entry.components.forEach((comp: any) => {
+          const cq1 = getSubjectTermGrade(comp, 1);
+          const cq2 = getSubjectTermGrade(comp, 2);
+          const cq3 = getSubjectTermGrade(comp, 3);
+          const cq4 = numTerms === 4 ? getSubjectTermGrade(comp, 4) : 0;
+          const cfin = getSubjectFinalGrade(comp);
+
+          academicsTableRows += `
+            <tr style="font-size: 8pt; background-color: #ffffff;">
+              <td style="border: 1px solid black; padding: 4px 4px 4px 20px; font-style: italic; color: #475569;">${comp.name}</td>
+              ${(semView === 'all' || semView === '1st') ? `
+                <td style="border: 1px solid black; padding: 4px; text-align: center; color: #475569;">${showTermGrade(1) ? getGradeStringForCell(cq1, 1) : '-'}</td>
+                <td style="border: 1px solid black; padding: 4px; text-align: center; color: #475569;">${showTermGrade(2) ? getGradeStringForCell(cq2, 2) : '-'}</td>
+              ` : ''}
+              ${(semView === 'all' || semView === '2nd') ? `
+                <td style="border: 1px solid black; padding: 4px; text-align: center; color: #475569;">${showTermGrade(3) ? getGradeStringForCell(cq3, 3) : '-'}</td>
+                ${numTerms === 4 ? `<td style="border: 1px solid black; padding: 4px; text-align: center; color: #475569;">${showTermGrade(4) ? getGradeStringForCell(cq4, 4) : '-'}</td>` : ''}
+              ` : ''}
+              <td style="border: 1px solid black; padding: 4px; text-align: center; color: #475569; font-weight: bold;">
+                ${cfin > 0 ? (useDescriptiveGrading && isGrade1To3 ? getDescriptiveGrade(cfin) : cfin) : ""}
+              </td>
+              <td style="border: 1px solid black; padding: 4px; text-align: center; color: #475569; font-weight: bold; text-transform: uppercase; font-size: 7.5pt;">
+                ${cfin > 0 ? (cfin >= 75 ? "Passed" : "Failed") : ""}
+              </td>
+            </tr>
+          `;
+        });
+      }
+    });
+
+    const genAvg = calculateGeneralAverage();
+    academicsTableRows += `
+      <tr style="background-color: #e2e8f0; font-weight: 900; font-size: 9pt;">
+        <td style="border: 1px solid black; padding: 6px; text-transform: uppercase;">General Average</td>
+        ${(semView === 'all' || semView === '1st') ? `
+          <td style="border: 1px solid black; padding: 6px;"></td>
+          <td style="border: 1px solid black; padding: 6px;"></td>
+        ` : ''}
+        ${(semView === 'all' || semView === '2nd') ? `
+          <td style="border: 1px solid black; padding: 6px;"></td>
+          ${numTerms === 4 ? `<td style="border: 1px solid black; padding: 6px;"></td>` : ''}
+        ` : ''}
+        <td style="border: 1px solid black; padding: 6px; text-align: center; font-size: 10pt;">
+          ${genAvg > 0 ? (useDescriptiveGrading && isGrade1To3 ? getDescriptiveGrade(genAvg) : genAvg) : ""}
+        </td>
+        <td style="border: 1px solid black; padding: 6px; text-align: center; text-transform: uppercase; font-size: 8pt;">
+          ${genAvg > 0 ? (genAvg >= 75 ? "Passed" : "Failed") : ""}
+        </td>
+      </tr>
+    `;
+
+    win.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>SF9 Report Card - ${formatStudentName(student)}</title>
+        <style>
+          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+          @page {
+            size: A4 landscape;
+            margin: 0;
+          }
+          * {
+            box-sizing: border-box;
+          }
+          body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background: white;
+            color: black;
+            margin: 0;
+            padding: 0;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          .sheet {
+            width: 297mm;
+            height: 210mm;
+            padding: 10mm;
+            page-break-after: always;
+            break-after: page;
+            display: flex;
+            gap: 10mm;
+            overflow: hidden;
+            position: relative;
+          }
+          .col {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            overflow: hidden;
+          }
+          .text-xs { font-size: 8px; }
+          .text-sm { font-size: 9px; }
+          .text-base { font-size: 11px; }
+          .text-lg { font-size: 13px; }
+          .font-bold { font-weight: bold; }
+          .font-black { font-weight: 900; }
+          .uppercase { text-transform: uppercase; }
+          .text-center { text-align: center; }
+          .w-full { width: 100%; }
+          .border-collapse { border-collapse: collapse; }
+          table.report-table {
+            width: 100%;
+            border-collapse: collapse;
+          }
+          table.report-table th, table.report-table td {
+            border: 1px solid black;
+            padding: 4px;
+            text-align: left;
+            font-size: 8.5px;
+            line-height: 1.25;
+          }
+          table.report-table th {
+            font-weight: 900;
+            background-color: #f1f5f9;
+          }
+          .cover-border {
+            border: 1px solid #000;
+            padding: 15px;
+            border-radius: 6px;
+          }
+          .signature-line {
+            border-bottom: 1px solid black;
+            height: 24px;
+            text-align: center;
+          }
+          .transfer-box {
+            border: 1px solid black;
+            padding: 8px;
+            border-radius: 4px;
+            margin-top: 10px;
+          }
+          .marking-box {
+            border: 1px solid black;
+            padding: 8px;
+            border-radius: 2px;
+            margin-bottom: 8px;
+          }
+        </style>
+      </head>
+      <body>
+        <!-- SHEET 1 (PAGE 1) -->
+        <div class="sheet">
+          <!-- COLUMN LEFT: OBSERVED VALUES & ATTENDANCE -->
+          <div class="col" style="border-right: 1px solid black; padding-right: 10mm;">
+              <h3 class="font-black uppercase" style="font-size: 10px; margin: 0 0 5px 0; border-bottom: 1px solid black; padding-bottom: 2px;">REPORT ON LEARNER'S OBSERVED VALUES</h3>
+              <div class="marking-box">
+                <div class="font-black uppercase text-xs" style="margin-bottom: 4px; border-bottom: 1px solid black; padding-bottom: 2px;">Marking</div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; font-size: 8.5px; font-weight: bold;">
+                  <div>AO - Always Observed</div>
+                  <div>SO - Sometimes Observed</div>
+                  <div>RO - Rarely Observed</div>
+                  <div>NO - Not Observed</div>
+                </div>
+              </div>
+
+              <table class="report-table" style="flex: 1; margin-bottom: 10px;">
+                <thead>
+                  <tr class="font-black uppercase">
+                    <th colspan="2" style="padding: 4px 6px;">Core Values & Behavior Statements</th>
+                    <th colspan="${termsToShow.length}" style="text-align: center;">Term</th>
+                  </tr>
+                  <tr class="font-black uppercase">
+                    <th style="width: 85px;">Core Values</th>
+                    <th>Behavior Statements</th>
+                    ${termsToShow.map(q => `<th style="width: 25px; text-align: center;">${q}</th>`).join('')}
+                  </tr>
+                </thead>
+                <tbody>
+                  ${(() => {
+                    const rows = [
+                      {
+                        val: "1. Maka-Diyos",
+                        items: [
+                          { key: 'diyos-1', txt: "Expresses one's spiritual beliefs while respecting the spiritual beliefs of others." },
+                          { key: 'diyos-2', txt: "Shows adherence to ethical principles by upholding truth in all undertakings." }
+                        ]
+                      },
+                      {
+                        val: "2. Makatao",
+                        items: [
+                          { key: 'tao-1', txt: "Is sensitive to individual, social, and cultural differences." },
+                          { key: 'tao-2', txt: "Demonstrates contributions towards solidarity." }
+                        ]
+                      },
+                      {
+                        val: "3. Maka-Kalikasan",
+                        items: [
+                          { key: 'kalikasan-1', txt: "Cares for environment and utilizes resources wisely, judiciously and economically." }
+                        ]
+                      },
+                      {
+                        val: "4. Maka-Bansa",
+                        items: [
+                          { key: 'bansa-1', txt: "Demonstrates pride in being a Filipino; exercises the rights and responsibilities of a Filipino citizen." },
+                          { key: 'bansa-2', txt: "Demonstrates appropriate behavior in carrying out activities in school, community and country." }
+                        ]
+                      }
+                    ];
+
+                    let rowsStr = "";
+                    rows.forEach(grp => {
+                      grp.items.forEach((item, innerIdx) => {
+                        rowsStr += `<tr>`;
+                        if (innerIdx === 0) {
+                          rowsStr += `<td rowspan="${grp.items.length}" style="font-weight: bold; font-size: 9px; vertical-align: top; width: 85px; background: #f8fafc;">${grp.val}</td>`;
+                        }
+                        rowsStr += `<td style="font-size: 8px;">${item.txt}</td>`;
+                        termsToShow.forEach(q => {
+                          const val = isTermReleased(q) ? (student.observedValues?.[q]?.[item.key] || '') : '🔒';
+                          rowsStr += `<td style="text-align: center; font-weight: bold; font-size: 9px;">${val}</td>`;
+                        });
+                        rowsStr += `</tr>`;
+                      });
+                    });
+                    return rowsStr;
+                  })()}
+                </tbody>
+              </table>
+
+              <!-- ATTENDANCE RECORD -->
+              <div>
+                <h3 class="font-black uppercase" style="font-size: 10px; margin: 5px 0 5px 0; border-bottom: 1px solid black; padding-bottom: 2px;">ATTENDANCE RECORD</h3>
+                ${hasCalendarMatch ? `
+                  <table class="report-table">
+                    <thead>
+                      <tr style="background: #f1f5f9; font-size: 7.5px;">
+                        <th style="width: 100px;">Month</th>
+                        ${(() => {
+                          const monthsByTerm: Record<string, number> = {};
+                          visibleAttendanceEntries.forEach(e => {
+                            monthsByTerm[e.term] = (monthsByTerm[e.term] || 0) + 1;
+                          });
+                          return Object.keys(monthsByTerm).sort().map(t => `<th colspan="${monthsByTerm[t]}" style="text-align: center; color: #4f46e5;">Term ${t}</th>`).join('');
+                        })()}
+                        <th style="text-align: center; background: white; width: 40px;">Total</th>
+                      </tr>
+                      <tr style="font-weight: bold;">
+                        <th style="width: 100px;"></th>
+                        ${visibleAttendanceEntries.map(e => `<th style="text-align: center;">${e.month.substring(0, 3)}</th>`).join('')}
+                        <th style="text-align: center;"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td class="font-bold">Days in School</td>
+                        ${visibleAttendanceEntries.map(e => `<td style="text-align: center;">${calendarMap[e.key] || 0}</td>`).join('')}
+                        <td style="text-align: center; font-weight: bold;">${attendanceTotals.s}</td>
+                      </tr>
+                      <tr>
+                        <td class="font-bold">Days Present</td>
+                        ${visibleAttendanceEntries.map(e => {
+                          const att = studentAttendance[e.key] || studentAttendance[e.month] || { present: 0 };
+                          return `<td style="text-align: center; font-weight: bold;">${att.present || 0}</td>`;
+                        }).join('')}
+                        <td style="text-align: center; font-weight: bold;">${attendanceTotals.p}</td>
+                      </tr>
+                      <tr>
+                        <td class="font-bold">Days Absent</td>
+                        ${visibleAttendanceEntries.map(e => {
+                          const att = studentAttendance[e.key] || studentAttendance[e.month] || { absent: 0 };
+                          return `<td style="text-align: center;">${att.absent || 0}</td>`;
+                        }).join('')}
+                        <td style="text-align: center; font-weight: bold;">${attendanceTotals.a}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                ` : `
+                  <div style="border: 1px dashed black; padding: 12px; text-align: center; font-size: 8.5px; font-style: italic; color: #475569;">
+                    Attendance Data Not Configured for SY ${section.schoolYear}
+                  </div>
+                `}
+              </div>
+          </div>
+
+          <!-- COLUMN RIGHT: COVER PAGE DESIGN -->
+          <div class="col" style="padding-left: 10mm; justify-content: space-between;">
+              <div class="text-center" style="margin-top: 10px;">
+                <div style="display: flex; justify-content: center; gap: 40px; margin-bottom: 15px; align-items: center;">
+                  ${depEdLogo ? `<img src="${depEdLogo}" style="height: 65px; width: 65px; object-fit: contain;" />` : `<div style="font-size: 8px; font-weight: bold; border: 1px solid black; padding: 4px;">DEPED LOGO</div>`}
+                  ${schoolLogo ? `<img src="${schoolLogo}" style="height: 65px; width: 65px; object-fit: contain;" />` : `<div style="font-size: 8px; font-weight: bold; border: 1px solid black; padding: 4px;">SCHOOL LOGO</div>`}
+                </div>
+                <div class="uppercase font-bold" style="font-size: 9px; letter-spacing: 1px;">Republic of the Philippines</div>
+                <div class="uppercase" style="font-size: 15px; font-weight: 900; letter-spacing: -0.5px; margin-top: 2px;">Department of Education</div>
+                <div class="uppercase font-bold text-xs" style="margin-top: 2px;">${section.region || 'N/A'} • ${section.division || 'N/A'}</div>
+                <div class="uppercase font-black" style="font-size: 13px; text-decoration: underline; margin-top: 6px;">${section.schoolName || 'N/A'}</div>
+                
+                <div class="font-black uppercase" style="font-size: 11px; border: 1px solid black; padding: 8px; margin: 25px 0 15px 0; letter-spacing: 0.15em; background-color: #f1f5f9;">
+                  LEARNER'S PROGRESS REPORT CARD
+                </div>
+              </div>
+
+              <div class="cover-border" style="margin-bottom: 10px;">
+                <table style="width: 100%; border: none; border-collapse: collapse;">
+                  <tr style="border: none;">
+                    <td style="border: none; padding: 4px 0; font-weight: bold; width: 110px; font-size: 8.5pt;">LRN:</td>
+                    <td style="border: none; padding: 4px 0; font-weight: 900; font-size: 10.5pt; letter-spacing: 1px;">${student.lrn || student.studentNumber || '-'}</td>
+                  </tr>
+                  <tr style="border: none;">
+                    <td style="border: none; padding: 4px 0; font-weight: bold; font-size: 8.5pt;">Name:</td>
+                    <td style="border: none; padding: 4px 0; font-weight: 900; font-size: 10.5pt; text-transform: uppercase;">${formatStudentName(student)}</td>
+                  </tr>
+                  <tr style="border: none;">
+                    <td style="border: none; padding: 4px 0; font-weight: bold; font-size: 8.5pt;">Age:</td>
+                    <td style="border: none; padding: 4px 0; font-weight: 900; font-size: 10.5pt;">${student.age || '-'}</td>
+                  </tr>
+                  <tr style="border: none;">
+                    <td style="border: none; padding: 4px 0; font-weight: bold; font-size: 8.5pt;">Sex:</td>
+                    <td style="border: none; padding: 4px 0; font-weight: 900; font-size: 10.5pt; text-transform: uppercase;">${student.sex || '-'}</td>
+                  </tr>
+                  <tr style="border: none;">
+                    <td style="border: none; padding: 4px 0; font-weight: bold; font-size: 8.5pt;">Grade & Section:</td>
+                    <td style="border: none; padding: 4px 0; font-weight: 900; font-size: 10.5pt; text-transform: uppercase;">Grade ${section.gradeLevel} - ${section.name}</td>
+                  </tr>
+                  <tr style="border: none;">
+                    <td style="border: none; padding: 4px 0; font-weight: bold; font-size: 8.5pt;">School Year:</td>
+                    <td style="border: none; padding: 4px 0; font-weight: 900; font-size: 10.5pt;">${section.schoolYear || 'N/A'}</td>
+                  </tr>
+                </table>
+              </div>
+          </div>
+        </div>
+
+        <!-- SHEET 2 (PAGE 2) -->
+        <div class="sheet">
+          <!-- COLUMN LEFT: MESSAGE & CERTIFICATE OF TRANSFER -->
+          <div class="col" style="border-right: 1px solid black; padding-right: 10mm; justify-content: space-between;">
+              <div style="font-style: italic; font-size: 9px; line-height: 1.35; padding: 0 5px;">
+                <p class="font-bold" style="not-italic: true; font-size: 10px; margin: 0 0 4px 0;">Dear Parent,</p>
+                <p style="margin: 0 0 4px 0;">This report card shows the ability and progress your child has made in different learning areas as well as his/her core values.</p>
+                <p style="margin: 0 0 10px 0;">The school welcomes you should you desire to know more about your child's progress.</p>
+                
+                <table style="width: 100%; border: none; border-collapse: collapse; margin-top: 5px; margin-bottom: 12px;">
+                  <tr style="border: none;">
+                    <td style="width: 46%; border: none; text-align: center; padding: 0 5px;">
+                      <div style="border-bottom: 1px solid black; font-weight: bold; font-size: 9px; height: 16px;">${(section.adviserName || '').toUpperCase()}</div>
+                      <div class="uppercase font-bold" style="font-size: 7.5px; margin-top: 2px;">Class Adviser</div>
+                    </td>
+                    <td style="width: 8%; border: none;"></td>
+                    <td style="width: 46%; border: none; text-align: center; padding: 0 5px;">
+                      <div style="border-bottom: 1px solid black; font-weight: bold; font-size: 9px; height: 16px;">${(schoolHead || section.headOfSchool || '').toUpperCase()}</div>
+                      <div class="uppercase font-bold" style="font-size: 7.5px; margin-top: 2px;">School Head / Principal</div>
+                    </td>
+                  </tr>
+                </table>
+
+                <div class="font-bold uppercase" style="font-size: 8px; border-bottom: 1px solid black; padding-bottom: 1px; margin-bottom: 6px;">Parents' / Guardians' Signature</div>
+                <table style="width: 100%; border: none; border-collapse: collapse;">
+                  <tr style="border: none;">
+                    ${termsToShow.map(q => `
+                      <td style="border: none; text-align: center; width: ${100 / termsToShow.length}%; padding: 2px;">
+                        <div style="border-bottom: 1px solid black; height: 18px;">
+                          ${student.signatures?.[q] ? `<img src="${student.signatures[q]}" style="max-height: 16px; max-width: 40px; object-fit: contain;" />` : ''}
+                        </div>
+                        <div style="font-weight: bold; font-size: 7px; margin-top: 1px;">Term ${q}</div>
+                      </td>
+                    `).join('')}
+                  </tr>
+                </table>
+              </div>
+
+              <!-- CERTIFICATE OF TRANSFER -->
+              <div class="transfer-box">
+                <div class="font-black uppercase text-center" style="font-size: 8.5px; border-bottom: 1px solid black; padding-bottom: 2px; margin-bottom: 6px;">Certificate of Transfer</div>
+                <p style="margin: 0 0 3px 0; font-size: 8px;">Admitted to Grade: <span style="border-bottom: 1px solid black; width: 40px; display: inline-block;">&nbsp;</span> Section: <span style="border-bottom: 1px solid black; width: 50px; display: inline-block;">&nbsp;</span></p>
+                <p style="margin: 0 0 5px 0; font-size: 8px;">Eligible for Admission to Grade: <span style="border-bottom: 1px solid black; width: 100px; display: inline-block;">&nbsp;</span></p>
+                
+                <table style="width: 100%; border: none; border-collapse: collapse; margin-top: 6px;">
+                  <tr style="border: none;">
+                    <td style="width: 46%; text-align: center; border: none; padding: 0 4px;">
+                      <div style="border-bottom: 1px solid black; font-weight: bold; font-size: 8px; height: 12px;">${(section.adviserName || '').toUpperCase()}</div>
+                      <div style="font-size: 6.5px; font-weight: bold; text-transform: uppercase;">Class Adviser</div>
+                    </td>
+                    <td style="width: 8%; border: none;"></td>
+                    <td style="width: 46%; text-align: center; border: none; padding: 0 4px;">
+                      <div style="border-bottom: 1px solid black; font-weight: bold; font-size: 8px; height: 12px;">${(schoolHead || section.headOfSchool || '').toUpperCase()}</div>
+                      <div style="font-size: 6.5px; font-weight: bold; text-transform: uppercase;">Principal</div>
+                    </td>
+                  </tr>
+                </table>
+              </div>
+
+              <!-- CANCELLATION OF ELIGIBILITY -->
+              <div class="transfer-box" style="margin-top: 5px;">
+                <div class="font-black uppercase text-center" style="font-size: 8px; border-bottom: 1px solid black; padding-bottom: 1px; margin-bottom: 4px;">Cancellation of Eligibility to Transfer</div>
+                <p style="margin: 0 0 4px 0; font-size: 8px;">Admitted in: <span style="border-bottom: 1px solid black; width: 70px; display: inline-block;">&nbsp;</span> Date: <span style="border-bottom: 1px solid black; width: 60px; display: inline-block;">&nbsp;</span></p>
+                <div style="display: flex; justify-content: flex-end;">
+                  <div style="text-align: center; width: 120px;">
+                    <div style="border-bottom: 1px solid black; font-weight: bold; font-size: 8px; height: 12px;">${(schoolHead || section.headOfSchool || '').toUpperCase()}</div>
+                    <div style="font-size: 6.5px; font-weight: bold; text-transform: uppercase;">Principal</div>
+                  </div>
+                </div>
+              </div>
+          </div>
+
+          <!-- COLUMN RIGHT: PROGRESS DETAILS -->
+          <div class="col" style="padding-left: 10mm; overflow: hidden;">
+              <h3 class="font-black uppercase text-center" style="font-size: 10px; margin: 0 0 8px 0; background-color: #000; color: #fff; padding: 5px 10px;">
+                REPORT ON LEARNING PROGRESS AND ASSESSMENT
+              </h3>
+              <table class="report-table" style="flex: 1;">
+                <thead>
+                  <tr style="text-transform: uppercase; font-size: 7.5px;">
+                    <th style="text-align: left;">Learning Area</th>
+                    ${termsToShow.map(q => `<th style="text-align: center; width: 33px;">Term ${q}</th>`).join('')}
+                    <th style="text-align: center; width: 45px;">Final Grade</th>
+                    <th style="text-align: center; width: 50px;">Remarks</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${academicsTableRows}
+                </tbody>
+              </table>
+          </div>
+        </div>
+
+        <script>
+          window.onload = function() {
+            setTimeout(function() {
+              window.print();
+            }, 350);
+          };
+        </script>
+      </body>
+      </html>
+    `);
+    win.document.close();
   };
 
   return (
@@ -10966,77 +12810,78 @@ function MATATAGReportCardModal({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[200] bg-slate-900/80 backdrop-blur-md overflow-auto p-4 print:bg-white print:p-0 print:overflow-visible print:static print:z-0 print:opacity-100 print:transform-none"
-      onClick={onClose}
+      className="fixed inset-0 z-[200] bg-slate-50 overflow-y-auto flex flex-col font-sans text-slate-800 print-modal-container"
     >
-      <div 
-        className="w-fit min-h-fit mx-auto py-10 pb-32 flex flex-col items-center gap-12 print:py-0 print:gap-0 print:min-w-0 print:w-full print:block"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex flex-wrap justify-center items-center gap-4 sticky top-0 z-[210] print:hidden bg-slate-900 shadow-2xl p-4 border-b border-white/10 w-full max-w-[297mm] mx-auto rounded-b-2xl">
-          <div className="flex bg-white/10 backdrop-blur-md border border-white/20 rounded-full p-1 shadow-2xl">
+      <div className="sticky top-0 z-[210] bg-slate-900 text-white shadow-xl px-8 py-4 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 border-b border-white/10 print:hidden shrink-0">
+        <div className="flex flex-col">
+          <h2 className="text-sm font-black uppercase tracking-widest text-indigo-400">SF9 MATATAG Progress Report Card</h2>
+          <p className="text-xs text-slate-400 font-bold mt-0.5">
+            Learner: <span className="text-white uppercase font-black">{formatStudentName(student)}</span> • Grade & Section: <span className="text-white uppercase font-black">Grade {section.gradeLevel} - {section.name}</span>
+          </p>
+        </div>
+        
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex bg-white/10 border border-white/15 rounded-full p-0.5 shadow-inner">
             <button 
               onClick={() => { setNumTerms(3); setSemView('all'); }}
-              className={`px-4 py-2 rounded-full font-black text-[10px] uppercase tracking-widest transition-all ${numTerms === 3 && semView === 'all' ? 'bg-indigo-600 text-white shadow-lg' : 'text-white/60 hover:text-white'}`}
+              className={`px-3 py-1.5 rounded-full font-black text-[9px] uppercase tracking-wider transition-all ${numTerms === 3 && semView === 'all' ? 'bg-indigo-600 text-white shadow' : 'text-white/60 hover:text-white'}`}
             >
               3 Terms
             </button>
             <button 
               onClick={() => { setNumTerms(4); setSemView('all'); }}
-              className={`px-4 py-2 rounded-full font-black text-[10px] uppercase tracking-widest transition-all ${numTerms === 4 && semView === 'all' ? 'bg-indigo-600 text-white shadow-lg' : 'text-white/60 hover:text-white'}`}
+              className={`px-3 py-1.5 rounded-full font-black text-[9px] uppercase tracking-wider transition-all ${numTerms === 4 && semView === 'all' ? 'bg-indigo-600 text-white shadow' : 'text-white/60 hover:text-white'}`}
             >
               4 Terms
             </button>
-            <div className="w-px h-6 bg-white/20 my-auto mx-1"></div>
+            <div className="w-px h-4 bg-white/20 my-auto mx-1"></div>
             <button 
               onClick={() => { setNumTerms(4); setSemView('1st'); }}
-              className={`px-4 py-2 rounded-full font-black text-[10px] uppercase tracking-widest transition-all ${semView === '1st' ? 'bg-indigo-600 text-white shadow-lg' : 'text-white/60 hover:text-white'}`}
+              className={`px-3 py-1.5 rounded-full font-black text-[9px] uppercase tracking-wider transition-all ${semView === '1st' ? 'bg-indigo-600 text-white shadow' : 'text-white/60 hover:text-white'}`}
             >
               1st Sem
             </button>
             <button 
               onClick={() => { setNumTerms(4); setSemView('2nd'); }}
-              className={`px-4 py-2 rounded-full font-black text-[10px] uppercase tracking-widest transition-all ${semView === '2nd' ? 'bg-indigo-600 text-white shadow-lg' : 'text-white/60 hover:text-white'}`}
+              className={`px-3 py-1.5 rounded-full font-black text-[9px] uppercase tracking-wider transition-all ${semView === '2nd' ? 'bg-indigo-600 text-white shadow' : 'text-white/60 hover:text-white'}`}
             >
               2nd Sem
             </button>
           </div>
+
           {isGrade1To3 && (
-            <label className="flex items-center gap-2 cursor-pointer bg-white/10 backdrop-blur-md border border-white/20 rounded-full px-4 py-2 hover:bg-white/20 transition-all font-black text-[10px] uppercase tracking-widest text-white shadow-2xl">
+            <label className="flex items-center gap-1.5 cursor-pointer bg-white/10 hover:bg-white/15 border border-white/20 rounded-full px-3 py-1.5 transition-all font-black text-[9px] uppercase tracking-wider text-white shadow">
               <input 
                 type="checkbox" 
                 checked={useDescriptiveGrading}
                 onChange={(e) => setUseDescriptiveGrading(e.target.checked)}
-                className="rounded border-none outline-none ring-0 focus:ring-0 text-indigo-600"
+                className="rounded border-none outline-none ring-0 focus:ring-0 text-indigo-600 w-3 h-3"
               />
               Descriptive
             </label>
           )}
+
+          <div className="h-4 w-px bg-white/15 hidden md:block"></div>
+
           <button 
             onClick={onClose}
-            className="px-6 py-2 bg-white/10 hover:bg-white/20 text-white rounded-full font-bold text-xs uppercase tracking-widest backdrop-blur-sm border border-white/20 transition-all active:scale-95"
+            className="px-4 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-full font-bold text-[10px] uppercase tracking-wide shadow flex items-center gap-1.5 transition-all active:scale-95"
           >
-            Close
-          </button>
-          <button 
-            onClick={exportPDF}
-            disabled={isExporting}
-            className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-full font-bold text-xs uppercase tracking-widest shadow-xl flex items-center gap-2 transition-all active:scale-95 disabled:opacity-50"
-          >
-            {isExporting ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
-            {isExporting ? 'Exporting...' : 'Export to PDF'}
+            <X size={12} />
+            Close Page
           </button>
         </div>
+      </div>
 
+      <div className="flex-1 flex flex-col items-center justify-start py-8 overflow-y-auto bg-slate-100 gap-10 print:bg-white print:p-0 print:overflow-visible print:block">
         <motion.div 
           ref={cardRef}
-          initial={{ scale: 0.9, opacity: 0, y: 40 }}
+          initial={{ scale: 0.98, opacity: 0, y: 15 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
-          onClick={(e) => e.stopPropagation()}
-          className="flex flex-col gap-8 print:gap-0 print:block print:transform-none"
+          className="flex flex-col gap-8 print:gap-0 print:block print:transform-none select-none shadow-xl border border-slate-200/50 rounded-lg p-2 bg-white/50 print:border-0 print:p-0 print:bg-transparent"
         >
           {/* PAGE 1 */}
-          <div className="bg-white w-[297mm] h-[210mm] p-[0.5in] shadow-2xl rounded text-black border border-black flex gap-4 overflow-hidden print:shadow-none print:m-0 print:border-0 border-collapse print-card">
+          <div className="bg-white w-[297mm] h-[210mm] p-[0.5in] shadow-2xl rounded text-black border border-black flex gap-4 overflow-hidden print:shadow-none print:m-0 border-collapse print-card">
             {/* COLUMN 2: OBSERVED VALUES & ATTENDANCE (Moved to Page 1 Left) */}
              <div className="flex-1 flex flex-col gap-4 border-r border-black pr-4 overflow-hidden">
                 <div className="flex-1 flex flex-col overflow-hidden">
@@ -11254,7 +13099,7 @@ function MATATAGReportCardModal({
           </div>
 
           {/* PAGE 2 */}
-          <div className="bg-white w-[297mm] h-[210mm] p-[0.5in] shadow-2xl rounded text-black border border-black flex gap-4 overflow-hidden print:shadow-none print:m-0 print:border-0 border-collapse print-card">
+          <div className="bg-white w-[297mm] h-[210mm] p-[0.5in] shadow-2xl rounded text-black border border-black flex gap-4 overflow-hidden print:shadow-none print:m-0 border-collapse print-card">
              {/* COLUMN 2: MESSAGE & TRANSFER (Moved to Page 2 Left) */}
              <div className="flex-1 flex flex-col pr-4 text-[11px] leading-relaxed overflow-hidden">
                 <div className="mb-6 shrink-0 px-4 italic text-black text-justify">
