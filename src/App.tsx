@@ -9086,8 +9086,8 @@ function GradebookView({
                 Finalize School Year
               </button>
             </div>
-          ) : (
-
+          ) : null}
+          {false && (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-2 w-full">
                 {([1, 2, 3, 4] as TermNumber[]).map(qNum => {
                   const items = sectionPendingByTerm[qNum] || [];
