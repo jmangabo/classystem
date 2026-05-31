@@ -441,7 +441,8 @@ import {
   collectionGroup,
   updateDoc,
   orderBy,
-  limit
+  limit,
+  arrayUnion
 } from "firebase/firestore";
 import { auth, db, handleFirestoreError, safeGetDoc as getDoc, safeGetDocs as getDocs } from "./firebase";
 import { Subject, Student, Course, TermNumber, RatedValue, Section, UserProfile, School, Eligibility, AnecdotalRecord } from "./types";
@@ -2286,6 +2287,7 @@ export default function App() {
       <SectionsView 
         sections={sections} 
         expiredSchoolIds={expiredSchoolIds}
+        globalSettings={globalSettings}
         onSelect={(s) => {
            setSelectedSection(s);
            setActiveTab(userProfile?.role === 'school_head' ? 'sf8' : userProfile?.role === 'guidance_designate' ? 'anecdotes' : 'dashboard');
@@ -2320,7 +2322,6 @@ export default function App() {
         isFeedbackOpen={showFeedbackModal}
         onCloseFeedback={() => setShowFeedbackModal(false)}
         onShowFeedbackDashboard={() => setShowAdminFeedback(true)}
-        globalSettings={globalSettings}
         schoolCalendar={schoolCalendar}
         onToggleFinalizeSubjectTerm={handleToggleFinalizeSubjectTerm}
       />
@@ -2703,6 +2704,7 @@ export default function App() {
                   students={students}
                   subjects={subjects}
                   currentUser={userProfile}
+                  globalSettings={globalSettings}
                   onNavigate={(tab) => setActiveTab(tab as any)}
                   onCalculateYearEnd={handleCalculateYearEnd}
                   onUnfinalizeYearEnd={handleUnfinalizeYearEnd}
@@ -3657,7 +3659,10 @@ function GlobalFinalizationController({
   const [checking, setChecking] = useState(false);
   const [confirmFinalizePrompt, setConfirmFinalizePrompt] = useState(false);
   const [confirmUnfinalizePrompt, setConfirmUnfinalizePrompt] = useState(false);
+  const [requestUnfinalizePrompt, setRequestUnfinalizePrompt] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  const isMainAdmin = user?.email === 'jessiemangabo@gmail.com';
 
   const targetSchoolYear = selectedFilterSchoolYear || activeSchoolYear;
 
@@ -3838,7 +3843,33 @@ function GlobalFinalizationController({
 
   const handleUnfinalizeAll = async () => {
     if (processing) return;
-    setConfirmUnfinalizePrompt(true);
+    if (isMainAdmin) {
+      setConfirmUnfinalizePrompt(true);
+    } else {
+      setRequestUnfinalizePrompt(true);
+    }
+  };
+
+  const submitUnfinalizeRequest = async () => {
+    setRequestUnfinalizePrompt(false);
+    setProcessing(true);
+    try {
+      const docRef = doc(db, 'settings', 'general');
+      const syToRequest = targetSchoolYear || 'active';
+      await updateDoc(docRef, {
+        unfinalizeRequests: arrayUnion({
+          schoolYear: syToRequest,
+          requestedBy: user?.email,
+          timestamp: new Date().toISOString()
+        })
+      });
+      setSuccessMessage("Your request to unfinalize the school year has been sent to the Main Admin for approval.");
+    } catch (error) {
+      console.error("Error sending request:", error);
+      setSuccessMessage("Failed to send request.");
+    } finally {
+      setProcessing(false);
+    }
   };
 
   const executeUnfinalizeAll = async () => {
@@ -3936,6 +3967,43 @@ function GlobalFinalizationController({
               </motion.div>
             </div>
           )}
+
+          {requestUnfinalizePrompt && (
+            <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+              <motion.div 
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl relative overflow-hidden"
+              >
+                <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4 bg-indigo-100 text-indigo-600">
+                  <AlertTriangle size={32} />
+                </div>
+                
+                <h3 className="text-xl font-black text-slate-900 mb-2">Request School Year Unfinalization?</h3>
+                
+                <p className="text-slate-600 text-sm mb-6 leading-relaxed">
+                  You do not have direct permission to unfinalize school years. Clicking "Send Request" will notify the Main Admin (jessiemangabo@gmail.com) to unfinalize the {targetSchoolYear || 'active'} school year.
+                </p>
+                
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => setRequestUnfinalizePrompt(false)}
+                    className="flex-1 py-3 bg-slate-100/80 hover:bg-slate-200 text-slate-700 font-bold text-xs uppercase tracking-wider rounded-xl transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={submitUnfinalizeRequest}
+                    disabled={processing}
+                    className="flex-1 py-3 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow-md active:scale-95 bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/20"
+                  >
+                    Send Request
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
         </AnimatePresence>
         <AnimatePresence>
           {successMessage && (
@@ -3960,70 +4028,69 @@ function GlobalFinalizationController({
 
 
   return (
-    <div className="mb-6 p-6 bg-slate-50 border border-slate-200 rounded-3xl animate-in fade-in slide-in-from-top-3 duration-300 shadow-sm">
+    <div className="mb-6 animate-in fade-in slide-in-from-top-3 duration-300">
+      <div className="p-4 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-250 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-emerald-800 shadow-sm">
+        <div className="flex items-center gap-4">
+          <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center shrink-0">
+            <Sparkles size={20} className="text-emerald-600 mt-0.5 animate-bounce" />
+          </div>
+          <div>
+            <h4 className="font-black uppercase tracking-widest text-[10px] mb-1 text-emerald-900">Finalize School Year</h4>
+            <p className="text-xs font-medium text-emerald-700">You can finalize the entire active school year to lock all student records, stop edits and deletes, and finalize all statuses.</p>
+          </div>
+        </div>
+        <button 
+          onClick={handleFinalizeAll}
+          disabled={processing}
+          className="self-start sm:self-auto shrink-0 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold rounded-xl text-xs transition-all uppercase tracking-wider shadow-md shadow-emerald-600/15 cursor-pointer flex items-center gap-2 disabled:opacity-50"
+        >
+          {processing ? (
+            <Sparkles size={14} className="animate-spin" />
+          ) : (
+            <Sparkles size={14} />
+          )}
+          Finalize School Year
+        </button>
+      </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mt-4">
-        {[1, 2, 3, 4].map(qNum => {
-          const items = pendingByTerm[qNum] || [];
-          const isComplete = items.length === 0;
-          return (
-            <div 
-              key={qNum} 
-              className={`flex flex-col bg-white border rounded-2xl p-4 shadow-2xs transition-all duration-200 hover:shadow-xs ${
-                isComplete 
-                  ? 'border-emerald-200 bg-emerald-500/[0.01]' 
-                  : 'border-slate-200 bg-white'
-              }`}
+      <AnimatePresence>
+        {confirmFinalizePrompt && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl relative overflow-hidden"
             >
-              <div className="flex items-center justify-between border-b border-slate-100 pb-2.5 mb-3">
-                <div className="flex items-center gap-1.5">
-                  <span className={`w-2.5 h-2.5 rounded-full ${isComplete ? 'bg-emerald-500' : 'bg-amber-400'}`}></span>
-                  <span className="text-xs font-black text-slate-800 uppercase tracking-widest">Quarter {qNum}</span>
-                </div>
-                <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest ${
-                  isComplete ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-                }`}>
-                  {isComplete ? "Done" : `${items.length} Pending`}
-                </span>
+              <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4 bg-emerald-100 text-emerald-600">
+                <AlertTriangle size={32} />
               </div>
               
-              {isComplete ? (
-                <div className="flex-1 flex flex-col items-center justify-center py-6 text-center">
-                  <div className="text-emerald-600 bg-emerald-50 w-8 h-8 rounded-full flex items-center justify-center mb-1.5 border border-emerald-100 animate-pulse">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3.5" d="M5 13l4 4L19 7"></path>
-                    </svg>
-                  </div>
-                  <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-widest">All Completed</span>
-                </div>
-              ) : (
-                <div className="flex-1 space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-1">
-                  {items.map((item, idx) => (
-                    <div 
-                      key={`${qNum}-${item.id}-${idx}`} 
-                      className="p-2.5 rounded-xl bg-slate-50 border border-slate-100/85 hover:border-slate-200 hover:bg-slate-100/50 transition-all duration-150"
-                    >
-                      <div className="flex items-start justify-between gap-1.5">
-                        <span className="text-[10.5px] font-extrabold text-slate-800 leading-tight block break-words max-w-[140px]">
-                          {item.subjectName}
-                        </span>
-                        <span className="text-[8px] font-black text-indigo-700 uppercase tracking-widest bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 rounded-md shrink-0">
-                          {item.sectionName}
-                        </span>
-                      </div>
-                      {item.teacherEmail && (
-                        <p className="text-[8.5px] font-bold text-slate-400/90 mt-1 truncate">
-                          T: <span className="text-slate-500 font-semibold">{item.teacherEmail}</span>
-                        </p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
+              <h3 className="text-xl font-black text-slate-900 mb-2">Finalize All Sections?</h3>
+              
+              <p className="text-slate-600 text-sm mb-6 leading-relaxed">
+                Are you sure you want to finalize all sections for {targetSchoolYear || 'active'} school year? This will compute all status automatically and prevent any edits or deletions.
+              </p>
+              
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => setConfirmFinalizePrompt(false)}
+                  className="flex-1 py-3 bg-slate-100/80 hover:bg-slate-200 text-slate-700 font-bold text-xs uppercase tracking-wider rounded-xl transition-colors"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={executeFinalizeAll}
+                  disabled={processing}
+                  className="flex-1 py-3 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow-md active:scale-95 bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20"
+                >
+                  Finalize
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -4261,15 +4328,127 @@ function SectionsView({
   const districts = useMemo(() => Array.from(new Set(sections.map(s => s.district).filter(Boolean))), [sections]);
   const gradeLevels = useMemo(() => Array.from(new Set(sections.map(s => s.gradeLevel).filter(g => g !== null && g !== undefined))).sort((a,b) => Number(a)-Number(b)), [sections]);
 
+  const [showRequestsModal, setShowRequestsModal] = useState(false);
+
+  const isMainAdmin = user?.email === 'jessiemangabo@gmail.com';
+  const pendingRequests = globalSettings?.unfinalizeRequests || [];
+
+  const handleApproveRequest = async (req: any) => {
+    try {
+      const docRef = doc(db, 'settings', 'general');
+      const reqs = pendingRequests.filter((r: any) => r.schoolYear !== req.schoolYear);
+      
+      const sectionsSnap = await getDocs(collection(db, 'sections'));
+      const allSections = sectionsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const targetSections = allSections.filter((s: any) => s.schoolYear === req.schoolYear || (!s.schoolYear && req.schoolYear === 'No School Year') || (!req.schoolYear && req.schoolYear === 'active'));
+      
+      const updatePromises = [];
+      for (const tsec of targetSections) {
+         const snaps = await getDocs(collection(db, `sections/${tsec.id}/students`));
+         for (const docSnap of snaps.docs) {
+           const studentData = docSnap.data();
+           if (studentData.status === 'Promoted' || studentData.status === 'Retained') {
+             updatePromises.push(updateDoc(doc(db, `sections/${tsec.id}/students`, docSnap.id), { status: deleteField() }));
+           }
+         }
+         updatePromises.push(updateDoc(doc(db, 'sections', tsec.id), { isFinalized: false }));
+      }
+      
+      await Promise.all(updatePromises);
+      await updateDoc(docRef, { unfinalizeRequests: reqs });
+      
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleRejectRequest = async (req: any) => {
+    try {
+      const docRef = doc(db, 'settings', 'general');
+      const reqs = pendingRequests.filter((r: any) => !(r.schoolYear === req.schoolYear && r.timestamp === req.timestamp));
+      await updateDoc(docRef, { unfinalizeRequests: reqs });
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   return (
     <div className="h-screen bg-slate-50 flex flex-col font-sans overflow-hidden">
+      
+      <AnimatePresence>
+        {showRequestsModal && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-3xl p-6 w-full max-w-3xl shadow-2xl relative flex flex-col max-h-[90vh]"
+            >
+              <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-100">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-indigo-100 text-indigo-600">
+                    <AlertTriangle size={24} />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-black text-slate-900">Unfinalize Requests</h3>
+                    <p className="text-sm text-slate-500 font-medium">Approve or reject System Admin requests to unfinalize school years.</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setShowRequestsModal(false)}
+                  className="p-2.5 bg-slate-50 hover:bg-slate-100 rounded-xl transition-all text-slate-400 hover:text-slate-900"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-4">
+                {pendingRequests.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-16 text-center">
+                    <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4 text-slate-300">
+                       <CheckCircle size={32} />
+                    </div>
+                    <p className="text-slate-500 font-bold mb-1">All Caught Up</p>
+                    <p className="text-slate-400 text-sm">There are no pending requests to unfinalize any school year.</p>
+                  </div>
+                ) : (
+                  pendingRequests.map((req: any, idx: number) => (
+                    <div key={idx} className="w-full bg-slate-50 p-4 rounded-2xl border border-slate-200 flex flex-col md:flex-row items-center justify-between gap-4">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shrink-0 border border-slate-200 text-indigo-600">
+                          <AlertTriangle size={18} />
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-slate-900 text-sm">Pending Action</h4>
+                          <p className="text-xs text-slate-600">
+                            Requested by <span className="font-semibold text-slate-700">{req.requestedBy}</span> for <span className="font-bold text-indigo-600 border border-indigo-100 bg-indigo-50 px-1 rounded">{req.schoolYear}</span>
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={() => handleRejectRequest(req)} className="px-4 py-2 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold uppercase tracking-wider border border-slate-200 rounded-lg transition-colors">
+                          Reject
+                        </button>
+                        <button onClick={() => handleApproveRequest(req)} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm shadow-indigo-200 text-xs font-bold uppercase tracking-wider rounded-lg transition-colors flex items-center gap-2">
+                          Approve
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {!globalSettings?.activeSchoolYear && <EncodingClosedBanner />}
       <header className="h-16 bg-white px-6 md:px-8 flex items-center justify-between shrink-0 gap-4 relative z-50 border-b border-slate-200 shadow-sm">
         <div className="flex items-center gap-4 shrink-0">
           <div className="w-10 h-10 bg-indigo-50 text-indigo-600 border border-indigo-100 rounded-xl flex items-center justify-center shadow-sm">
             <GraduationCap size={22} />
           </div>
-          <div className="flex flex-col">
+           <div className="flex flex-col">
             <h1 className="text-slate-900 font-bold tracking-tight text-lg leading-tight flex items-center gap-2">
               <span className="md:hidden">CLASS</span>
               <span className="hidden md:block">
@@ -4280,6 +4459,40 @@ function SectionsView({
           </div>
         </div>
         <div className="flex items-center gap-3 md:gap-4 shrink-0">
+           {isMainAdmin ? (
+             <button
+               onClick={() => setShowRequestsModal(true)}
+               className="flex items-center gap-2 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 font-semibold text-xs px-3 py-2 rounded-lg transition-all shadow-sm relative"
+             >
+               <AlertTriangle size={14} /> <span className="hidden sm:inline">Unfinalize Requests</span>
+               {pendingRequests.length > 0 && (
+                 <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[9px] font-bold text-white shadow-sm ring-2 ring-white">
+                   {pendingRequests.length}
+                 </span>
+               )}
+             </button>
+           ) : user?.role === 'system_admin' ? (
+             <button
+               onClick={() => {
+                 const confirmed = window.confirm("Are you sure you want to request unfinalization of the current school year?");
+                 if (confirmed) {
+                   const docRef = doc(db, 'settings', 'general');
+                   updateDoc(docRef, {
+                     unfinalizeRequests: arrayUnion({
+                       schoolYear: globalSettings?.activeSchoolYear || 'active',
+                       requestedBy: user?.email,
+                       timestamp: new Date().toISOString()
+                     })
+                   });
+                   alert("Request sent successfully to the Main Admin.");
+                 }
+               }}
+               className="flex items-center gap-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-semibold text-xs px-3 py-2 rounded-lg transition-all shadow-sm"
+             >
+               <Lock size={14} /> <span className="hidden sm:inline">Request Unfinalize</span>
+             </button>
+           ) : null}
+
            {user?.role === 'system_admin' && onManageUsers && (
              <button 
                onClick={onManageUsers}
@@ -6482,9 +6695,9 @@ function AddLearnerView({
   const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
   const [bulkFirstAttendanceDate, setBulkFirstAttendanceDate] = useState("");
   const [academicHistoryModalStudent, setAcademicHistoryModalStudent] = useState<Student | null>(null);
-  const isActiveSY = currentUser?.email === 'jessiemangabo@gmail.com' || (!!globalSettings?.activeSchoolYear && 
+  const isActiveSY = !!globalSettings?.activeSchoolYear && 
     !globalSettings?.finalizedSchoolYears?.includes(globalSettings?.activeSchoolYear) && 
-    !section?.isFinalized);
+    !section?.isFinalized;
 
   const studentsOther = students.filter(s => {
     const sex = s.sex?.toLowerCase();
@@ -9065,17 +9278,16 @@ function GradebookView({
         </div>
       )}
 
-      {!isYearEndFinalized && subjects.length > 0 && (currentUser?.role === 'system_admin' || currentUser?.role === 'admin') && (
+      {!isYearEndFinalized && subjects.length > 0 && !!onCalculateYearEnd && (
         <div className="mx-8 mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
-          {isAllSubjectsTermsFinalized && onCalculateYearEnd ? (
             <div className="p-4 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-250 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-emerald-800 shadow-sm">
               <div className="flex items-center gap-4">
                 <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center shrink-0">
                   <Sparkles size={20} className="text-emerald-600 mt-0.5 animate-bounce" />
                 </div>
                 <div>
-                  <h4 className="font-black uppercase tracking-widest text-[10px] mb-1 text-emerald-900">All Subject Terms Finalized</h4>
-                  <p className="text-xs font-medium text-emerald-700">All subjects and terms are completed and finalized. You can now finalize the entire school year to compute final averages and student statuses.</p>
+                  <h4 className="font-black uppercase tracking-widest text-[10px] mb-1 text-emerald-900">Finalize School Year</h4>
+                  <p className="text-xs font-medium text-emerald-700">You can finalize the entire school year to compute final averages, lock all student records, and set statuses.</p>
                 </div>
               </div>
               <button 
@@ -9086,72 +9298,6 @@ function GradebookView({
                 Finalize School Year
               </button>
             </div>
-          ) : null}
-          {false && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-2 w-full">
-                {([1, 2, 3, 4] as TermNumber[]).map(qNum => {
-                  const items = sectionPendingByTerm[qNum] || [];
-                  const isComplete = items.length === 0;
-
-                  return (
-                    <div 
-                      key={qNum} 
-                      className={`flex flex-col bg-white border rounded-xl p-3 shadow-2xs transition-all duration-250 ${
-                        isComplete 
-                          ? 'border-emerald-200 bg-emerald-500/[0.01]' 
-                          : 'border-slate-200 bg-white hover:border-indigo-300'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between border-b border-slate-100 pb-2.5 mb-2">
-                        <div className="flex items-center gap-1.5">
-                          <span className={`w-2 h-2 rounded-full ${isComplete ? 'bg-emerald-500' : 'bg-amber-400'}`}></span>
-                          <span className="text-[10px] font-black text-slate-800 uppercase tracking-widest font-sans">Quarter {qNum}</span>
-                        </div>
-                        <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-widest ${
-                          isComplete ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100/80 text-amber-800'
-                        }`}>
-                          {isComplete ? "Done" : `${items.length} Pending`}
-                        </span>
-                      </div>
-                      
-                      {isComplete ? (
-                        <div className="flex-1 flex flex-col items-center justify-center py-4 text-center">
-                          <div className="text-emerald-600 bg-emerald-50 w-6 h-6 rounded-full flex items-center justify-center mb-1 border border-emerald-100">
-                            <span className="text-emerald-500"><Check size={10} strokeWidth={3} /></span>
-                          </div>
-                          <span className="text-[8px] font-black uppercase tracking-widest text-emerald-700">All Completed</span>
-                        </div>
-                      ) : (
-                        <div className="flex-1 space-y-1.5 max-h-36 overflow-y-auto custom-scrollbar pr-1">
-                          {items.map((item, idx) => (
-                            <div 
-                              key={`${qNum}-${item.id}-${idx}`} 
-                              onClick={() => {
-                                onSelectSubject?.(item.id);
-                                onTermChange?.(qNum);
-                              }}
-                              className="p-2 rounded-lg bg-slate-50 border border-slate-100 hover:border-indigo-200 hover:bg-indigo-50/10 cursor-pointer transition-all duration-150"
-                              title="Click to view subject records"
-                            >
-                              <div className="flex items-start justify-between gap-1.5">
-                                <span className="text-[10px] font-bold text-slate-800 leading-tight block break-words">
-                                  {item.subjectName}
-                                </span>
-                              </div>
-                              {item.teacherEmail && (
-                                <p className="text-[8px] font-semibold text-slate-400 mt-1 truncate">
-                                  T: {item.teacherEmail}
-                                </p>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-          )}
         </div>
       )}
 
@@ -9490,6 +9636,7 @@ function DashboardView({
   students,
   subjects,
   currentUser,
+  globalSettings,
   onNavigate,
   onCalculateYearEnd,
   onUnfinalizeYearEnd,
@@ -9504,6 +9651,7 @@ function DashboardView({
   students: Student[],
   subjects: Subject[],
   currentUser?: any,
+  globalSettings?: any,
   onNavigate?: (tab: string) => void,
   onCalculateYearEnd?: () => void,
   onUnfinalizeYearEnd?: () => void,
@@ -9701,6 +9849,8 @@ function DashboardView({
       </div>
     );
   }
+
+  const isMainAdmin = currentUser?.email === 'jessiemangabo@gmail.com';
 
   return (
     <div className="w-full space-y-0 pb-12 font-sans">
@@ -10167,9 +10317,9 @@ function SubjectsView({
   const [presetSelectedSubjects, setPresetSelectedSubjects] = useState<string[]>([]);
   const [presetSubjectGroup, setPresetSubjectGroup] = useState<Subject['group']>('Revised K-10 Curriculum');
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const isActiveSY = currentUser?.email === 'jessiemangabo@gmail.com' || (!!globalSettings?.activeSchoolYear && 
+  const isActiveSY = !!globalSettings?.activeSchoolYear && 
     !globalSettings?.finalizedSchoolYears?.includes(globalSettings?.activeSchoolYear) && 
-    !selectedSection?.isFinalized);
+    !selectedSection?.isFinalized;
   const [form, setForm] = useState<Omit<Subject, 'id'>>({
     group: 'SHS Core Subjects, Other SHS Academic Electives',
     name: '',
