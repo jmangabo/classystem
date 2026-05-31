@@ -2729,7 +2729,7 @@ export default function App() {
                 className="flex flex-col"
               >
                 <GradebookView 
-                  subjects={editableSubjects}
+                  subjects={(userProfile?.role === 'system_admin' || userProfile?.role === 'admin' || userProfile?.role === 'school_head' || isSectionAdviser) ? subjects : editableSubjects}
                   selectedSubjectId={selectedSubjectId}
                   onSelectSubject={setSelectedSubjectId}
                   students={students}
@@ -8846,26 +8846,15 @@ function GradebookView({
                     value={activeTerm}
                     onChange={(e) => {
                       const newTerm = Number(e.target.value) as TermNumber;
-                      const allOffered = selectedSubject?.offeredTerms?.length ? [...selectedSubject.offeredTerms].sort() : Array.from({ length: globalNumTerms }, (_, idx) => (idx + 1) as TermNumber);
-                      const previousOfferedTerms = allOffered.filter(t => t < newTerm);
-                      const isAllowedToProceed = previousOfferedTerms.every(t => selectedSubject?.finalizedTerms?.includes(t));
-                      if (isAllowedToProceed) {
-                        onTermChange(newTerm);
-                      }
+                      onTermChange(newTerm);
                     }}
                     className={`appearance-none bg-white border px-3 pr-8 py-1.5 rounded-md text-xs font-semibold outline-none cursor-pointer hover:border-indigo-300 hover:bg-slate-50 transition-all shadow-sm ${isNotOffered ? 'border-rose-200 text-rose-600 bg-rose-50' : 'border-slate-200 text-slate-700'}`}
                   >
                     {Array.from({ length: globalNumTerms }, (_, i) => i + 1).map(q => {
                       const offered = !selectedSubject?.offeredTerms || selectedSubject?.offeredTerms.length === 0 || selectedSubject?.offeredTerms.includes(q as TermNumber);
-                      let isAllowedToProceed = true;
-                      if (offered) {
-                         const allOffered = selectedSubject?.offeredTerms?.length ? [...selectedSubject.offeredTerms].sort() : Array.from({ length: globalNumTerms }, (_, idx) => (idx + 1) as TermNumber);
-                         const previousOfferedTerms = allOffered.filter(t => t < q);
-                         isAllowedToProceed = previousOfferedTerms.every(t => selectedSubject?.finalizedTerms?.includes(t));
-                      }
                       return (
-                        <option key={q} value={q} disabled={!offered || !isAllowedToProceed}>
-                          {q === 1 ? '1st' : q === 2 ? '2nd' : q === 3 ? '3rd' : '4th'} Term {!offered ? "(Not Offered)" : (!isAllowedToProceed ? "(Locked)" : "")}
+                        <option key={q} value={q} disabled={!offered}>
+                          {q === 1 ? '1st' : q === 2 ? '2nd' : q === 3 ? '3rd' : '4th'} Term {!offered ? "(Not Offered)" : ""}
                         </option>
                       );
                     })}
@@ -8918,6 +8907,106 @@ function GradebookView({
               <span className="font-bold text-slate-400">SY:</span>
               <span className="font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">{selectedSection.schoolYear}</span>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Assigned Subjects Card Selector - Styled exactly like the admin / dashboard user assignments */}
+      {subjects && subjects.length > 0 && (
+        <div className="mx-6 md:mx-8 mt-6">
+          <div className="flex items-center justify-between border-b border-slate-200/80 pb-2 mb-4">
+            <h4 className="text-xs font-black uppercase tracking-[0.15em] text-slate-500 flex items-center gap-2">
+              <span className="w-1.5 h-3 bg-indigo-600 rounded-sm" />
+              Assigned Academic Subjects
+            </h4>
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 bg-slate-100 px-2.5 py-0.5 rounded-full">
+              {subjects.length} Load{subjects.length !== 1 ? 's' : ''}
+            </span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {subjects.map(sub => {
+              const offered = sub.offeredTerms && sub.offeredTerms.length > 0 ? sub.offeredTerms : ([1, 2, 3, 4] as TermNumber[]);
+              const isSelected = sub.id === selectedSubject.id;
+              const isSubjectFullyComplete = offered.every(t => sub.finalizedTerms?.includes(t));
+              
+              return (
+                <div 
+                  key={sub.id} 
+                  className={`p-4 rounded-2xl border transition-all duration-200 flex flex-col justify-between gap-3 bg-white ${
+                    isSelected 
+                      ? 'border-indigo-600 ring-1 ring-indigo-600 shadow-sm' 
+                      : 'border-slate-200 hover:border-indigo-300 hover:shadow-2xs'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <h6 className={`font-extrabold text-xs truncate ${isSelected ? 'text-indigo-600' : 'text-slate-900'}`} title={sub.name}>
+                        {sub.name}
+                      </h6>
+                      <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-0.5 flex items-center gap-1.5">
+                        <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-indigo-500 animate-pulse' : 'bg-slate-300'}`} />
+                        {isSelected ? 'Active Subject' : 'Academic Class Load'}
+                      </p>
+                    </div>
+                    {isSubjectFullyComplete ? (
+                      <span className="inline-flex text-[8px] font-black uppercase tracking-widest bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-md shrink-0 border border-emerald-200">
+                        Done
+                      </span>
+                    ) : (
+                      <span className="inline-flex text-[8px] font-black uppercase tracking-widest bg-amber-100 text-amber-800 px-2 py-0.5 rounded-md shrink-0 border border-amber-200">
+                        Pending
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-4 gap-1.5 pt-2 border-t border-slate-100">
+                    {([1, 2, 3, 4] as TermNumber[]).map(term => {
+                      const isOffered = offered.includes(term);
+                      if (!isOffered) {
+                        return (
+                          <div 
+                            key={term} 
+                            className="bg-slate-50 border border-slate-100 text-slate-300 rounded-lg py-1 text-center text-[10px] font-bold uppercase cursor-not-allowed select-none"
+                            title="Not Offered"
+                          >
+                            T{term}
+                          </div>
+                        );
+                      }
+                      
+                      const isFinalized = sub.finalizedTerms?.includes(term);
+                      const isCurrentTermActive = isSelected && activeTerm === term;
+
+                      return (
+                        <button
+                          key={term}
+                          onClick={() => {
+                            onSelectSubject(sub.id);
+                            onTermChange(term);
+                          }}
+                          className={`py-1 rounded-lg text-[10px] font-extrabold text-center uppercase tracking-wider transition-all cursor-pointer border ${
+                            isCurrentTermActive
+                              ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm hover:bg-indigo-700'
+                              : isFinalized
+                                ? 'bg-emerald-50 border-emerald-250 text-emerald-700 hover:bg-emerald-100'
+                                : 'bg-amber-50 border-amber-250 text-amber-700 hover:bg-amber-100'
+                          }`}
+                          title={
+                            isCurrentTermActive 
+                              ? `Term ${term} - Currently Active` 
+                              : isFinalized 
+                                ? `Term ${term} Finalized - click to select` 
+                                : `Term ${term} Pending - click to select`
+                          }
+                        >
+                          T{term}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
