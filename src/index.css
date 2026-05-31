@@ -94,21 +94,13 @@
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
     }
-    /* Hide everything on the page when printing */
-    body > *:not(#root) {
-      display: none !important;
+    /* Use visibility-based hiding so that any print-modal-container, regardless of nesting, is shown while everything else is hidden */
+    body {
+      visibility: hidden !important;
     }
-    /* Ensure only the active report card modal container is visible */
-    #root > div > *:not(.print-modal-container) {
-      display: none !important;
-    }
-    #root > div {
-      display: block !important;
-      height: auto !important;
-      min-height: 0 !important;
-      background: white !important;
-      padding: 0 !important;
-      margin: 0 !important;
+    .print-modal-container,
+    .print-modal-container * {
+      visibility: visible !important;
     }
     /* Reset fixed/scrolling properties of wrapper when printing */
     .print-modal-container {

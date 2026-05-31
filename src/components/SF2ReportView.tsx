@@ -97,6 +97,594 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
     }
   };
 
+  const handlePrintNewWindow = () => {
+    if (!currentMonthData) return;
+
+    const win = window.open('', '_blank');
+    if (!win) {
+      alert("Please allow popups to print the report.");
+      return;
+    }
+
+    const maxDays = Math.max(25, schoolDaysInMonth.length);
+    const emptyDaysCount = Math.max(0, 25 - schoolDaysInMonth.length);
+
+    // Male Rows HTML
+    const maleRowsHtml = sortedStudents.male.map((student, i) => {
+      const dailyData = student.dailyAttendance?.[selectedMonthKey] || student.dailyAttendance?.[currentMonthData.month] || {};
+      let presentCount = 0;
+      schoolDaysInMonth.forEach(dayInfo => {
+        if (dailyData[dayInfo.day]) presentCount++;
+      });
+      const totalDays = schoolDaysInMonth.length;
+      let absentCount = totalDays - presentCount;
+      if (absentCount < 0) absentCount = 0;
+
+      let remarksText = "";
+      if (student.status === 'Dropped Out') {
+        const dParts = student.dropoutDate?.split('-');
+        if (dParts?.length === 3) {
+          const dropYear = parseInt(dParts[0]);
+          const dropMonth = parseInt(dParts[1]) - 1;
+          if (currentMonthData.year === dropYear && monthIndices[currentMonthData.month] === dropMonth) {
+            remarksText = `D/O: ${new Date(student.dropoutDate!).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+          }
+        }
+      } else if (student.status === 'Transferred Out') {
+        const dParts = student.dropoutDate?.split('-');
+        if (dParts?.length === 3) {
+          const dropYear = parseInt(dParts[0]);
+          const dropMonth = parseInt(dParts[1]) - 1;
+          if (currentMonthData.year === dropYear && monthIndices[currentMonthData.month] === dropMonth) {
+            remarksText = `T/O to: ${student.transferredTo || ''}`;
+          }
+        }
+      }
+
+      const attendanceCells = schoolDaysInMonth.map(dayInfo => {
+        const isPresent = !!dailyData[dayInfo.day];
+        return `<td class="text-center" style="width: 14px;">${!isPresent ? '<span class="absent-marker">X</span>' : '<span class="present-marker">.</span>'}</td>`;
+      }).join('');
+
+      const emptyCells = Array.from({ length: emptyDaysCount }).map(() => '<td class="empty-day-cell"></td>').join('');
+
+      return `
+        <tr>
+          <td class="text-center font-bold" style="width: 20px;">${i + 1}</td>
+          <td class="student-name" style="width: 220px;">
+            ${formatStudentName(student)}
+            ${(student.status === 'Dropped Out' || student.status === 'Transferred Out') ? `<span class="student-status-sub">(${student.status === 'Dropped Out' ? 'Dropped' : 'Transferred'})</span>` : ''}
+          </td>
+          ${attendanceCells}
+          ${emptyCells}
+          <td class="text-center font-bold">${absentCount > 0 ? absentCount : ''}</td>
+          <td></td> <!-- TAR -->
+          <td class="remarks-cell" style="width: 130px; font-weight: 600; font-size: 7.5px;">${remarksText}</td>
+        </tr>
+      `;
+    }).join('');
+
+    // Female Rows HTML
+    const femaleRowsHtml = sortedStudents.female.map((student, i) => {
+      const dailyData = student.dailyAttendance?.[selectedMonthKey] || student.dailyAttendance?.[currentMonthData.month] || {};
+      let presentCount = 0;
+      schoolDaysInMonth.forEach(dayInfo => {
+        if (dailyData[dayInfo.day]) presentCount++;
+      });
+      const totalDays = schoolDaysInMonth.length;
+      let absentCount = totalDays - presentCount;
+      if (absentCount < 0) absentCount = 0;
+
+      let remarksText = "";
+      if (student.status === 'Dropped Out') {
+        const dParts = student.dropoutDate?.split('-');
+        if (dParts?.length === 3) {
+          const dropYear = parseInt(dParts[0]);
+          const dropMonth = parseInt(dParts[1]) - 1;
+          if (currentMonthData.year === dropYear && monthIndices[currentMonthData.month] === dropMonth) {
+            remarksText = `D/O: ${new Date(student.dropoutDate!).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+          }
+        }
+      } else if (student.status === 'Transferred Out') {
+        const dParts = student.dropoutDate?.split('-');
+        if (dParts?.length === 3) {
+          const dropYear = parseInt(dParts[0]);
+          const dropMonth = parseInt(dParts[1]) - 1;
+          if (currentMonthData.year === dropYear && monthIndices[currentMonthData.month] === dropMonth) {
+            remarksText = `T/O to: ${student.transferredTo || ''}`;
+          }
+        }
+      }
+
+      const attendanceCells = schoolDaysInMonth.map(dayInfo => {
+        const isPresent = !!dailyData[dayInfo.day];
+        return `<td class="text-center" style="width: 14px;">${!isPresent ? '<span class="absent-marker">X</span>' : '<span class="present-marker">.</span>'}</td>`;
+      }).join('');
+
+      const emptyCells = Array.from({ length: emptyDaysCount }).map(() => '<td class="empty-day-cell"></td>').join('');
+
+      return `
+        <tr>
+          <td class="text-center font-bold" style="width: 20px;">${i + 1}</td>
+          <td class="student-name" style="width: 220px;">
+            ${formatStudentName(student)}
+            ${(student.status === 'Dropped Out' || student.status === 'Transferred Out') ? `<span class="student-status-sub">(${student.status === 'Dropped Out' ? 'Dropped' : 'Transferred'})</span>` : ''}
+          </td>
+          ${attendanceCells}
+          ${emptyCells}
+          <td class="text-center font-bold">${absentCount > 0 ? absentCount : ''}</td>
+          <td></td> <!-- TAR -->
+          <td class="remarks-cell" style="width: 130px; font-weight: 600; font-size: 7.5px;">${remarksText}</td>
+        </tr>
+      `;
+    }).join('');
+
+    // Headers
+    const datesHeaderHtml = schoolDaysInMonth.map(dayInfo => `
+      <th class="border-cell font-bold" style="width: 14px; text-align: center; font-size: 8px;">${dayInfo.day}</th>
+    `).join('') + Array.from({ length: emptyDaysCount }).map(() => '<th class="border-cell bg-slate-50" style="width: 14px;"></th>').join('');
+
+    const dowHeaderHtml = schoolDaysInMonth.map(dayInfo => {
+      const date = new Date(currentMonthData.year, monthIndices[currentMonthData.month], dayInfo.day);
+      const dow = ['S', 'M', 'T', 'W', 'Th', 'F', 'S'][date.getDay()];
+      return `<th class="border-cell font-normal" style="width: 14px; text-align: center; font-size: 7px;">${dow}</th>`;
+    }).join('') + Array.from({ length: emptyDaysCount }).map(() => '<th class="border-cell bg-slate-50" style="width: 14px;"></th>').join('');
+
+    // Absentees Male Total
+    const totalMaleAbsentHtml = schoolDaysInMonth.map(dayInfo => {
+      let totalMaleAbsent = 0;
+      sortedStudents.male.forEach(student => {
+        const data = student.dailyAttendance?.[selectedMonthKey] || student.dailyAttendance?.[currentMonthData.month] || {};
+        if (!data[dayInfo.day]) totalMaleAbsent++;
+      });
+      return `<td class="text-center font-bold bg-white" style="width: 14px; font-size: 8px;">${totalMaleAbsent || ''}</td>`;
+    }).join('') + Array.from({ length: emptyDaysCount }).map(() => '<td class="bg-slate-50"></td>').join('');
+
+    // Absentees Female Total
+    const totalFemaleAbsentHtml = schoolDaysInMonth.map(dayInfo => {
+      let totalFemaleAbsent = 0;
+      sortedStudents.female.forEach(student => {
+        const data = student.dailyAttendance?.[selectedMonthKey] || student.dailyAttendance?.[currentMonthData.month] || {};
+        if (!data[dayInfo.day]) totalFemaleAbsent++;
+      });
+      return `<td class="text-center font-bold bg-white" style="width: 14px; font-size: 8px;">${totalFemaleAbsent || ''}</td>`;
+    }).join('') + Array.from({ length: emptyDaysCount }).map(() => '<td class="bg-slate-50"></td>').join('');
+
+    // Combined Total row
+    const combinedTotalHtml = schoolDaysInMonth.map(dayInfo => {
+      let totalAbsent = 0;
+      students.forEach(student => {
+        const data = student.dailyAttendance?.[selectedMonthKey] || student.dailyAttendance?.[currentMonthData.month] || {};
+        if (!data[dayInfo.day]) totalAbsent++;
+      });
+      return `<td class="text-center font-black bg-slate-100" style="width: 14px; font-size: 8px;">${totalAbsent || ''}</td>`;
+    }).join('') + Array.from({ length: emptyDaysCount }).map(() => '<td class="bg-slate-50"></td>').join('');
+
+    const documentContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Daily Attendance Report (SF2) - ${section.name}</title>
+        <style>
+          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+          
+          @page {
+            size: A4 landscape;
+            margin: 0.75in 10mm 10mm 10mm;
+          }
+          
+          body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            color: #1e293b;
+            margin: 0;
+            padding: 0;
+            font-size: 8px;
+            line-height: 1.25;
+            background: white;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          
+          .print-card-sf2 {
+            width: 277mm; /* Total landscape printable width available in A4 minus margins */
+            box-sizing: border-box;
+            background: white;
+            display: flex;
+            flex-direction: column;
+            margin: 0 auto;
+          }
+          
+          .text-center { text-align: center; }
+          .text-right { text-align: right; }
+          .font-black { font-weight: 900; }
+          .font-extrabold { font-weight: 800; }
+          .font-bold { font-weight: 700; }
+          .font-semibold { font-weight: 600; }
+          .font-medium { font-weight: 500; }
+          
+          .header-title {
+            font-size: 12pt;
+            font-weight: 900;
+            text-transform: uppercase;
+            margin: 0;
+            text-align: center;
+          }
+          
+          .header-subtitle {
+            font-size: 7pt;
+            font-style: italic;
+            text-align: center;
+            color: #475569;
+            margin: 2px 0 10px 0;
+            font-weight: 700;
+          }
+          
+          .info-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 6px 12px;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            font-size: 7.5pt;
+            font-weight: 800;
+          }
+          
+          .col-span-2 {
+            grid-column: span 2;
+          }
+          
+          .info-item {
+            display: flex;
+            align-items: flex-end;
+            gap: 4px;
+          }
+          
+          .info-label {
+            white-space: nowrap;
+            color: #334155;
+          }
+          
+          .info-value {
+            border-bottom: 1px solid #000;
+            flex: 1;
+            text-align: center;
+            font-weight: 800;
+            color: #000;
+            padding-bottom: 0.5px;
+          }
+          
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            border: 1px solid #000;
+            font-size: 7.5px;
+            line-height: 1;
+          }
+          
+          th, td {
+            border: 1px solid #000;
+            padding: 2px;
+            box-sizing: border-box;
+            height: 18px;
+            vertical-align: middle;
+          }
+          
+          th {
+            font-weight: 700;
+            background-color: #f8fafc;
+            text-transform: uppercase;
+          }
+          
+          .gender-row-header {
+            background-color: #e2e8f0;
+            font-weight: 900;
+            font-size: 8px;
+            text-align: left;
+            text-transform: uppercase;
+            padding-left: 6px;
+            height: 16px;
+          }
+          
+          .present-marker {
+            color: #94a3b8;
+            font-weight: 700;
+            font-size: 7.5px;
+          }
+          
+          .absent-marker {
+            color: #dc2626;
+            font-weight: 900;
+            font-size: 8px;
+          }
+          
+          .student-name {
+            text-align: left;
+            font-weight: 700;
+            font-size: 7pt;
+            white-space: nowrap;
+            padding-left: 4px;
+          }
+          
+          .student-status-sub {
+            font-size: 5px;
+            font-weight: 900;
+            text-transform: uppercase;
+            color: #dc2626;
+            margin-left: 4px;
+            display: inline-block;
+          }
+          
+          .bg-slate-50 { background-color: #f8fafc; }
+          .bg-slate-100 { background-color: #f1f5f9; }
+          .empty-day-cell { background-color: #f8fafc; }
+          
+          /* Bottom Sections */
+          .bottom-layout {
+            margin-top: 12px;
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            gap: 20px;
+            font-size: 7.5pt;
+          }
+          
+          .summary-table {
+            width: 100%;
+            border: 1px solid #000;
+          }
+          
+          .summary-table th, .summary-table td {
+            height: auto;
+            padding: 2.5px 4px;
+            font-size: 7.2px;
+          }
+          
+          .summary-table th {
+            font-weight: 700;
+          }
+          
+          .certifications-container {
+            display: flex;
+            justify-content: space-around;
+            align-items: flex-end;
+            padding-top: 5px;
+          }
+          
+          .cert-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            width: 185px;
+          }
+          
+          .cert-signature-line {
+            border-bottom: 1px solid #000;
+            width: 100%;
+            font-size: 9pt;
+            font-weight: 900;
+            text-transform: uppercase;
+            padding-bottom: 1px;
+            margin-top: 15px;
+            margin-bottom: 2px;
+          }
+          
+          .cert-title {
+            font-size: 6.5pt;
+            text-transform: uppercase;
+            color: #64748b;
+            font-weight: 700;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="print-card-sf2">
+          
+          <!-- Header Section -->
+          <h1 class="header-title">Daily Attendance Report of Learners</h1>
+          <p class="header-subtitle">(This replaces Form 1, Form 2 & STS Form 4 - Absenteeism and Dropout Profile)</p>
+
+          <!-- Info Row Block -->
+          <div class="info-grid">
+            <div class="info-item">
+              <span class="info-label">School ID:</span>
+              <span class="info-value">${section.schoolId || ''}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Region:</span>
+              <span class="info-value">${section.region || ''}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Division:</span>
+              <span class="info-value">${section.division || ''}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">District:</span>
+              <span class="info-value">${section.district || ''}</span>
+            </div>
+            
+            <div class="info-item col-span-2">
+              <span class="info-label">School Name:</span>
+              <span class="info-value">${section.schoolName || ''}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">School Year:</span>
+              <span class="info-value">${section.schoolYear || ''}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Grade Level:</span>
+              <span class="info-value">${section.gradeLevel}</span>
+            </div>
+
+            <div class="info-item col-span-2">
+              <span class="info-label">Adviser Name:</span>
+              <span class="info-value">${section.adviserName || ''}</span>
+            </div>
+            <div class="info-item col-span-2">
+              <span class="info-label">Report for the Month of:</span>
+              <span class="info-value" style="color: #4f46e5;">${currentMonthData.month} (Term ${currentMonthData.term})</span>
+            </div>
+          </div>
+
+          <!-- Main Attendance Table -->
+          <table>
+            <thead>
+              <tr style="height: 24px;">
+                <th rowspan="3" style="width: 20px; text-align: center;">No.</th>
+                <th rowspan="3" style="width: 220px; text-align: left; padding-left: 6px;">LEARNER'S NAME <br><span style="font-weight: normal; font-size: 5.5px;">(Last Name, First Name, Middle Name)</span></th>
+                <th colspan="${maxDays}" style="text-align: center; font-size: 7.5px; height: 12px;">
+                  <span style="font-size: 6px; font-weight: normal;">(1st row for date, 2nd row for Day: M,T,W,TH,F)</span>
+                </th>
+                <th colspan="2" style="text-align: center; width: 60px;">Total Month</th>
+                <th rowspan="3" style="width: 140px; text-align: left; padding-left: 6px;">REMARKS <br><span style="font-weight: normal; font-size: 5.5px;">(If D/O state reason. If T/I/O name of school)</span></th>
+              </tr>
+              <tr>
+                ${datesHeaderHtml}
+                <th rowspan="2" style="width: 30px; text-align: center; font-weight: 700;">ABS</th>
+                <th rowspan="2" style="width: 30px; text-align: center; font-weight: 700;">TAR</th>
+              </tr>
+              <tr>
+                ${dowHeaderHtml}
+              </tr>
+            </thead>
+            <tbody>
+              <!-- MALE SECTION -->
+              <tr>
+                <td colspan="${maxDays + 5}" class="gender-row-header">MALE</td>
+              </tr>
+              ${maleRowsHtml}
+              
+              <!-- Total Male Absentees -->
+              <tr class="total-row">
+                <td></td>
+                <td class="text-right font-bold uppercase" style="padding-right: 6px; font-size: 7.5px;">Total Male</td>
+                ${totalMaleAbsentHtml}
+                <td class="bg-white"></td>
+                <td class="bg-white"></td>
+                <td></td>
+              </tr>
+
+              <!-- FEMALE SECTION -->
+              <tr>
+                <td colspan="${maxDays + 5}" class="gender-row-header">FEMALE</td>
+              </tr>
+              ${femaleRowsHtml}
+
+              <!-- Total Female Absentees -->
+              <tr class="total-row">
+                <td></td>
+                <td class="text-right font-bold uppercase" style="padding-right: 6px; font-size: 7.5px;">Total Female</td>
+                ${totalFemaleAbsentHtml}
+                <td class="bg-white"></td>
+                <td class="bg-white"></td>
+                <td></td>
+              </tr>
+
+              <!-- Combined Total -->
+              <tr class="total-row-combined">
+                <td></td>
+                <td class="text-right font-extrabold uppercase" style="padding-right: 6px; font-size: 7.5px;">Combined Total</td>
+                ${combinedTotalHtml}
+                <td class="bg-slate-100"></td>
+                <td class="bg-slate-100"></td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+
+          <!-- Bottom Summary and Certification Section -->
+          <div class="bottom-layout">
+            <!-- Left Side: Summary table -->
+            <div>
+              <table class="summary-table">
+                <thead>
+                  <tr class="bg-white">
+                    <th colspan="4" class="summary-header-month">Month: ${currentMonthData.month}</th>
+                  </tr>
+                  <tr class="bg-white">
+                    <th style="text-align: left;">Days of Classes:</th>
+                    <th colspan="3" style="text-align: center; font-size: 9px; font-weight: 900;">${schoolDaysInMonth.length}</th>
+                  </tr>
+                  <tr class="bg-slate-50" style="font-size: 6.5px;">
+                    <th style="text-align: left; width: 160px;">Summary for the Month</th>
+                    <th style="text-align: center; width: 33px;">M</th>
+                    <th style="text-align: center; width: 33px;">F</th>
+                    <th style="text-align: center; width: 45px;">TOTAL</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="font-bold" style="font-style: italic; font-size: 7px;">* Enrolment as of 1st Friday</td>
+                    <td class="text-center font-bold">${summaryData?.enrolmentJune.m}</td>
+                    <td class="text-center font-bold">${summaryData?.enrolmentJune.f}</td>
+                    <td class="text-center font-bold" style="font-weight: 900;">${summaryData?.enrolmentJune.t}</td>
+                  </tr>
+                  <tr>
+                    <td class="font-bold" style="font-style: italic; font-size: 7px;">Late Enrollment during month</td>
+                    <td class="text-center font-bold">${summaryData?.lateEnroll.m || ''}</td>
+                    <td class="text-center font-bold">${summaryData?.lateEnroll.f || ''}</td>
+                    <td class="text-center font-bold" style="font-weight: 900;">${summaryData?.lateEnroll.t || ''}</td>
+                  </tr>
+                  <tr>
+                    <td class="font-bold" style="font-style: italic; font-size: 7px;">Registered Learner end of month</td>
+                    <td class="text-center font-bold">${summaryData?.registered.m}</td>
+                    <td class="text-center font-bold">${summaryData?.registered.f}</td>
+                    <td class="text-center font-bold" style="font-weight: 900;">${summaryData?.registered.t}</td>
+                  </tr>
+                  <tr>
+                    <td class="font-bold" style="font-style: italic; font-size: 7px;">Percentage of Enrolment</td>
+                    <td class="text-center font-bold">${summaryData?.percEnrolment.m.toFixed(1)}%</td>
+                    <td class="text-center font-bold">${summaryData?.percEnrolment.f.toFixed(1)}%</td>
+                    <td class="text-center font-bold" style="font-weight: 900;">${summaryData?.percEnrolment.t.toFixed(1)}%</td>
+                  </tr>
+                  <tr>
+                    <td class="font-bold" style="font-style: italic; font-size: 7px;">Average Daily Attendance</td>
+                    <td class="text-center font-bold">${summaryData?.avgAttendance.m.toFixed(1)}</td>
+                    <td class="text-center font-bold">${summaryData?.avgAttendance.f.toFixed(1)}</td>
+                    <td class="text-center font-bold" style="font-weight: 900;">${summaryData?.avgAttendance.t.toFixed(1)}</td>
+                  </tr>
+                  <tr>
+                    <td class="font-bold" style="font-style: italic; font-size: 7px;">Percentage of Attendance</td>
+                    <td class="text-center font-bold">${summaryData?.percAttendance.m.toFixed(1)}%</td>
+                    <td class="text-center font-bold">${summaryData?.percAttendance.f.toFixed(1)}%</td>
+                    <td class="text-center font-bold" style="font-weight: 900;">${summaryData?.percAttendance.t.toFixed(1)}%</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Right Side: Certification & Signatures -->
+            <div class="certifications-container">
+              <div class="cert-box">
+                <p style="margin: 0; text-align: left; width: 100%; font-weight: 700;">I certify that this is a true and correct report.</p>
+                <div class="cert-signature-line">${adviserName}</div>
+                <div class="cert-title">(Signature of Teacher)</div>
+              </div>
+              <div class="cert-box">
+                <p style="margin: 0; text-align: left; width: 100%; font-weight: 700;">Attested by:</p>
+                <div class="cert-signature-line">${headOfSchool || 'School Head / Principal'}</div>
+                <div class="cert-title">(Signature of School Head)</div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <script>
+          window.onload = function() {
+            setTimeout(function() {
+              window.print();
+              setTimeout(function() { window.close(); }, 500);
+            }, 600);
+          };
+        </script>
+      </body>
+      </html>
+    `;
+
+    win.document.write(documentContent);
+    win.document.close();
+  };
+
 
   useEffect(() => {
     if (userId && selectedMonthKey) {
@@ -417,51 +1005,83 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
     const tableWidth = 2 + schoolDaysInMonth.length + 3;
 
     const xlData: any[][] = [];
-    
-    // Helper to pad rows
-    const padRow = (row: any[]) => {
-       while (row.length < tableWidth) row.push("");
-       return row;
-    };
+    const rowTypes: string[] = [];
 
-    // Header Info with padding
-    xlData.push([`Daily Attendance Report of Learners`]);
+    // Title banner
+    xlData.push([`DAILY ATTENDANCE REPORT OF LEARNERS`]);
+    rowTypes.push("title");
+
+    // Subtitle form name
+    xlData.push([`School Form 2 (SF2) - Daily Attendance`]);
+    rowTypes.push("subtitle");
+
     xlData.push([]); 
+    rowTypes.push("spacer");
 
-    // Header Info: Create a more structured layout
-    // We will use 12 columns as a base for this reporting structure
-    xlData.push([
-      `School ID: ${section.schoolId || ''}`, "", "",
-      `Region: ${section.region || ''}`, "", "",
-      `Division: ${section.division || ''}`, "", "",
-      `District: ${section.district || ''}`
-    ]);
-    xlData.push([
-      `School Name: ${section.schoolName || ''}`, "", "", "", "", "",
-      `Adviser Name: ${section.adviserName || ''}`, "", "",
-      `School Year: ${section.schoolYear || ''}` 
-    ]);
-    xlData.push([
-      `Report Month: ${currentMonthData.month}`, "", "",
-      `Term: ${currentMonthData.term}`, "",
-      `Grade: ${section.gradeLevel}`, "",
-      `Section: ${section.name}`
-    ]);
+    // Define exact metadata column index partitions for standard columns alignment
+    const c1 = 0;
+    const c2 = Math.max(7, Math.round(tableWidth * 0.28));
+    const c3 = Math.max(13, Math.round(tableWidth * 0.53));
+    const c4 = Math.max(19, Math.round(tableWidth * 0.78));
+
+    // Header metadata row 1: School ID, Region, Division, District
+    const metaRow1 = Array(tableWidth).fill("");
+    metaRow1[c1] = `  School ID: ${section.schoolId || ''}`;
+    metaRow1[c2] = `  Region: ${section.region || ''}`;
+    metaRow1[c3] = `  Division: ${section.division || ''}`;
+    metaRow1[c4] = `  District: ${section.district || ''}`;
+    xlData.push(metaRow1);
+    rowTypes.push("metadata");
+
+    // Header metadata row 2: School Name, Adviser Name, School Year
+    const metaRow2 = Array(tableWidth).fill("");
+    metaRow2[c1] = `  School Name: ${section.schoolName || ''}`;
+    metaRow2[c2] = `  Adviser Name: ${section.adviserName || adviserName || ''}`;
+    metaRow2[c3] = `  School Year: ${section.schoolYear || ''}`;
+    metaRow2[c4] = ``; // Blank for alignment structure
+    xlData.push(metaRow2);
+    rowTypes.push("metadata");
+
+    // Header metadata row 3: Report Month, Term, Grade Level, Section
+    const metaRow3 = Array(tableWidth).fill("");
+    metaRow3[c1] = `  Report Month: ${currentMonthData.month}`;
+    metaRow3[c2] = `  Term: ${currentMonthData.term || '1'}`;
+    metaRow3[c3] = `  Grade Level: ${section.gradeLevel}`;
+    metaRow3[c4] = `  Section: ${section.name}`;
+    xlData.push(metaRow3);
+    rowTypes.push("metadata");
+
     xlData.push([]); // spacer
+    rowTypes.push("spacer");
 
-    // Column Headers
-    const headers = ["No.", "Learner's Name"];
-    schoolDaysInMonth.forEach(d => headers.push(d.day.toString()));
-    headers.push("Absent", "Tardy", "Remarks");
-    xlData.push(headers);
-    
-    const headerRowIndex = xlData.length - 1;
+    const R_headers = xlData.length;
 
-    // Male Students
+    // Column Headers 1 (Dates)
+    const headerRow1 = ["No.", "Learner's Name"];
+    schoolDaysInMonth.forEach(d => headerRow1.push(d.day.toString()));
+    headerRow1.push("Absent", "Tardy", "Remarks");
+    xlData.push(headerRow1);
+    rowTypes.push("headers");
+
+    // Column Headers 2 (Days of the week)
+    const headerRow2 = ["", ""];
+    schoolDaysInMonth.forEach(dayInfo => {
+      const date = new Date(currentMonthData.year, monthIndices[currentMonthData.month], dayInfo.day);
+      const dow = ['S', 'M', 'T', 'W', 'Th', 'F', 'S'][date.getDay()];
+      headerRow2.push(dow);
+    });
+    headerRow2.push("", "", "");
+    xlData.push(headerRow2);
+    rowTypes.push("headersSub");
+
+    // MALE SECTION
     xlData.push(["MALE"]);
+    const R_maleHeader = xlData.length - 1;
+    rowTypes.push("maleHeader");
+
     sortedStudents.male.forEach((s, i) => {
       const dailyData = s.dailyAttendance?.[selectedMonthKey] || s.dailyAttendance?.[currentMonthData!.month] || {};
-      const row = [i + 1, s.name];
+      const row = [i + 1, formatStudentName(s)];
       let presentCount = 0;
       schoolDaysInMonth.forEach(dayInfo => {
         const isPresent = !!dailyData[dayInfo.day];
@@ -471,13 +1091,39 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
       const absentCount = Math.max(0, schoolDaysInMonth.length - presentCount);
       row.push(absentCount > 0 ? absentCount : 0, "", "");
       xlData.push(row);
+      rowTypes.push("studentRow");
     });
 
-    // Female Students
+    // Total Male row
+    const totalMaleRow: any[] = ["", "TOTAL MALE"];
+    let totalMaleMonthlyAbsent = 0;
+    schoolDaysInMonth.forEach(dayInfo => {
+      let dailyAbsentCount = 0;
+      sortedStudents.male.forEach(s => {
+        const dailyData = s.dailyAttendance?.[selectedMonthKey] || s.dailyAttendance?.[currentMonthData!.month] || {};
+        if (!dailyData[dayInfo.day]) {
+          dailyAbsentCount++;
+        }
+      });
+      totalMaleMonthlyAbsent += dailyAbsentCount;
+      totalMaleRow.push(dailyAbsentCount > 0 ? dailyAbsentCount : 0);
+    });
+    totalMaleRow.push(totalMaleMonthlyAbsent, "", "");
+    xlData.push(totalMaleRow);
+    rowTypes.push("totalRow");
+
+    // Separator space
+    xlData.push([]);
+    rowTypes.push("spacer");
+
+    // FEMALE SECTION
     xlData.push(["FEMALE"]);
+    const R_femaleHeader = xlData.length - 1;
+    rowTypes.push("femaleHeader");
+
     sortedStudents.female.forEach((s, i) => {
       const dailyData = s.dailyAttendance?.[selectedMonthKey] || s.dailyAttendance?.[currentMonthData!.month] || {};
-      const row = [i + 1, s.name];
+      const row = [i + 1, formatStudentName(s)];
       let presentCount = 0;
       schoolDaysInMonth.forEach(dayInfo => {
         const isPresent = !!dailyData[dayInfo.day];
@@ -487,52 +1133,147 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
       const absentCount = Math.max(0, schoolDaysInMonth.length - presentCount);
       row.push(absentCount > 0 ? absentCount : 0, "", "");
       xlData.push(row);
+      rowTypes.push("studentRow");
     });
 
-    // Add summary data if it exists
+    // Total Female row
+    const totalFemaleRow: any[] = ["", "TOTAL FEMALE"];
+    let totalFemaleMonthlyAbsent = 0;
+    schoolDaysInMonth.forEach(dayInfo => {
+      let dailyAbsentCount = 0;
+      sortedStudents.female.forEach(s => {
+        const dailyData = s.dailyAttendance?.[selectedMonthKey] || s.dailyAttendance?.[currentMonthData!.month] || {};
+        if (!dailyData[dayInfo.day]) {
+          dailyAbsentCount++;
+        }
+      });
+      totalFemaleMonthlyAbsent += dailyAbsentCount;
+      totalFemaleRow.push(dailyAbsentCount > 0 ? dailyAbsentCount : 0);
+    });
+    totalFemaleRow.push(totalFemaleMonthlyAbsent, "", "");
+    xlData.push(totalFemaleRow);
+    rowTypes.push("totalRow");
+
+    // Combined Total row
+    const totalCombinedRow: any[] = ["", "COMBINED TOTAL"];
+    let totalCombinedMonthlyAbsent = 0;
+    schoolDaysInMonth.forEach(dayInfo => {
+      let dailyAbsentCount = 0;
+      students.forEach(s => {
+        const dailyData = s.dailyAttendance?.[selectedMonthKey] || s.dailyAttendance?.[currentMonthData!.month] || {};
+        if (!dailyData[dayInfo.day]) {
+          dailyAbsentCount++;
+        }
+      });
+      totalCombinedMonthlyAbsent += dailyAbsentCount;
+      totalCombinedRow.push(dailyAbsentCount > 0 ? dailyAbsentCount : 0);
+    });
+    totalCombinedRow.push(totalCombinedMonthlyAbsent, "", "");
+    xlData.push(totalCombinedRow);
+    rowTypes.push("combinedTotalRow");
+
+    // Summary block
+    let R_summaryTitle = -1;
+    let R_summaryHeaders = -1;
     if (summaryData) {
       xlData.push([]);
+      rowTypes.push("spacer");
+
       xlData.push(["Summary for the Month"]);
+      R_summaryTitle = xlData.length - 1;
+      rowTypes.push("summaryTitle");
+
       xlData.push(["Category", "Male", "Female", "Total"]);
-      xlData.push(["Enrolment as of (1st Friday of June)", summaryData.enrolmentJune.m, summaryData.enrolmentJune.f, summaryData.enrolmentJune.t]);
-      xlData.push(["Late Enrollment during the month (beyond cut-off)", summaryData.lateEnroll.m, summaryData.lateEnroll.f, summaryData.lateEnroll.t]);
-      xlData.push(["Registered Learner as of end of month", summaryData.registered.m, summaryData.registered.f, summaryData.registered.t]);
-      xlData.push(["Percentage of Enrolment", `${summaryData.percEnrolment.m.toFixed(2)}%`, `${summaryData.percEnrolment.f.toFixed(2)}%`, `${summaryData.percEnrolment.t.toFixed(2)}%`]);
-      xlData.push(["Average Daily Attendance", summaryData.avgAttendance.m.toFixed(2), summaryData.avgAttendance.f.toFixed(2), summaryData.avgAttendance.t.toFixed(2)]);
-      xlData.push(["Percentage of Attendance", `${summaryData.percAttendance.m.toFixed(2)}%`, `${summaryData.percAttendance.f.toFixed(2)}%`, `${summaryData.percAttendance.t.toFixed(2)}%`]);
+      R_summaryHeaders = xlData.length - 1;
+      rowTypes.push("summaryHeaders");
+
+      const summaryRows = [
+        ["Enrolment as of (1st Friday of June)", summaryData.enrolmentJune.m, summaryData.enrolmentJune.f, summaryData.enrolmentJune.t],
+        ["Late Enrollment during the month (beyond cut-off)", summaryData.lateEnroll.m, summaryData.lateEnroll.f, summaryData.lateEnroll.t],
+        ["Registered Learner as of end of month", summaryData.registered.m, summaryData.registered.f, summaryData.registered.t],
+        ["Percentage of Enrolment", `${summaryData.percEnrolment.m.toFixed(2)}%`, `${summaryData.percEnrolment.f.toFixed(2)}%`, `${summaryData.percEnrolment.t.toFixed(2)}%`],
+        ["Average Daily Attendance", summaryData.avgAttendance.m.toFixed(2), summaryData.avgAttendance.f.toFixed(2), summaryData.avgAttendance.t.toFixed(2)],
+        ["Percentage of Attendance", `${summaryData.percAttendance.m.toFixed(2)}%`, `${summaryData.percAttendance.f.toFixed(2)}%`, `${summaryData.percAttendance.t.toFixed(2)}%`]
+      ];
+
+      summaryRows.forEach(row => {
+        xlData.push(row);
+        rowTypes.push("summaryRow");
+      });
     }
+
+    // Certification Signature Cards
+    xlData.push([]);
+    rowTypes.push("spacer");
+
+    xlData.push(["", "I certify that this is a true and correct report.", "", "", "", "", "Attested by:", "", "", "", ""]);
+    const R_certTitle = xlData.length - 1;
+    rowTypes.push("certTitle");
+
+    xlData.push([]);
+    rowTypes.push("spacer");
+
+    xlData.push(["", adviserName, "", "", "", "", headOfSchool || "School Head / Principal", "", "", "", ""]);
+    const R_certNames = xlData.length - 1;
+    rowTypes.push("certNames");
+
+    xlData.push(["", "(Signature of Adviser / Teacher)", "", "", "", "", "(Signature of School Head)", "", "", "", ""]);
+    const R_certLabels = xlData.length - 1;
+    rowTypes.push("certLabels");
 
     const worksheet = XLSX.utils.aoa_to_sheet(xlData);
 
-    // Calculate dynamic rows for summary
-    const summaryHeaderRow = xlData.length - 8;
+    // Apply merges dynamically
+    const mergesByCode: any[] = [
+        // Title Block merges
+        { s: { r: 0, c: 0 }, e: { r: 0, c: tableWidth - 1 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: tableWidth - 1 } },
+        
+        // Metadata Row 1 Merges (Row 3)
+        { s: { r: 3, c: c1 }, e: { r: 3, c: c2 - 1 } },
+        { s: { r: 3, c: c2 }, e: { r: 3, c: c3 - 1 } },
+        { s: { r: 3, c: c3 }, e: { r: 3, c: c4 - 1 } },
+        { s: { r: 3, c: c4 }, e: { r: 3, c: tableWidth - 1 } },
+        
+        // Metadata Row 2 Merges (Row 4)
+        { s: { r: 4, c: c1 }, e: { r: 4, c: c2 - 1 } },
+        { s: { r: 4, c: c2 }, e: { r: 4, c: c3 - 1 } },
+        { s: { r: 4, c: c3 }, e: { r: 4, c: c4 - 1 } },
+        { s: { r: 4, c: c4 }, e: { r: 4, c: tableWidth - 1 } },
 
-    // Apply merges
-    worksheet['!merges'] = [
-        { s: { r: 0, c: 0 }, e: { r: 0, c: tableWidth - 1 } }, // Title
-        
-        // Header Info
-        { s: { r: 2, c: 0 }, e: { r: 2, c: 2 } }, // School ID
-        { s: { r: 2, c: 3 }, e: { r: 2, c: 5 } }, // Region
-        { s: { r: 2, c: 6 }, e: { r: 2, c: 8 } }, // Division
-        { s: { r: 2, c: 9 }, e: { r: 2, c: 11 } }, // District
-        
-        { s: { r: 3, c: 0 }, e: { r: 3, c: 5 } }, // School Name
-        { s: { r: 3, c: 6 }, e: { r: 3, c: 8 } }, // Adviser
-        { s: { r: 3, c: 9 }, e: { r: 3, c: 11 } }, // School Year
-        
-        { s: { r: 4, c: 0 }, e: { r: 4, c: 2 } }, // Report Month
-        { s: { r: 4, c: 3 }, e: { r: 4, c: 4 } }, // Term
-        { s: { r: 4, c: 5 }, e: { r: 4, c: 6 } }, // Grade
-        { s: { r: 4, c: 7 }, e: { r: 4, c: 11 } }, // Section
-        
-        // Sex Header
-        { s: { r: headerRowIndex + 1, c: 0 }, e: { r: headerRowIndex + 1, c: tableWidth - 1 } },
-        { s: { r: headerRowIndex + sortedStudents.male.length + 2, c: 0 }, e: { r: headerRowIndex + sortedStudents.male.length + 2, c: tableWidth - 1 } },
-        
-        // Summary
-        { s: { r: summaryHeaderRow, c: 0 }, e: { r: summaryHeaderRow, c: 3 } }
+        // Metadata Row 3 Merges (Row 5)
+        { s: { r: 5, c: c1 }, e: { r: 5, c: c2 - 1 } },
+        { s: { r: 5, c: c2 }, e: { r: 5, c: c3 - 1 } },
+        { s: { r: 5, c: c3 }, e: { r: 5, c: c4 - 1 } },
+        { s: { r: 5, c: c4 }, e: { r: 5, c: tableWidth - 1 } },
+
+        // Table Header vertical merges across Dates + Days-of-week rows
+        { s: { r: R_headers, c: 0 }, e: { r: R_headers + 1, c: 0 } }, // No
+        { s: { r: R_headers, c: 1 }, e: { r: R_headers + 1, c: 1 } }, // Name
+        { s: { r: R_headers, c: tableWidth - 3 }, e: { r: R_headers + 1, c: tableWidth - 3 } }, // Absent
+        { s: { r: R_headers, c: tableWidth - 2 }, e: { r: R_headers + 1, c: tableWidth - 2 } }, // Tardy
+        { s: { r: R_headers, c: tableWidth - 1 }, e: { r: R_headers + 1, c: tableWidth - 1 } }, // Remarks
+
+        // Male / Female dividers
+        { s: { r: R_maleHeader, c: 0 }, e: { r: R_maleHeader, c: tableWidth - 1 } },
+        { s: { r: R_femaleHeader, c: 0 }, e: { r: R_femaleHeader, c: tableWidth - 1 } },
     ];
+
+    if (summaryData && R_summaryTitle !== -1) {
+      mergesByCode.push({ s: { r: R_summaryTitle, c: 0 }, e: { r: R_summaryTitle, c: 3 } });
+    }
+
+    // Cert Block merges
+    mergesByCode.push({ s: { r: R_certTitle, c: 1 }, e: { r: R_certTitle, c: 4 } });
+    mergesByCode.push({ s: { r: R_certTitle, c: 6 }, e: { r: R_certTitle, c: 9 } });
+
+    mergesByCode.push({ s: { r: R_certNames, c: 1 }, e: { r: R_certNames, c: 4 } });
+    mergesByCode.push({ s: { r: R_certNames, c: 6 }, e: { r: R_certNames, c: 9 } });
+
+    mergesByCode.push({ s: { r: R_certLabels, c: 1 }, e: { r: R_certLabels, c: 4 } });
+    mergesByCode.push({ s: { r: R_certLabels, c: 6 }, e: { r: R_certLabels, c: 9 } });
+
+    worksheet['!merges'] = mergesByCode;
 
     // Apply styles
     const range = XLSX.utils.decode_range(worksheet['!ref']!);
@@ -540,60 +1281,304 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
     // Define styles
     const cellBaseStyle = {
       font: { name: "Arial", sz: 10 },
-      border: { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } }
-    };
-    
-    const titleStyle = {
-        font: { name: "Arial", sz: 16, bold: true },
-        alignment: { horizontal: "center", vertical: "center" },
-        fill: { fgColor: { rgb: "E2E8F0" } } // Slate-200
-    };
-
-    const headerStyle = {
-      ...cellBaseStyle,
-      font: { name: "Arial", sz: 11, bold: true },
-      fill: { fgColor: { rgb: "D3D3D3" } },
+      border: { 
+        top: { style: "thin", color: { rgb: "D1D5DB" } }, 
+        bottom: { style: "thin", color: { rgb: "D1D5DB" } }, 
+        left: { style: "thin", color: { rgb: "D1D5DB" } }, 
+        right: { style: "thin", color: { rgb: "D1D5DB" } } 
+      },
       alignment: { horizontal: "center", vertical: "center" }
     };
 
-    const rowHeaderStyle = {
+    const styleTitle = {
+      font: { name: "Arial", sz: 14, bold: true, color: { rgb: "FFFFFF" } },
+      fill: { fgColor: { rgb: "0F172A" } }, // Slate 900
+      alignment: { horizontal: "center", vertical: "center" }
+    };
+
+    const styleSubtitle = {
+      font: { name: "Arial", sz: 10, bold: true, color: { rgb: "2563EB" } },
+      fill: { fgColor: { rgb: "EFF6FF" } }, // Sky Blue Accent
+      alignment: { horizontal: "center", vertical: "center" }
+    };
+
+    const styleMetaCell = {
+      font: { name: "Arial", sz: 9, bold: true, color: { rgb: "1E293B" } },
+      fill: { fgColor: { rgb: "F8FAFC" } },
+      border: { 
+        top: { style: "thin", color: { rgb: "E2E8F0" } },
+        bottom: { style: "thin", color: { rgb: "E2E8F0" } },
+        left: { style: "thin", color: { rgb: "E2E8F0" } },
+        right: { style: "thin", color: { rgb: "E2E8F0" } }
+      },
+      alignment: { horizontal: "left", vertical: "center" }
+    };
+
+    const styleMainHeader = {
       ...cellBaseStyle,
-      font: { name: "Arial", sz: 11, bold: true },
-      fill: { fgColor: { rgb: "E5E7EB" } },
-      alignment: { horizontal: "left" }
+      font: { name: "Arial", sz: 9.5, bold: true, color: { rgb: "FFFFFF" } },
+      fill: { fgColor: { rgb: "1E3A8A" } }, // Navy Blue
+      border: { 
+        top: { style: "medium", color: { rgb: "000000" } },
+        bottom: { style: "medium", color: { rgb: "000000" } },
+        left: { style: "thin", color: { rgb: "3B82F6" } },
+        right: { style: "thin", color: { rgb: "3B82F6" } }
+      },
+      alignment: { horizontal: "center", vertical: "center" }
+    };
+
+    const styleMainHeaderName = {
+      ...styleMainHeader,
+      alignment: { horizontal: "left", vertical: "center" }
+    };
+
+    const styleMainSubHeader = {
+      ...cellBaseStyle,
+      font: { name: "Arial", sz: 8.5, bold: true, color: { rgb: "1E293B" } },
+      fill: { fgColor: { rgb: "F1F5F9" } }, // Light Gray Slate
+      border: { 
+        top: { style: "thin", color: { rgb: "94A3B8" } },
+        bottom: { style: "medium", color: { rgb: "000000" } },
+        left: { style: "thin", color: { rgb: "94A3B8" } },
+        right: { style: "thin", color: { rgb: "94A3B8" } }
+      },
+      alignment: { horizontal: "center", vertical: "center" }
+    };
+
+    const styleSexMaleHeader = {
+      font: { name: "Arial", sz: 10, bold: true, color: { rgb: "1E40AF" } }, // Deep Blue 800
+      fill: { fgColor: { rgb: "EFF6FF" } }, // Soft Blue 50
+      border: { 
+        top: { style: "medium", color: { rgb: "1E40AF" } },
+        bottom: { style: "medium", color: { rgb: "1E40AF" } },
+        left: { style: "thin", color: { rgb: "BFDBFE" } },
+        right: { style: "thin", color: { rgb: "BFDBFE" } }
+      },
+      alignment: { horizontal: "left", vertical: "center" }
+    };
+
+    const styleSexFemaleHeader = {
+      font: { name: "Arial", sz: 10, bold: true, color: { rgb: "9D174D" } }, // Pink 800
+      fill: { fgColor: { rgb: "FDF2F8" } }, // Soft Rose 50
+      border: { 
+        top: { style: "medium", color: { rgb: "9D174D" } },
+        bottom: { style: "medium", color: { rgb: "9D174D" } },
+        left: { style: "thin", color: { rgb: "FBCFE8" } },
+        right: { style: "thin", color: { rgb: "FBCFE8" } }
+      },
+      alignment: { horizontal: "left", vertical: "center" }
+    };
+
+    const styleNoCell = {
+      ...cellBaseStyle,
+      font: { name: "Arial", sz: 8.5, bold: true, color: { rgb: "475569" } }
+    };
+
+    const styleNameCell = {
+      ...cellBaseStyle,
+      font: { name: "Arial", sz: 9, bold: true, color: { rgb: "0F172A" } },
+      alignment: { horizontal: "left", vertical: "center" }
+    };
+
+    const styleTotalRow = {
+      font: { name: "Arial", sz: 9, bold: true, color: { rgb: "374151" } },
+      fill: { fgColor: { rgb: "F9FAFB" } },
+      border: { 
+        top: { style: "thin", color: { rgb: "000000" } },
+        bottom: { style: "thin", color: { rgb: "000000" } },
+        left: { style: "thin", color: { rgb: "D1D5DB" } },
+        right: { style: "thin", color: { rgb: "D1D5DB" } }
+      },
+      alignment: { horizontal: "center", vertical: "center" }
+    };
+
+    const styleCombinedTotalRow = {
+      font: { name: "Arial", sz: 9, bold: true, color: { rgb: "0F172A" } },
+      fill: { fgColor: { rgb: "E5E7EB" } }, // Grey-200
+      border: { 
+        top: { style: "thin", color: { rgb: "000000" } },
+        bottom: { style: "double", color: { rgb: "000000" } }, // Double accounting underline
+        left: { style: "thin", color: { rgb: "94A3B8" } },
+        right: { style: "thin", color: { rgb: "94A3B8" } }
+      },
+      alignment: { horizontal: "center", vertical: "center" }
+    };
+
+    const styleSummaryTitle = {
+      font: { name: "Arial", sz: 10, bold: true, color: { rgb: "FFFFFF" } },
+      fill: { fgColor: { rgb: "475569" } },
+      alignment: { horizontal: "left", vertical: "center" }
+    };
+
+    const styleSummaryHeader = {
+      font: { name: "Arial", sz: 9, bold: true, color: { rgb: "0F172A" } },
+      fill: { fgColor: { rgb: "F1F5F9" } },
+      border: { 
+        top: { style: "thin", color: { rgb: "CBD5E1" } },
+        bottom: { style: "thin", color: { rgb: "CBD5E1" } },
+        left: { style: "thin", color: { rgb: "CBD5E1" } },
+        right: { style: "thin", color: { rgb: "CBD5E1" } }
+      },
+      alignment: { horizontal: "center", vertical: "center" }
+    };
+
+    const styleSummaryCell = {
+      font: { name: "Arial", sz: 9 },
+      border: { 
+        top: { style: "thin", color: { rgb: "E2E8F0" } },
+        bottom: { style: "thin", color: { rgb: "E2E8F0" } },
+        left: { style: "thin", color: { rgb: "E2E8F0" } },
+        right: { style: "thin", color: { rgb: "E2E8F0" } }
+      },
+      alignment: { horizontal: "center", vertical: "center" }
+    };
+
+    const styleCertTitle = {
+      font: { name: "Arial", sz: 9.5, italic: true, bold: true, color: { rgb: "334155" } },
+      alignment: { horizontal: "center", vertical: "center" }
+    };
+
+    const styleCertName = {
+      font: { name: "Arial", sz: 10, bold: true, color: { rgb: "0F172A" } },
+      border: { bottom: { style: "thin", color: { rgb: "000000" } } }, // Underline signature line
+      alignment: { horizontal: "center", vertical: "center" }
+    };
+
+    const styleCertLabel = {
+      font: { name: "Arial", sz: 8.5, color: { rgb: "475569" } },
+      alignment: { horizontal: "center", vertical: "center" }
     };
 
     for (let R = range.s.r; R <= range.e.r; ++R) {
+        const rowType = rowTypes[R];
         for (let C = range.s.c; C <= range.e.c; ++C) {
             const cellAddress = XLSX.utils.encode_cell({ c: C, r: R });
             if (!worksheet[cellAddress]) {
                 worksheet[cellAddress] = { t: 's', v: '' }; // Ensure cell exists
             }
 
-            // Apply styles based on Row
-            if (R === 0) { // Title
-               worksheet[cellAddress].s = titleStyle;
-            } else if (R === 6) { // Table Column Headers
-                worksheet[cellAddress].s = headerStyle;
-            } else if (xlData[R] && (xlData[R][0] === "MALE" || xlData[R][0] === "FEMALE")) { // Sex Headers
-                worksheet[cellAddress].s = rowHeaderStyle;
-            } else { // Standard Data
-                worksheet[cellAddress].s = cellBaseStyle;
-                // Add Zebra striping for table data
-                if (R > 6 && R % 2 === 0 && xlData[R] && xlData[R].some((v: any) => v !== "")) {
-                   worksheet[cellAddress].s = { ...cellBaseStyle, fill: { fgColor: { rgb: "F9FAFB" } } };
+            const cell = worksheet[cellAddress];
+
+            if (rowType === "title") {
+              cell.s = styleTitle;
+            } else if (rowType === "subtitle") {
+              cell.s = styleSubtitle;
+            } else if (rowType === "metadata") {
+              cell.s = styleMetaCell;
+            } else if (rowType === "headers") {
+              cell.s = (C === 1) ? styleMainHeaderName : styleMainHeader;
+            } else if (rowType === "headersSub") {
+              cell.s = styleMainSubHeader;
+            } else if (rowType === "maleHeader") {
+              cell.s = styleSexMaleHeader;
+            } else if (rowType === "femaleHeader") {
+              cell.s = styleSexFemaleHeader;
+            } else if (rowType === "studentRow") {
+              // Standard student grid
+              if (C === 0) {
+                cell.s = styleNoCell;
+              } else if (C === 1) {
+                cell.s = styleNameCell;
+              } else if (C >= 2 && C < tableWidth - 3) {
+                // Presence/Absence marker
+                if (cell.v === "X") {
+                  cell.s = {
+                    ...cellBaseStyle,
+                    font: { name: "Arial", sz: 9, bold: true, color: { rgb: "DC2626" } }, // Bright Red
+                    fill: { fgColor: { rgb: "FEE2E2" } } // Soft Red Fill
+                  };
+                } else if (cell.v === ".") {
+                  cell.s = {
+                    ...cellBaseStyle,
+                    font: { name: "Arial", sz: 8.5, color: { rgb: "94A3B8" } } // Slate Gray dot
+                  };
+                } else {
+                  cell.s = cellBaseStyle;
                 }
+              } else if (C === tableWidth - 3) {
+                // Absent Column
+                const numVal = Number(cell.v);
+                if (numVal > 0) {
+                  cell.s = {
+                    ...cellBaseStyle,
+                    font: { name: "Arial", sz: 9.5, bold: true, color: { rgb: "991B1B" } }, // Dark Red
+                    fill: { fgColor: { rgb: "FEE2E2" } } // Highlight red cell
+                  };
+                } else {
+                  cell.s = {
+                    ...cellBaseStyle,
+                    font: { name: "Arial", sz: 9, color: { rgb: "CBD5E1" } }
+                  };
+                }
+              } else if (C === tableWidth - 2) {
+                // Tardy Column
+                cell.s = cellBaseStyle;
+              } else if (C === tableWidth - 1) {
+                // Remarks Column
+                cell.s = {
+                  ...cellBaseStyle,
+                  alignment: { horizontal: "left", vertical: "center" },
+                  font: { name: "Arial", sz: 8.5, italic: true }
+                };
+              } else {
+                cell.s = cellBaseStyle;
+              }
+
+              // Add subtle zebra striping on student rows
+              if (R % 2 === 0 && cell.s === cellBaseStyle) {
+                cell.s = { ...cellBaseStyle, fill: { fgColor: { rgb: "FAFAFA" } } };
+              }
+            } else if (rowType === "totalRow") {
+              cell.s = styleTotalRow;
+              if (C === 1) {
+                cell.s = { ...styleTotalRow, alignment: { horizontal: "right", vertical: "center" } };
+              }
+            } else if (rowType === "combinedTotalRow") {
+              cell.s = styleCombinedTotalRow;
+              if (C === 1) {
+                cell.s = { ...styleCombinedTotalRow, alignment: { horizontal: "right", vertical: "center" } };
+              }
+            } else if (rowType === "summaryTitle") {
+              cell.s = styleSummaryTitle;
+            } else if (rowType === "summaryHeaders") {
+              cell.s = styleSummaryHeader;
+              if (C === 0) {
+                cell.s = { ...styleSummaryHeader, alignment: { horizontal: "left", vertical: "center" } };
+              }
+            } else if (rowType === "summaryRow") {
+              cell.s = styleSummaryCell;
+              if (C === 0) {
+                cell.s = { 
+                  ...styleSummaryCell, 
+                  font: { name: "Arial", sz: 9, bold: true, color: { rgb: "1E293B" } }, 
+                  alignment: { horizontal: "left", vertical: "center" } 
+                };
+              } else {
+                cell.s = { ...styleSummaryCell, font: { name: "Arial", sz: 9.5, bold: true } };
+              }
+            } else if (rowType === "certTitle") {
+              cell.s = styleCertTitle;
+            } else if (rowType === "certNames") {
+              if (cell.v !== "") {
+                cell.s = styleCertName;
+              } else {
+                cell.s = { border: {} };
+              }
+            } else if (rowType === "certLabels") {
+              cell.s = styleCertLabel;
+            } else {
+              cell.s = { border: {} }; // Clean borderless
             }
         }
     }
 
     const colWidths = [
-      { wch: 5 }, // No.
-      { wch: 30 }, // Names
-      ...Array(tableWidth - 5).fill({ wch: 4 }), // Attendance Days
-      { wch: 6 }, // Total
-      { wch: 6 }, // Absent
-      { wch: 6 }, // Remarks
+      { wch: 6 }, // No.
+      { wch: 32 }, // Names
+      ...Array(tableWidth - 5).fill({ wch: 4.5 }), // Attendance Days
+      { wch: 8 }, // Absent
+      { wch: 8 }, // Tardy
+      { wch: 22 }, // Remarks
     ];
     worksheet['!cols'] = colWidths;
 
@@ -787,13 +1772,6 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
             View & Print Form
           </button>
           <button 
-            onClick={handleExportPDF}
-            className="flex items-center gap-2 px-6 h-12 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-100 hover:scale-105 transition-all active:scale-95"
-          >
-            <FileText size={16} />
-            PDF Report
-          </button>
-          <button 
             onClick={handleExport}
             className="flex items-center gap-2 px-6 h-12 bg-emerald-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-100 hover:scale-105 transition-all active:scale-95"
           >
@@ -853,7 +1831,7 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
         <div className="w-full overflow-x-auto text-black print:overflow-visible p-8 print:p-0">
             <style dangerouslySetInnerHTML={{ __html: `
               @media print {
-                @page { size: landscape; margin: 5mm; }
+                @page { size: landscape; margin: 0.75in 5mm 5mm 5mm; }
                 .sf2-report-container { width: 100% !important; border: none !important; padding: 0 !important; }
                 table { border-collapse: collapse !important; width: 100% !important; }
                 th, td { border: 1px solid black !important; }
@@ -1065,6 +2043,260 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
             </div>
         </div>
       )}
+
+      {/* Full-Screen Landscape Print Modal matching Learner's Progress Report Card */}
+      <AnimatePresence>
+        {isPrintModalOpen && currentMonthData && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] bg-slate-50 overflow-y-auto flex flex-col font-sans text-slate-800 print-modal-container font-sans"
+          >
+            {/* STICKY TOP BAR */}
+            <div className="sticky top-0 z-[210] bg-slate-900 text-white shadow-xl px-8 py-4 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 border-b border-white/10 print:hidden shrink-0">
+              <div className="flex flex-col">
+                <h2 className="text-sm font-black uppercase tracking-widest text-indigo-400">School Form 2 (SF2) - Attendance Report</h2>
+                <p className="text-xs text-slate-400 font-bold mt-0.5">
+                  Section: <span className="text-white uppercase font-black">{section.name}</span> • Month: <span className="text-white uppercase font-black">{currentMonthData.month} {currentMonthData.year}</span>
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <button 
+                  onClick={() => setIsPrintModalOpen(false)}
+                  className="px-4 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-full font-bold text-[10px] uppercase tracking-wide shadow flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+                >
+                  <X size={12} />
+                  Close Page
+                </button>
+              </div>
+            </div>
+
+            {/* PRINT WRAPPER */}
+            <div className="flex-1 flex flex-col items-center justify-start py-8 overflow-y-auto bg-slate-100 gap-10 print:bg-white print:p-0 print:overflow-visible print:block w-full">
+              <motion.div
+                initial={{ scale: 0.98, opacity: 0, y: 15 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                className="flex flex-col gap-8 print:gap-0 print:block print:transform-none select-none shadow-xl border border-slate-200/50 rounded-lg p-2 bg-white/50 print:border-0 print:p-0 print:bg-transparent"
+              >
+                {/* PAGE 1 */}
+                <div className="bg-white w-[297mm] p-[0.35in] shadow-2xl rounded text-black border border-black flex flex-col overflow-hidden print:shadow-none print:m-0 border-collapse print-card-sf2">
+                  
+                  {/* Header Section */}
+                  <div className="text-center mb-4">
+                    <h1 className="font-black text-[12pt] uppercase leading-none">Daily Attendance Report of Learners</h1>
+                    <p className="text-[7pt] tracking-tight italic mt-1 font-bold text-slate-600 leading-none">(This replaces Form 1, Form 2 & STS Form 4 - Absenteeism and Dropout Profile)</p>
+                  </div>
+
+                  {/* Info Row block */}
+                  <div className="grid grid-cols-4 gap-x-4 gap-y-2 text-[7.5pt] font-black mb-3 uppercase leading-none">
+                    <div className="flex gap-1 items-end"><span>School ID:</span> <span className="border-b border-black flex-1 text-center font-bold pb-0.5">{section.schoolId || ''}</span></div>
+                    <div className="flex gap-1 items-end"><span>Region:</span> <span className="border-b border-black flex-1 text-center font-bold pb-0.5">{section.region || ''}</span></div>
+                    <div className="flex gap-1 items-end"><span>Division:</span> <span className="border-b border-black flex-1 text-center font-bold pb-0.5">{section.division || ''}</span></div>
+                    <div className="flex gap-1 items-end"><span>District:</span> <span className="border-b border-black flex-1 text-center font-bold pb-0.5">{section.district || ''}</span></div>
+                    
+                    <div className="flex gap-1 items-end col-span-2"><span>School Name:</span> <span className="border-b border-black flex-1 text-center font-bold pb-0.5">{section.schoolName || ''}</span></div>
+                    <div className="flex gap-1 items-end"><span>School Year:</span> <span className="border-b border-black flex-1 text-center font-bold pb-0.5">{section.schoolYear || ''}</span></div>
+                    <div className="flex gap-1 items-end"><span>Grade Level:</span> <span className="border-b border-black flex-1 text-center font-bold pb-0.5">{section.gradeLevel}</span></div>
+
+                    <div className="flex gap-1 items-end col-span-2"><span>Adviser Name:</span> <span className="border-b border-black flex-1 text-center font-bold pb-0.5">{section.adviserName || ''}</span></div>
+                    <div className="flex gap-1 items-end col-span-2"><span>Report for the Month of:</span> <span className="border-b border-black flex-1 text-center text-indigo-700 font-bold pb-0.5">{currentMonthData.month} (Term {currentMonthData.term})</span></div>
+                  </div>
+
+                  {/* Table Section */}
+                  <div className="w-full">
+                    <table className="w-full border-collapse border border-black text-[7.5px] transition-none leading-none font-sans">
+                      <thead>
+                        <tr className="h-8">
+                          <th rowSpan={3} className="border border-black p-0.5 w-[20px] text-center font-bold">No.</th>
+                          <th rowSpan={3} className="border border-black p-0.5 w-[220px] leading-tight text-left pl-1 font-bold">LEARNER'S NAME <br/><span className="font-normal text-[6px] uppercase">(Last Name, First Name, Middle Name)</span></th>
+                          <th colSpan={Math.max(25, schoolDaysInMonth.length)} className="border border-black p-0.5 text-center font-bold text-[7.5px] h-3">
+                             <div className="text-[6.5px] leading-none">(1st row for date, 2nd row for Day: M,T,W,TH,F)</div>
+                          </th>
+                          <th colSpan={2} className="border border-black p-0.5 text-center w-[60px] h-3 font-bold">Total Month</th>
+                          <th rowSpan={3} className="border border-black p-0.5 w-[140px] leading-tight text-left pl-1 font-bold">REMARKS<br/><span className="font-normal text-[6px] uppercase">(If D/O state reason. If T/I/O name of school)</span></th>
+                        </tr>
+                        <tr className="h-5">
+                          {/* Dates */}
+                          {schoolDaysInMonth.map(dayInfo => (
+                             <th key={`m-date-${dayInfo.dateStr}`} className="border border-black p-0 min-w-[14px] text-center font-bold text-[8px] h-5 align-middle">
+                               {dayInfo.day}
+                             </th>
+                          ))}
+                          {Array.from({ length: Math.max(0, 25 - schoolDaysInMonth.length) }).map((_, i) => (
+                             <th key={`m-date-empty-${i}`} className="border border-black p-0 bg-slate-50 h-5"></th>
+                          ))}
+                          <th rowSpan={2} className="border border-black p-0.5 h-5 text-center font-bold">ABS</th>
+                          <th rowSpan={2} className="border border-black p-0.5 h-5 text-center font-bold">TAR</th>
+                        </tr>
+                        <tr className="h-5">
+                          {/* Days of week */}
+                          {schoolDaysInMonth.map(dayInfo => {
+                             const date = new Date(currentMonthData.year, monthIndices[currentMonthData.month], dayInfo.day);
+                             const dow = ['S', 'M', 'T', 'W', 'Th', 'F', 'S'][date.getDay()];
+                             return (
+                               <th key={`m-dow-${dayInfo.dateStr}`} className="border border-black p-0 min-w-[14px] text-center text-[7px] font-normal h-5 align-middle">
+                                  {dow}
+                               </th>
+                             );
+                          })}
+                          {Array.from({ length: Math.max(0, 25 - schoolDaysInMonth.length) }).map((_, i) => (
+                             <th key={`m-dow-empty-${i}`} className="border border-black p-0 bg-slate-50 h-5"></th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr className="bg-slate-200 h-4">
+                          <td colSpan={Math.max(25, schoolDaysInMonth.length) + 5} className="border border-black px-1 py-0.5 font-bold uppercase text-[8px] h-4 leading-none align-middle">MALE</td>
+                        </tr>
+                        {sortedStudents.male.map((student, i) => renderStudentRowModal(student, i))}
+                        <tr className="h-4 font-bold col-span-full">
+                          <td className="border border-black p-0.5 h-4"></td>
+                          <td className="border border-black px-1 py-0.5 text-right font-bold uppercase text-[7.5px] h-4 leading-none align-middle">Total Male</td>
+                          {schoolDaysInMonth.map(dayInfo => {
+                             let totalMaleAbsent = 0;
+                             sortedStudents.male.forEach(student => {
+                                 const data = student.dailyAttendance?.[selectedMonthKey] || student.dailyAttendance?.[currentMonthData.month] || {};
+                                 if (!data[dayInfo.day]) totalMaleAbsent++;
+                             });
+                             return <td key={`m-male-tot-${dayInfo.day}`} className="border border-black p-0.5 text-center font-bold bg-white text-[8px] h-4 align-middle">{totalMaleAbsent || ''}</td>;
+                          })}
+                          {Array.from({ length: Math.max(0, 25 - schoolDaysInMonth.length) }).map((_, i) => (
+                             <td key={`m-male-tot-empty-${i}`} className="border border-black p-0.5 bg-slate-50 h-4 font-normal"></td>
+                          ))}
+                          <td className="border border-black p-0.5 bg-white h-4"></td>
+                          <td className="border border-black p-0.5 bg-white h-4"></td>
+                          <td className="border border-black p-0.5 h-4"></td>
+                        </tr>
+
+                        <tr className="bg-slate-200 h-4">
+                          <td colSpan={Math.max(25, schoolDaysInMonth.length) + 5} className="border border-black px-1 py-0.5 font-bold uppercase text-[8px] h-4 leading-none align-middle">FEMALE</td>
+                        </tr>
+                        {sortedStudents.female.map((student, i) => renderStudentRowModal(student, i))}
+                        <tr className="h-4 font-bold col-span-full">
+                          <td className="border border-black p-0.5 h-4"></td>
+                          <td className="border border-black px-1 py-0.5 text-right font-bold uppercase text-[7.5px] h-4 leading-none align-middle">Total Female</td>
+                          {schoolDaysInMonth.map(dayInfo => {
+                             let totalFemaleAbsent = 0;
+                             sortedStudents.female.forEach(student => {
+                                 const data = student.dailyAttendance?.[selectedMonthKey] || student.dailyAttendance?.[currentMonthData.month] || {};
+                                 if (!data[dayInfo.day]) totalFemaleAbsent++;
+                             });
+                             return <td key={`m-female-tot-${dayInfo.day}`} className="border border-black p-0.5 text-center font-bold bg-white text-[8px] h-4 align-middle">{totalFemaleAbsent || ''}</td>;
+                          })}
+                          {Array.from({ length: Math.max(0, 25 - schoolDaysInMonth.length) }).map((_, i) => (
+                             <td key={`m-female-tot-empty-${i}`} className="border border-black p-0.5 bg-slate-50 h-4 font-normal"></td>
+                          ))}
+                          <td className="border border-black p-0.5 bg-white h-4"></td>
+                          <td className="border border-black p-0.5 bg-white h-4"></td>
+                          <td className="border border-black p-0.5 h-4"></td>
+                        </tr>
+
+                        <tr className="h-4 font-extrabold col-span-full">
+                          <td className="border border-black p-0.5 h-4"></td>
+                          <td className="border border-black px-1 py-0.5 text-right font-bold uppercase text-[7.5px] h-4 leading-none align-middle">Combined Total</td>
+                          {schoolDaysInMonth.map(dayInfo => {
+                             let totalAbsent = 0;
+                             students.forEach(student => {
+                                 const data = student.dailyAttendance?.[selectedMonthKey] || student.dailyAttendance?.[currentMonthData!.month] || {};
+                                 if (!data[dayInfo.day]) totalAbsent++;
+                             });
+                             return <td key={`m-total-${dayInfo.day}`} className="border border-black p-0.5 text-center font-black bg-slate-100 text-[8px] h-4 align-middle">{totalAbsent || ''}</td>;
+                          })}
+                          {Array.from({ length: Math.max(0, 25 - schoolDaysInMonth.length) }).map((_, i) => (
+                             <td key={`m-total-empty-${i}`} className="border border-black p-0.5 bg-slate-50 h-4 font-normal"></td>
+                          ))}
+                          <td className="border border-black p-0.5 bg-slate-100 h-4"></td>
+                          <td className="border border-black p-0.5 bg-slate-100 h-4"></td>
+                          <td className="border border-black p-0.5 h-4"></td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Summary Table at Bottom */}
+                  <div className="mt-4 grid grid-cols-[280px_1fr] gap-6 text-[7.5pt] leading-tight font-sans">
+                    <div>
+                      <table className="w-full border-collapse border border-black">
+                        <thead>
+                          <tr className="bg-white"><th colSpan={4} className="border border-black px-1 py-0.5 text-left uppercase text-indigo-700 font-extrabold text-[7.5pt] leading-none">Month: {currentMonthData.month}</th></tr>
+                          <tr className="bg-white">
+                            <th className="border border-black px-1 py-0.5 text-left font-bold text-[7.5pt]">Days of Classes:</th>
+                            <th colSpan={3} className="border border-black p-0.5 text-center text-[9pt] font-black">{schoolDaysInMonth.length}</th>
+                          </tr>
+                          <tr className="bg-slate-50 text-[7px]">
+                            <th className="border border-black px-1 py-0.5 text-left font-bold w-[160px]">Summary for the Month</th>
+                            <th className="border border-black p-0.5 text-center font-bold">M</th>
+                            <th className="border border-black p-0.5 text-center font-bold">F</th>
+                            <th className="border border-black p-0.5 text-center font-bold">TOTAL</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr className="text-[7.5px]">
+                            <td className="border border-black px-1 py-0.5 font-bold italic text-[7px]">* Enrolment as of 1st Friday</td>
+                            <td className="border border-black p-0.5 text-center font-bold">{summaryData?.enrolmentJune.m}</td>
+                            <td className="border border-black p-0.5 text-center font-bold">{summaryData?.enrolmentJune.f}</td>
+                            <td className="border border-black p-0.5 text-center font-black">{summaryData?.enrolmentJune.t}</td>
+                          </tr>
+                          <tr className="text-[7.5px]">
+                            <td className="border border-black px-1 py-0.5 font-bold italic text-[7px]">Late Enrollment during month</td>
+                            <td className="border border-black p-0.5 text-center font-bold">{summaryData?.lateEnroll.m || ''}</td>
+                            <td className="border border-black p-0.5 text-center font-bold">{summaryData?.lateEnroll.f || ''}</td>
+                            <td className="border border-black p-0.5 text-center font-black">{summaryData?.lateEnroll.t || ''}</td>
+                          </tr>
+                          <tr className="text-[7.5px]">
+                            <td className="border border-black px-1 py-0.5 font-bold italic text-[7px]">Registered Learner end of month</td>
+                            <td className="border border-black p-0.5 text-center font-bold">{summaryData?.registered.m}</td>
+                            <td className="border border-black p-0.5 text-center font-bold">{summaryData?.registered.f}</td>
+                            <td className="border border-black p-0.5 text-center font-black">{summaryData?.registered.t}</td>
+                          </tr>
+                          <tr className="text-[7.5px]">
+                            <td className="border border-black px-1 py-0.5 font-bold italic text-[7px]">Percentage of Enrolment</td>
+                            <td className="border border-black p-0.5 text-center font-bold">{summaryData?.percEnrolment.m.toFixed(1)}%</td>
+                            <td className="border border-black p-0.5 text-center font-bold">{summaryData?.percEnrolment.f.toFixed(1)}%</td>
+                            <td className="border border-black p-0.5 text-center font-black">{summaryData?.percEnrolment.t.toFixed(1)}%</td>
+                          </tr>
+                          <tr className="text-[7.5px]">
+                            <td className="border border-black px-1 py-0.5 font-bold italic text-[7px]">Average Daily Attendance</td>
+                            <td className="border border-black p-0.5 text-center font-bold">{summaryData?.avgAttendance.m.toFixed(1)}</td>
+                            <td className="border border-black p-0.5 text-center font-bold">{summaryData?.avgAttendance.f.toFixed(1)}</td>
+                            <td className="border border-black p-0.5 text-center font-black">{summaryData?.avgAttendance.t.toFixed(1)}</td>
+                          </tr>
+                          <tr className="text-[7.5px]">
+                            <td className="border border-black px-1 py-0.5 font-bold italic text-[7px]">Percentage of Attendance</td>
+                            <td className="border border-black p-0.5 text-center font-bold">{summaryData?.percAttendance.m.toFixed(1)}%</td>
+                            <td className="border border-black p-0.5 text-center font-bold">{summaryData?.percAttendance.f.toFixed(1)}%</td>
+                            <td className="border border-black p-0.5 text-center font-black">{summaryData?.percAttendance.t.toFixed(1)}%</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div className="flex flex-row justify-around gap-4 font-bold text-[7.5pt] mt-1 pr-6">
+                      <div className="flex flex-col justify-end">
+                        <p className="mb-3 font-bold text-[7.5pt]">I certify that this is a true and correct report.</p>
+                        <div className="w-[185px] text-center">
+                          <p className="text-[9pt] font-black uppercase text-slate-900 border-b border-black w-full pb-0.5">{adviserName}</p>
+                          <p className="text-[6.5pt] mt-0.5 uppercase text-slate-500 font-bold leading-none">(Signature of Teacher)</p>
+                        </div>
+                      </div>
+                      <div className="flex flex-col justify-end">
+                        <p className="mb-3 font-bold text-[7.5pt]">Attested by:</p>
+                        <div className="w-[185px] text-center">
+                          <p className="text-[9pt] font-black uppercase text-slate-900 border-b border-black w-full pb-0.5">{headOfSchool || 'School Head/Principal Name'}</p>
+                          <p className="text-[6.5pt] mt-0.5 uppercase text-slate-500 font-bold leading-none">(Signature of School Head)</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+              </motion.div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
