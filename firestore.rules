@@ -1,0 +1,265 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Connectivity Test Path
+    match /test/connection {
+      allow read: if true;
+    }
+
+    // Phase 3: Global Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isEmailVerified() {
+      // Relaxed for initial development, but recommended for production
+      return isSignedIn(); 
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isHardcodedAdmin() {
+      return isSignedIn() && (request.auth.token.email == 'jessiemangabo@gmail.com' || request.auth.token.email == 'jessie.mangabo@deped.gov.ph');
+    }
+
+    function getAuthUser() {
+      let path = /databases/$(database)/documents/users/$(request.auth.uid);
+      return exists(path) ? get(path).data : null;
+    }
+
+    function isAdmin() {
+      let isH = isHardcodedAdmin();
+      let user = getAuthUser();
+      return isH || (isSignedIn() && user != null && user.role == 'admin');
+    }
+
+    function isSystemAdmin() {
+      let user = getAuthUser();
+      return isSignedIn() && user != null && user.role == 'system_admin';
+    }
+
+    function getSchoolId() {
+      let user = getAuthUser();
+      return user != null ? user.get('schoolId', null) : null;
+    }
+
+    function isTeacher() {
+      let isH = isHardcodedAdmin();
+      let user = getAuthUser();
+      let role = user != null ? user.get('role', null) : null;
+      return isH || (isSignedIn() && user != null && (role == 'teacher' || role == 'admin' || role == 'system_admin' || role == 'school_head' || role == 'guidance_designate'));
+    }
+
+    function isStudent() {
+      let user = getAuthUser();
+      return isSignedIn() && user != null && user.get('role', null) == 'student';
+    }
+
+    // Collection Group Queries
+    match /{path=**}/subjects/{subjectId} {
+      // MUST allow read if signed in to allow the fetchTeacherSections logic to see their own subjects
+      allow read: if isSignedIn();
+    }
+
+    match /{path=**}/students/{studentId} {
+      allow read: if isSignedIn();
+    }
+
+    // 1. User Rules
+    match /users/{userId} {
+      function isValidUser(data) {
+        return data.keys().hasAll(['email', 'role', 'uid', 'displayName']) &&
+               data.email is string &&
+               data.role in ['admin', 'teacher', 'student', 'system_admin', 'school_head', 'guidance_designate'] &&
+               data.uid == userId &&
+               (data.get('approvalStatus', 'pending') in ['pending', 'approved', 'rejected']);
+      }
+
+      allow get: if isSignedIn() && (
+        request.auth.uid == userId || 
+        isAdmin() || 
+        (isSystemAdmin() && resource.data.get('schoolId', '') == getSchoolId()) || 
+        (isTeacher() && resource.data.get('schoolId', '') == getSchoolId())
+      );
+      
+      allow list: if isSignedIn();
+
+      allow create: if isSignedIn() && request.auth.uid == userId && isValidUser(incoming());
+      
+      allow update: if (isAdmin() || (isSignedIn() && request.auth.uid == userId) || (isSystemAdmin() && resource.data.get('schoolId', '') == getSchoolId()) || (isTeacher() && existing().get('role', '') == 'student' && existing().get('schoolId', '') == getSchoolId())) && isValidUser(incoming()) && (
+        isAdmin() || isHardcodedAdmin() || (
+            (isSystemAdmin() || (isTeacher() && existing().get('role', '') == 'student')) && incoming().role == existing().role && existing().role != 'admin' && existing().role != 'system_admin' && (incoming().diff(existing()).affectedKeys().hasOnly(['approvalStatus', 'expiresAt', 'lrn']))
+        ) || (
+            incoming().role == existing().role && 
+            incoming().get('approvalStatus', existing().get('approvalStatus', 'pending')) == existing().get('approvalStatus', 'pending')
+        )
+      );
+      
+      allow delete: if isAdmin() || (isSystemAdmin() && resource.data.get('schoolId', '') == getSchoolId() && resource.data.role != 'admin' && resource.data.role != 'system_admin') || (isTeacher() && resource.data.role == 'student' && resource.data.get('schoolId', '') == getSchoolId());
+    }
+
+    match /schools/{schoolDocId} {
+      allow read: if isSignedIn();
+      allow update: if isAdmin() || 
+                    (isSystemAdmin() && existing().get('schoolId', '') == getSchoolId() && incoming().get('schoolId', '') == existing().get('schoolId', '')) || 
+                    (isTeacher() && existing().get('schoolId', '') == getSchoolId() && incoming().diff(existing()).affectedKeys().hasAny(['principalSignature', 'logo']) && incoming().diff(existing()).affectedKeys().hasOnly(['principalSignature', 'logo']));
+      allow create, delete: if isAdmin();
+    }
+
+    match /school_calendar/{entryId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() || isSystemAdmin();
+    }
+
+    match /settings/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() || isSystemAdmin();
+    }
+
+    // 2. Section Rules
+    match /sections/{sectionId} {
+      function isValidSection(data) {
+        return (!('name' in data) || (data.name is string && data.name.size() <= 100)) &&
+               (!('gradeLevel' in data) || (data.get('gradeLevel', 0) is number || data.get('gradeLevel', '') is string)) &&
+               (!('adviserName' in data) || (data.adviserName is string)) &&
+               (!('adviserEmail' in data) || (data.adviserEmail is string)) &&
+               (!('createdBy' in data) || (data.createdBy is string)) &&
+               (!('schoolId' in data) || (data.schoolId is string)) &&
+               (!('signatureEnabled' in data) || (data.get('signatureEnabled', null) == null || data.signatureEnabled is map)) &&
+               (!('deletionStatus' in data) || (data.get('deletionStatus', 'none') in ['none', 'pending', 'approved', 'rejected'])) &&
+               (!('deletionRequestedBy' in data) || (data.get('deletionRequestedBy', '') is string)) &&
+               (!('disapprovalReason' in data) || (data.get('disapprovalReason', '') is string)) &&
+               (!('deletionReason' in data) || (data.get('deletionReason', '') is string));
+      }
+
+      // Loosen list/get for debugging and better reactivity
+      allow get, list: if isSignedIn();
+
+      allow create: if isTeacher() && isValidSection(incoming()) && 
+                    incoming().keys().hasAll(['name', 'adviserName', 'adviserEmail', 'createdBy', 'schoolId']) &&
+                    incoming().createdBy == request.auth.uid && (
+        !isSystemAdmin() || incoming().schoolId == getSchoolId()
+      );
+      allow update: if (isAdmin() || isSystemAdmin() || isTeacher()) && 
+                    isValidSection(incoming()) &&
+                    incoming().createdBy == existing().createdBy &&
+                    (!isSystemAdmin() || incoming().get('schoolId', '') == getSchoolId()) &&
+                    (
+                      // Case 1: Teacher or System Admin requesting/canceling deletion
+                      ((isSystemAdmin() || isTeacher()) && 
+                        (
+                          (incoming().get('deletionStatus', 'none') == 'pending' && existing().get('deletionStatus', 'none') != 'pending') || 
+                          (incoming().get('deletionStatus', 'none') == 'none' && (existing().get('deletionStatus', 'none') == 'pending' || existing().get('deletionStatus', 'none') == 'rejected'))
+                        ) && 
+                        incoming().diff(existing()).affectedKeys().hasOnly(['deletionStatus', 'deletionRequestedBy', 'disapprovalReason', 'deletionReason'])
+                      ) ||
+                      // Case 2: System Admin or Main Admin approving or rejecting deletion
+                      ((isAdmin() || isSystemAdmin()) && incoming().get('deletionStatus', 'none') in ['approved', 'rejected'] && incoming().diff(existing()).affectedKeys().hasOnly(['deletionStatus', 'disapprovalReason'])) ||
+                      // Case 3: Admin or System Admin editing details
+                      ((isAdmin() || isSystemAdmin() || isTeacher()) && !incoming().diff(existing()).affectedKeys().hasAny(['deletionStatus', 'deletionRequestedBy', 'disapprovalReason', 'deletionReason']))
+                    );
+      allow delete: if (isSystemAdmin() && existing().get('schoolId', '') == getSchoolId()) || isAdmin() || (isTeacher() && (existing().get('deletionStatus', 'none') == 'approved' || existing().get('createdBy', '') == request.auth.uid)) || isHardcodedAdmin();
+
+      // Sub-collections: Students & Subjects
+      match /students/{studentId} {
+        allow read: if isSignedIn();
+        allow update: if (isTeacher() && (
+          get(/databases/$(database)/documents/sections/$(sectionId)).data.createdBy == request.auth.uid || 
+          get(/databases/$(database)/documents/sections/$(sectionId)).data.get('adviserEmail', '').lower() == request.auth.token.email.lower() || 
+          get(/databases/$(database)/documents/sections/$(sectionId)).data.get('schoolId', '') == getSchoolId() ||
+          isAdmin() ||
+          (isSystemAdmin() && get(/databases/$(database)/documents/sections/$(sectionId)).data.schoolId == getSchoolId()) ||
+          ((isAdmin() || isSystemAdmin()) && incoming().diff(existing()).affectedKeys().hasOnly(['photo']))
+        )) || (
+          isStudent() && 
+          existing().get('lrn', '') == getAuthUser().get('lrn', 'NON_EXISTENT') && 
+          incoming().diff(existing()).affectedKeys().hasOnly(['signatures'])
+        );
+        allow create, delete: if isTeacher() && (
+          get(/databases/$(database)/documents/sections/$(sectionId)).data.createdBy == request.auth.uid || 
+          get(/databases/$(database)/documents/sections/$(sectionId)).data.get('adviserEmail', '').lower() == request.auth.token.email.lower() || 
+          get(/databases/$(database)/documents/sections/$(sectionId)).data.get('schoolId', '') == getSchoolId() ||
+          isAdmin() ||
+          (isSystemAdmin() && get(/databases/$(database)/documents/sections/$(sectionId)).data.schoolId == getSchoolId())
+        );
+      }
+
+      match /subjects/{subjectId} {
+        allow read: if isSignedIn();
+        allow write: if isTeacher() && (
+          (request.resource != null && request.resource.data.get('teacherEmail', '').lower() == request.auth.token.email.lower()) ||
+          (resource != null && resource.data.get('teacherEmail', '').lower() == request.auth.token.email.lower()) ||
+          get(/databases/$(database)/documents/sections/$(sectionId)).data.createdBy == request.auth.uid || 
+          get(/databases/$(database)/documents/sections/$(sectionId)).data.get('adviserEmail', '').lower() == request.auth.token.email.lower() || 
+          isAdmin() ||
+          (isSystemAdmin() && get(/databases/$(database)/documents/sections/$(sectionId)).data.schoolId == getSchoolId())
+        );
+      }
+    }
+
+    // 3. Feedback Rules
+    match /feedback/{userId} {
+      function isValidFeedback(data) {
+        let ratings = data.get('ratings', {});
+        let functionality = data.get('functionality', {});
+        
+        return data.userId == userId && 
+               data.userId == request.auth.uid &&
+               data.userRole is string &&
+               data.userRole in ['teacher', 'student', 'admin', 'system_admin'] &&
+               ratings is map &&
+               functionality is map &&
+               data.createdAt == request.time &&
+               // Validate at least one rating field to ensure structure
+               ratings.get('overallExp', 'Good') in ['Excellent', 'Good', 'Fair', 'Poor'];
+      }
+      
+      allow get: if isAdmin() || (isSignedIn() && request.auth.uid == userId);
+      allow list: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isSignedIn() && isValidFeedback(incoming());
+      allow update, delete: if isAdmin();
+    }
+
+    // 4. Anecdotal Records Rules
+    match /anecdotal_records/{recordId} {
+      allow read: if isSignedIn();
+      allow create: if (isTeacher() || isAdmin() || isSystemAdmin()) && incoming().createdBy == request.auth.uid;
+      allow update: if (isAdmin() || isSystemAdmin() || (isTeacher() && existing().createdBy == request.auth.uid)) && incoming().createdBy == existing().createdBy;
+      allow delete: if isAdmin() || isSystemAdmin() || (isTeacher() && existing().createdBy == request.auth.uid);
+    }
+
+    // 5. PTA Fees Rules
+    match /pta_fees/{feeId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isAdmin() || isSystemAdmin();
+    }
+
+    // 6. PTA Payments Rules
+    match /pta_payments/{paymentId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isAdmin() || isSystemAdmin() || isTeacher();
+    }
+
+    // 7. PTA Audit Logs Rules
+    match /pta_audit_logs/{logId} {
+      allow read: if isAdmin() || isSystemAdmin() || isTeacher();
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin() || isSystemAdmin(); // Allow admins to clear logs
+    }
+  }
+}

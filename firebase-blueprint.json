@@ -1,0 +1,332 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "User account information and roles",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "teacher", "student", "system_admin"] },
+        "displayName": { "type": "string" },
+        "uid": { "type": "string" },
+        "schoolId": { "type": "string" },
+        "approvalStatus": { "type": "string", "enum": ["pending", "approved", "rejected"] }
+      },
+      "required": ["email", "role", "uid"]
+    },
+    "Feedback": {
+      "title": "Beta Feedback",
+      "description": "Comprehensive user feedback from beta testing",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userRole": { "type": "string", "enum": ["teacher", "student", "admin", "system_admin"] },
+        "ratings": {
+          "type": "object",
+          "properties": {
+            "easeOfUse": { "type": "string" },
+            "uiDesign": { "type": "string" },
+            "performance": { "type": "string" },
+            "accuracy": { "type": "string" },
+            "features": { "type": "string" },
+            "overallExp": { "type": "string" }
+          }
+        },
+        "functionality": {
+          "type": "object",
+          "properties": {
+            "login": { "type": "boolean" },
+            "studentInfo": { "type": "boolean" },
+            "gradeProcessing": { "type": "boolean" },
+            "reports": { "type": "boolean" },
+            "navigation": { "type": "boolean" },
+            "dataSaving": { "type": "boolean" }
+          }
+        },
+        "issues": {
+          "type": "object",
+          "properties": {
+            "hadBugs": { "type": "boolean" },
+            "bugDescription": { "type": "string" },
+            "featureNeedsImprovement": { "type": "string" },
+            "additionalFeatures": { "type": "string" }
+          }
+        },
+        "overall": {
+          "type": "object",
+          "properties": {
+            "likedMost": { "type": "string" },
+            "improvements": { "type": "string" },
+            "recommend": { "type": "boolean" },
+            "whyRecommend": { "type": "string" }
+          }
+        },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "userRole", "ratings", "functionality", "createdAt"]
+    },
+    "Section": {
+      "title": "Class Section",
+      "description": "A class section with school and administrative information",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "gradeLevel": { "type": "number" },
+        "adviserName": { "type": "string" },
+        "adviserEmail": { "type": "string" },
+        "createdBy": { "type": "string" },
+        "region": { "type": "string" },
+        "division": { "type": "string" },
+        "district": { "type": "string" },
+        "schoolName": { "type": "string" },
+        "schoolId": { "type": "string" },
+        "schoolYear": { "type": "string" },
+        "signatureEnabled": { "type": "object" }
+      },
+      "required": ["name", "gradeLevel", "adviserName", "createdBy", "region", "division", "district", "schoolName", "schoolId", "schoolYear"]
+    },
+    "Student": {
+      "title": "Learner",
+      "description": "A student enrolled in a section with detailed SF10 data",
+      "type": "object",
+      "properties": {
+        "sectionId": { "type": "string" },
+        "name": { "type": "string" },
+        "lastName": { "type": "string" },
+        "firstName": { "type": "string" },
+        "middleName": { "type": "string" },
+        "lrn": { "type": "string" },
+        "birthdate": { "type": "string", "format": "date" },
+        "birthplace": { "type": "string" },
+        "sex": { "type": "string", "enum": ["Male", "Female"] },
+        "address": { "type": "string" },
+        "fatherName": { "type": "string" },
+        "motherName": { "type": "string" },
+        "guardianName": { "type": "string" },
+        "guardianRelationship": { "type": "string" },
+        "dateOfFirstAttendance": { "type": "string", "format": "date" },
+        "age": { "type": "number" },
+        "status": { "type": "string", "enum": ["Regular", "Irregular", "Transferred Out", "Dropped Out"] },
+        "dropoutDate": { "type": "string", "format": "date" },
+        "dropoutReason": { "type": "string" },
+        "eligibility": {
+          "type": "object",
+          "properties": {
+            "type": { "type": "string", "enum": ["Elementary School Completer", "PEPT Passer", "ALS A & E Passer", "Others"] },
+            "genAvg": { "type": "string" },
+            "citation": { "type": "string" },
+            "elemSchoolName": { "type": "string" },
+            "elemSchoolId": { "type": "string" },
+            "elemSchoolAddress": { "type": "string" },
+            "elemCompletionDate": { "type": "string" },
+            "peptRating": { "type": "string" },
+            "peptDate": { "type": "string" },
+            "alsRating": { "type": "string" },
+            "alsCenterInfo": { "type": "string" },
+            "othersSpecify": { "type": "string" }
+          }
+        },
+        "data": { "type": "object" },
+        "signatures": { "type": "object" },
+        "adviserSignature": { "type": "string" }
+      },
+      "required": ["sectionId", "name", "lrn"]
+    },
+    "Subject": {
+      "title": "Subject",
+      "description": "A subject in a specific section with its grading weights",
+      "type": "object",
+      "properties": {
+        "sectionId": { "type": "string" },
+        "name": { "type": "string" },
+        "group": { "type": "string" },
+        "teacherEmail": { "type": "string" },
+        "gradeLevel": { "type": "number" },
+        "subjectType": { "type": "string", "enum": ["CORE", "ELECTIVE"] },
+        "wwWeight": { "type": "number" },
+        "ptWeight": { "type": "number" },
+        "taWeight": { "type": "number" }
+      },
+      "required": ["sectionId", "name", "wwWeight", "ptWeight", "taWeight"]
+    },
+    "Conversation": {
+      "title": "Conversation",
+      "description": "A chat session between a teacher and a parent/student",
+      "type": "object",
+      "properties": {
+        "participants": { "type": "array" },
+        "studentId": { "type": "string" },
+        "sectionId": { "type": "string" },
+        "teacherId": { "type": "string" },
+        "lastMessage": { "type": "string" },
+        "lastMessageAt": { "type": "string", "format": "date-time" },
+        "schoolId": { "type": "string" },
+        "studentName": { "type": "string" }
+      },
+      "required": ["participants", "studentId", "teacherId", "schoolId"]
+    },
+    "ChatMessage": {
+      "title": "Chat Message",
+      "description": "An individual message within a conversation",
+      "type": "object",
+      "properties": {
+        "senderId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "text": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "read": { "type": "boolean" }
+      },
+      "required": ["senderId", "text", "timestamp"]
+    },
+    "AnecdotalRecord": {
+      "title": "Anecdotal Record",
+      "description": "Behavioral or academic observation of a learner by school staff",
+      "type": "object",
+      "properties": {
+        "studentId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "sectionId": { "type": "string" },
+        "sectionName": { "type": "string" },
+        "subjectId": { "type": "string" },
+        "subjectName": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "time": { "type": "string" },
+        "category": { "type": "string", "enum": ["behavioral", "academic", "social", "attendance", "other"] },
+        "observation": { "type": "string" },
+        "actionTaken": { "type": "string" },
+        "createdBy": { "type": "string" },
+        "createdByName": { "type": "string" },
+        "schoolId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["studentId", "studentName", "sectionId", "sectionName", "date", "category", "observation", "createdBy", "createdAt"]
+    },
+    "PTAFee": {
+      "title": "PTA Fee",
+      "description": "Official PTA fee or contribution encoded by admins",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "amount": { "type": "number" },
+        "description": { "type": "string" },
+        "schoolYear": { "type": "string" },
+        "semester": { "type": "string", "enum": ["1st Semester", "2nd Semester", "Full Year"] },
+        "status": { "type": "string", "enum": ["active", "inactive"] },
+        "isVoluntary": { "type": "boolean" },
+        "createdBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "schoolId": { "type": "string" }
+      },
+      "required": ["name", "amount", "schoolYear", "status", "isVoluntary", "schoolId"]
+    },
+    "PTAPayment": {
+      "title": "PTA Payment",
+      "description": "Payment transactions for voluntary PTA contributions per learner",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "studentId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "lrn": { "type": "string" },
+        "sectionId": { "type": "string" },
+        "sectionName": { "type": "string" },
+        "gradeLevel": { "type": "number" },
+        "feeId": { "type": "string" },
+        "feeName": { "type": "string" },
+        "amountPaid": { "type": "number" },
+        "paymentDate": { "type": "string", "format": "date" },
+        "orNumber": { "type": "string" },
+        "collectorName": { "type": "string" },
+        "collectorEmail": { "type": "string" },
+        "schoolYear": { "type": "string" },
+        "remarks": { "type": "string" },
+        "schoolId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["studentId", "studentName", "feeId", "feeName", "amountPaid", "paymentDate", "schoolId", "schoolYear"]
+    },
+    "PTAAuditLog": {
+      "title": "PTA Audit Log",
+      "description": "Log of actions performed in the PTA Fees module for transparency and accountability",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "actionType": { "type": "string", "enum": ["fee_setup_create", "fee_setup_update", "payment_record", "payment_void", "settlement"] },
+        "details": { "type": "string" },
+        "performedByEmail": { "type": "string" },
+        "performedByName": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "schoolId": { "type": "string" }
+      },
+      "required": ["actionType", "details", "performedByEmail", "timestamp", "schoolId"]
+    },
+    "Settings": {
+      "title": "Global Settings",
+      "description": "System-wide and school-wide configuration",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "schoolYears": { "type": "array" },
+        "activeSchoolYear": { "type": "string" },
+        "closedSchoolYears": { "type": "array" },
+        "finalizedSchoolYears": { "type": "array" },
+        "numTerms": { "type": "number" },
+        "cashierEmails": { "type": "array" },
+        "schoolId": { "type": "string" }
+      }
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "User",
+      "description": "Store application users and their roles"
+    },
+    "sections/{sectionId}": {
+      "schema": "Section",
+      "description": "Groups of students and subjects"
+    },
+    "sections/{sectionId}/students/{studentId}": {
+      "schema": "Student",
+      "description": "Learners within a specific section"
+    },
+    "sections/{sectionId}/subjects/{subjectId}": {
+      "schema": "Subject",
+      "description": "Subjects belonging to a section"
+    },
+    "feedback/{feedbackId}": {
+      "schema": "Feedback",
+      "description": "Collection of feedback submitted by users"
+    },
+    "conversations/{conversationId}": {
+      "schema": "Conversation",
+      "description": "Stores metadata of chat sessions"
+    },
+    "conversations/{conversationId}/messages/{messageId}": {
+      "schema": "ChatMessage",
+      "description": "Individual messages for a conversation"
+    },
+    "anecdotal_records/{recordId}": {
+      "schema": "AnecdotalRecord",
+      "description": "Observed behaviors, notes, and academic context of learners"
+    },
+    "pta_fees/{feeId}": {
+      "schema": "PTAFee",
+      "description": "Fee templates set by school admins"
+    },
+    "pta_payments/{paymentId}": {
+      "schema": "PTAPayment",
+      "description": "Actual contribution transactions per learner"
+    },
+    "pta_audit_logs/{logId}": {
+      "schema": "PTAAuditLog",
+      "description": "Audit trails for financial accountability"
+    },
+    "settings/{settingId}": {
+      "schema": "Settings",
+      "description": "System-wide and school-wide configuration"
+    }
+  }
+}

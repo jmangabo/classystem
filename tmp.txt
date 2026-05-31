@@ -1,0 +1,2 @@
+6966:                     <th className="border border-black p-2 text-center w-auto">Learning Areas</th>
+8640:                             <th className="px-6 py-4 text-[10px] font-black text-white uppercase tracking-widest">Learning Areas</th>

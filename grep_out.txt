@@ -1,0 +1,16 @@
+5457:        const isTransferredOut = student.status === 'Transferred Out';
+5458:        const isDroppedOut = student.status === 'Dropped Out';
+5506:              const isInactive = student.status === 'Transferred Out' || student.status === 'Dropped Out';
+5534:              const isInactive = student.status === 'Transferred Out' || student.status === 'Dropped Out';
+5558:                const isInactive = student.status === 'Transferred Out' || student.status === 'Dropped Out';
+8230:                        <span className={(student.status === 'Transferred Out' || student.status === 'Dropped Out') ? 'line-through text-slate-400' : ''}>{formatStudentName(student)}</span>
+8231:                        {student.status === 'Transferred Out' && (
+8234:                        {student.status === 'Dropped Out' && (
+8286:                        <span className={(student.status === 'Transferred Out' || student.status === 'Dropped Out') ? 'line-through text-slate-400' : ''}>{formatStudentName(student)}</span>
+8287:                        {student.status === 'Transferred Out' && (
+8290:                        {student.status === 'Dropped Out' && (
+8342:                        <span className={(student.status === 'Transferred Out' || student.status === 'Dropped Out') ? 'line-through text-slate-400' : ''}>{formatStudentName(student)}</span>
+8343:                        {student.status === 'Transferred Out' && (
+8346:                        {student.status === 'Dropped Out' && (
+8499:                  <div className={`px-2 py-1 ${student.status === 'Transferred Out' ? 'bg-rose-50 text-rose-600' : 'bg-orange-50 text-orange-600'} text-[8px] font-black uppercase tracking-widest rounded-lg`}>
+8500:                    {student.status === 'Transferred Out' ? 'Transferred' : 'Dropped Out'}

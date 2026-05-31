@@ -1,0 +1,114 @@
+235:  const [authLoading, setAuthLoading] = useState(true);
+236:  const [isLoggingIn, setIsLoggingIn] = useState(false);
+243:  useEffect(() => {
+260:  useEffect(() => {
+278:  const [isRecordsDropdownOpen, setIsRecordsDropdownOpen] = useState(false);
+279:  const [isMenuDropdownOpen, setIsMenuDropdownOpen] = useState(false);
+280:  const [isSettingsDropdownOpen, setIsSettingsDropdownOpen] = useState(false);
+281:  const [showAdminUsers, setShowAdminUsers] = useState(false);
+282:  const [showAdminSchools, setShowAdminSchools] = useState(false);
+283:  const [showAdminSchoolCalendar, setShowAdminSchoolCalendar] = useState(false);
+284:  const [showAdminSchoolYear, setShowAdminSchoolYear] = useState(false);
+285:  const [showAdminFeedback, setShowAdminFeedback] = useState(false);
+286:  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+287:  const [pendingUsersCount, setPendingUsersCount] = useState(0);
+288:  const [isCompletingProfile, setIsCompletingProfile] = useState(false);
+291:  const [noApprovedAdminFound, setNoApprovedAdminFound] = useState(false);
+295:  const [isEditingCourse, setIsEditingCourse] = useState(false);
+306:  const [learnerForm, setLearnerForm] = useState({
+316:  const [searchTerm, setSearchTerm] = useState("");
+319:  useEffect(() => {
+338:  const isAnySectionAdviser = useMemo(() => {
+344:  const isSectionAdviser = useMemo(() => {
+351:  const globalNumTerms = useMemo(() => {
+357:  const activeTermsInfo = useMemo(() => {
+370:  const hasCalendarMatch = useMemo(() => {
+377:  useEffect(() => {
+412:  useEffect(() => {
+527:  useEffect(() => {
+645:  useEffect(() => {
+689:  useEffect(() => {
+705:  useEffect(() => {
+711:  useEffect(() => {
+717:  useEffect(() => {
+724:  useEffect(() => {
+738:  useEffect(() => {
+1170:  const sectionSchoolCalendar = useMemo(() => {
+1175:  const studentPortalSchoolCalendar = useMemo(() => {
+1974:  const [form, setForm] = useState({
+1991:  useEffect(() => {
+2009:  useEffect(() => {
+2020:  useEffect(() => {
+2026:  useEffect(() => {
+2225:  const [showPricing, setShowPricing] = useState(false);
+2437:  const [showAdd, setShowAdd] = useState(false);
+2438:  const [showProfile, setShowProfile] = useState(false);
+2439:  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+2443:  const [filters, setFilters] = useState(() => {
+2461:  useEffect(() => {
+2465:  useEffect(() => {
+2504:  const schoolYears = useMemo(() => {
+2511:  const hasNoSchoolYear = useMemo(() => sections.some(s => !s.schoolYear || s.schoolYear.trim() === ''), [sections]);
+2512:  const regions = useMemo(() => Array.from(new Set(sections.map(s => s.region).filter(Boolean))), [sections]);
+2513:  const divisions = useMemo(() => Array.from(new Set(sections.map(s => s.division).filter(Boolean))), [sections]);
+2514:  const districts = useMemo(() => Array.from(new Set(sections.map(s => s.district).filter(Boolean))), [sections]);
+3249:  const [showAddModal, setShowAddModal] = useState(false);
+3252:  const [isUploading, setIsUploading] = useState(false);
+3253:  const [uploadSuccess, setUploadSuccess] = useState(false);
+3256:  const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
+4190:  const [showDataEntryHint, setShowDataEntryHint] = useState(false);
+4198:  const memoSortedStudents = useMemo(() => {
+4211:  const studentsMale = useMemo(() => memoSortedStudents.filter(s => s.sex?.toLowerCase() === 'male'), [memoSortedStudents]);
+4212:  const studentsFemale = useMemo(() => memoSortedStudents.filter(s => s.sex?.toLowerCase() === 'female'), [memoSortedStudents]);
+4213:  const studentsOther = useMemo(() => memoSortedStudents.filter(s => {
+4288:  useEffect(() => {
+5175:  const [isAddingPreset, setIsAddingPreset] = useState(false);
+5178:  const [isModalOpen, setIsModalOpen] = useState(false);
+5193:  useEffect(() => {
+5740:  const [isExporting, setIsExporting] = useState(false);
+5741:  const [showPrintToast, setShowPrintToast] = useState(false);
+5742:  const [useDescriptiveGrading, setUseDescriptiveGrading] = useState(false);
+5743:  const isGrade1To3 = useMemo(() => {
+5787:  const detectedMaxTerm = useMemo(() => {
+5795:  useEffect(() => {
+5802:  const hasCalendarMatch = useMemo(() => {
+5807:  const filteredCalendar = useMemo(() => {
+5812:  const SF9_ATTENDANCE_ENTRIES = useMemo(() => {
+5848:  const calendarMap = useMemo(() => {
+5865:  const attendanceTotals = useMemo(() => {
+5996:  useEffect(() => {
+6659:  const [useDescriptiveGrading, setUseDescriptiveGrading] = useState(false);
+6660:  const isGrade1To3 = useMemo(() => {
+6666:  const detectedMaxTerm = useMemo(() => {
+6705:  useEffect(() => {
+6711:  const isAdviser = useMemo(() => {
+6715:  const sortedSubjects = useMemo(() => {
+6765:  const summaryColumns = useMemo(() => {
+7489:  const [lrn, setLrn] = useState('');
+7490:  const [schoolId, setSchoolId] = useState('');
+7491:  const [loading, setLoading] = useState(false);
+7493:  const [adminCheckLoading, setAdminCheckLoading] = useState(false);
+7495:  useEffect(() => {
+7655:  const [lrn, setLrn] = useState(userProfile.lrn || '');
+7656:  const [loading, setLoading] = useState(false);
+7717:  const selectedStudent = useMemo(() => students.find(s => s.id === selectedStudentId), [students, selectedStudentId]);
+7720:  const detectedTerms = useMemo(() => {
+8050:  const [showReportCard, setShowReportCard] = useState(false);
+8053:  const numTerms = useMemo(() => {
+8059:  const hasCalendarMatch = useMemo(() => {
+8677:  const [showPayment, setShowPayment] = useState(false);
+8763:  const [loading, setLoading] = useState(true);
+8765:  const [searchTerm, setSearchTerm] = useState("");
+8766:  const [showPendingOnly, setShowPendingOnly] = useState(false);
+8768:  useEffect(() => {
+9403:  const [activeSectionId, setActiveSectionId] = useState(sections[0].id);
+9485:  const [isEditing, setIsEditing] = useState(false);
+9486:  const [editForm, setEditForm] = useState({
+9490:  const [loading, setLoading] = useState(false);
+9492:  useEffect(() => {
+9649:  const [loading, setLoading] = useState(true);
+9650:  const [isAdding, setIsAdding] = useState(false);
+9651:  const [isUploading, setIsUploading] = useState(false);
+9652:  const [uploadSuccess, setUploadSuccess] = useState(false);
+9653:  const [newSchool, setNewSchool] = useState({ name: '', schoolId: '', headOfSchool: '', region: '', division: '', district: '', schoolLogo: '', depEdLogo: '' });
+9656:  useEffect(() => {

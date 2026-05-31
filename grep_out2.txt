@@ -1,0 +1,88 @@
+69:} from "lucide-react";
+71:function EncodingClosedBanner() {
+81:}
+92:} from 'recharts';
+99:} from "firebase/auth";
+118:} from "firebase/firestore";
+173:};
+183:};
+193:};
+230:};
+1961:}
+1963:function SectionForm({ 
+1968:}: { 
+1973:}) {
+2222:}
+2224:function LoginView({ onLogin, isLoading }: { onLogin: () => void, isLoading?: boolean }) {
+2384:}
+2386:function SectionsView({ 
+2411:}: { 
+2436:}) {
+3063:}
+3066:function AddLearnerModal({ 
+3072:}: { 
+3078:}) {
+3206:}
+3208:function AddLearnerView({
+3228:}: {
+3248:}) {
+3946:}
+3948:function DeleteConfirmationModal({ 
+3952:}: { 
+3956:}) {
+3999:}
+4001:function EditLearnerModal({ 
+4011:}: { 
+4021:}) {
+4159:}
+4166:function GradebookView({ 
+4177:}: { 
+4188:}) {
+4560:};
+4891:}
+4893:function DashboardView({ 
+4897:}: { 
+4901:}) {
+5156:}
+5158:function SubjectsView({ 
+5166:}: { 
+5174:}) {
+5723:}
+5725:function MATATAGReportCardModal({ 
+5732:}: { 
+5739:}) {
+6636:}
+6638:function SummarySheetView({ 
+6647:}: { 
+6656:}) {
+7351:}
+7353:function TransferFacilityView({ 
+7357:}: { 
+7361:}) {
+7485:}
+7487:function RoleSelectionView({ user, onComplete }: { user: FirebaseUser, onComplete: (profile: UserProfile) => void }) {
+7652:}
+7654:function StudentLinkingView({ userProfile, onLinked, onLogout }: { userProfile: UserProfile, onLinked: (lrn: string, type: 'lrn' | 'email') => void, onLogout: () => void }) {
+7703:}
+7705:function SF10View({ 
+7710:}: { 
+7715:}) {
+8022:}
+8024:function StudentPortal({ 
+8036:}: { 
+8048:}) { 
+8674:}
+8676:function PendingApprovalView({ onLogout, isExpired, isRejected, noAdminFound, userRole }: { onLogout: () => void, isExpired?: boolean, isRejected?: boolean, noAdminFound?: boolean, userRole?: string }) {
+8741:}
+8743:function AdminUsersView({ 
+8752:}: { 
+8761:}) {
+9119:}
+9121:function UserGuideView() {
+9481:}
+9483:function ProfileView({ userProfile, onUpdate, onBack }: { userProfile: UserProfile, onUpdate: (p: UserProfile) => void, onBack?: () => void }) {
+9631:}
+9633:function AdminSchoolsView({ 
+9640:}: { 
+9647:}) {
+10121:}

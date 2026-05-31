@@ -1,0 +1,179 @@
+6297-  };
+6298-
+6299:  const isNotOffered = selectedSubject?.offeredTerms && 
+6300-                       selectedSubject?.offeredTerms.length > 0 && 
+6301-                       !selectedSubject?.offeredTerms.includes(activeTerm);
+--
+6649-              const hps = refData.writtenWorks?.maxScores?.[i] || 0;
+6650-              const hasHps = hps > 0;
+6651:              const isDisabled = !hasHps || isInactive || isNotOffered;
+6652-              return (
+6653:                <td key={`ww-${i}`} className={`p-1 border border-slate-200 text-center w-12 ${(!hasHps || isNotOffered) ? 'bg-slate-50/20' : 'bg-transparent'}`}>
+6654-                  <input 
+6655-                    type="text"
+--
+6677-              const hasHps = hps > 0;
+6678-              const isInactive = student.status === 'Transferred Out' || student.status === 'Dropped Out';
+6679:              const isDisabled = !hasHps || isInactive || isNotOffered;
+6680-              return (
+6681:                <td key={`pt-${i}`} className={`p-1 border border-slate-200 text-center w-12 ${(!hasHps || isNotOffered) ? 'bg-slate-50/20' : 'bg-transparent'}`}>
+6682-                  <input 
+6683-                    type="text"
+--
+6705-              const hasHps = hps > 0;
+6706-              const isInactive = student.status === 'Transferred Out' || student.status === 'Dropped Out';
+6707:              const isDisabled = !hasHps || isInactive || isNotOffered;
+6708-              return (
+6709:                <td key={`st-${i}`} className={`p-1 border border-slate-200 text-center w-12 ${(!hasHps || isNotOffered) ? 'bg-slate-50/20' : 'bg-transparent'}`}>
+6710-                  <input 
+6711-                    type="text"
+--
+6729-                const hasHps = hps > 0;
+6730-                const isInactive = student.status === 'Transferred Out' || student.status === 'Dropped Out';
+6731:                const isDisabled = !hasHps || isInactive || isNotOffered;
+6732-                return (
+6733-                  <input 
+--
+6742-                        ? 'bg-transparent hover:bg-slate-50 focus:bg-white focus:ring-1 focus:ring-indigo-500 rounded' 
+6743-                        : 'opacity-0 cursor-not-allowed'
+6744:                    } ${isInactive || isNotOffered ? 'cursor-not-allowed grayscale' : ''}`}
+6745-                  />
+6746-                );
+--
+6834-                    value={activeTerm}
+6835-                    onChange={(e) => onTermChange(Number(e.target.value) as TermNumber)}
+6836:                    className={`appearance-none bg-white border px-3 pr-8 py-1.5 rounded-md text-xs font-semibold outline-none cursor-pointer hover:border-indigo-300 hover:bg-slate-50 transition-all shadow-sm ${isNotOffered ? 'border-rose-200 text-rose-600 bg-rose-50' : 'border-slate-200 text-slate-700'}`}
+6837-                  >
+6838-                    {Array.from({ length: globalNumTerms }, (_, i) => i + 1).map(q => {
+--
+6845-                    })}
+6846-                  </select>
+6847:                  <ChevronDown size={12} className={`absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none transition-colors ${isNotOffered ? 'text-rose-400' : 'text-slate-400 group-hover:text-indigo-500'}`} />
+6848-                </div>
+6849-              </div>
+--
+6913-      )}
+6914-
+6915:      {isNotOffered && (
+6916-        <div className="mx-8 mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
+6917-           <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-center gap-4 text-rose-800 shadow-sm">
+--
+6954-                       <input 
+6955-                        type="text"
+6956:                        disabled={isNotOffered}
+6957-                        value={refData.writtenWorks?.names?.[i] || ""}
+6958-                        onChange={(e) => handleMassUpdate('written', 'names', i, e.target.value)}
+6959-                        placeholder={`W${i+1}`}
+6960:                        className={`w-full text-center bg-transparent outline-none py-2 text-[9px] font-bold text-slate-700 placeholder:text-slate-300 ${isNotOffered ? 'cursor-not-allowed opacity-50' : ''}`}
+6961-                       />
+6962-                    </th>
+--
+6971-                       <input 
+6972-                        type="text"
+6973:                        disabled={isNotOffered}
+6974-                        value={refData.performanceTasks?.names?.[i] || ""}
+6975-                        onChange={(e) => handleMassUpdate('performance', 'names', i, e.target.value)}
+6976-                        placeholder={`PT${i+1}`}
+6977:                        className={`w-full text-center bg-transparent outline-none py-2 text-[9px] font-bold text-slate-700 placeholder:text-slate-300 ${isNotOffered ? 'cursor-not-allowed opacity-50' : ''}`}
+6978-                       />
+6979-                    </th>
+--
+6988-                       <input 
+6989-                        type="text"
+6990:                        disabled={isNotOffered}
+6991-                        value={refData.summativeTests?.names?.[i] || ""}
+6992-                        onChange={(e) => handleMassUpdate('summative', 'names', i, e.target.value)}
+6993-                        placeholder={`ST${i+1}`}
+6994:                        className={`w-full text-center bg-transparent outline-none py-2 text-[9px] font-bold text-slate-700 placeholder:text-slate-300 ${isNotOffered ? 'cursor-not-allowed opacity-50' : ''}`}
+6995-                       />
+6996-                    </th>
+--
+7012-                        type="text"
+7013-                        inputMode="numeric"
+7014:                        disabled={isNotOffered}
+7015-                        value={refData.writtenWorks?.maxScores?.[i] === 0 ? "" : (refData.writtenWorks?.maxScores?.[i] || "")}
+7016-                        onChange={(e) => handleMassUpdate('written', 'maxScores', i, e.target.value)}
+7017-                        placeholder="--"
+7018:                        className={`w-full text-center text-xs font-bold p-1 outline-none bg-white border border-slate-200 rounded focus:border-indigo-500 transition-all shadow-inner ${isNotOffered ? 'cursor-not-allowed grayscale bg-slate-50' : ''}`}
+7019-                      />
+7020-                    </td>
+--
+7032-                        type="text"
+7033-                        inputMode="numeric"
+7034:                        disabled={isNotOffered}
+7035-                        value={refData.performanceTasks?.maxScores?.[i] === 0 ? "" : (refData.performanceTasks?.maxScores?.[i] || "")}
+7036-                        onChange={(e) => handleMassUpdate('performance', 'maxScores', i, e.target.value)}
+7037-                        placeholder="--"
+7038:                        className={`w-full text-center text-xs font-bold p-1 outline-none bg-white border border-slate-200 rounded focus:border-indigo-500 transition-all shadow-inner ${isNotOffered ? 'cursor-not-allowed grayscale bg-slate-50' : ''}`}
+7039-                      />
+7040-                    </td>
+--
+7052-                        type="text"
+7053-                        inputMode="numeric"
+7054:                        disabled={isNotOffered}
+7055-                        value={refData.summativeTests?.maxScores?.[i] === 0 ? "" : (refData.summativeTests?.maxScores?.[i] || "")}
+7056-                        onChange={(e) => handleMassUpdate('summative', 'maxScores', i, e.target.value)}
+7057-                        placeholder="--"
+7058:                        className={`w-full text-center text-xs font-bold p-1 outline-none bg-white border border-slate-200 rounded focus:border-indigo-500 transition-all shadow-inner ${isNotOffered ? 'cursor-not-allowed grayscale bg-slate-50' : ''}`}
+7059-                      />
+7060-                    </td>
+--
+7064-                        type="text"
+7065-                        inputMode="numeric"
+7066:                        disabled={isNotOffered}
+7067-                        value={refData.termExam?.maxScore === 0 ? "" : (refData.termExam?.maxScore || "")}
+7068-                        onChange={(e) => handleExamMaxChange(e.target.value)}
+7069-                        placeholder="--"
+7070:                        className={`w-full text-center text-xs font-bold p-1 outline-none bg-white border border-slate-200 rounded focus:border-indigo-500 transition-all shadow-inner ${isNotOffered ? 'cursor-not-allowed grayscale bg-slate-50' : ''}`}
+7071-                      />
+7072-                  </td>
+--
+9630-      summaryColumns.forEach(c => {
+9631-        const qGrades = Array.from({ length: numTerms }, (_, i) => {
+9632:           const isNotOffered = c.type === 'subject' && c.subject?.activeTerms && !c.subject.activeTerms.includes(i + 1);
+9633:           if (isNotOffered) return '-';
+9634-           const g = getColumnTermGrade(student, c, (i + 1) as TermNumber);
+9635-           return g === -1 ? '-' : g;
+--
+9802-                        <React.Fragment key={c.id}>
+9803-                          {qGrades.map((g, i) => {
+9804:                            const isNotOffered = c.type === 'subject' && c.subject?.activeTerms && !c.subject.activeTerms.includes(i + 1);
+9805-                            return (
+9806:                              <td key={i} className={`p-1 text-center text-[10px] font-medium border border-black ${isNotOffered ? 'bg-black' : g === -1 ? 'text-slate-300' : 'text-slate-600'}`}>
+9807:                                {isNotOffered ? '' : (g === -1 ? '-' : (useDescriptiveGrading && isGrade1To3 && g > 0 ? (<span className="text-indigo-600 font-bold">{getDescriptiveGrade(g)}</span>) : g || ''))}
+9808-                              </td>
+9809-                            );
+--
+9863-                        <React.Fragment key={c.id}>
+9864-                          {qGrades.map((g, i) => {
+9865:                            const isNotOffered = c.type === 'subject' && c.subject?.activeTerms && !c.subject.activeTerms.includes(i + 1);
+9866-                            return (
+9867:                              <td key={i} className={`p-1 text-center text-[10px] font-medium border border-black ${isNotOffered ? 'bg-black' : g === -1 ? 'text-slate-300' : 'text-slate-600'}`}>
+9868:                                {isNotOffered ? '' : (g === -1 ? '-' : (useDescriptiveGrading && isGrade1To3 && g > 0 ? (<span className="text-indigo-600 font-bold">{getDescriptiveGrade(g)}</span>) : g || ''))}
+9869-                              </td>
+9870-                            );
+--
+9922-                        <React.Fragment key={c.id}>
+9923-                          {qGrades.map((g, i) => {
+9924:                            const isNotOffered = c.type === 'subject' && c.subject?.activeTerms && !c.subject.activeTerms.includes(i + 1);
+9925-                            return (
+9926:                              <td key={i} className={`p-1 text-center text-[10px] font-medium border border-black ${isNotOffered ? 'bg-black' : g === -1 ? 'text-slate-300' : 'text-slate-600'}`}>
+9927:                                {isNotOffered ? '' : (g === -1 ? '-' : (useDescriptiveGrading && isGrade1To3 && g > 0 ? (<span className="text-indigo-600 font-bold">{getDescriptiveGrade(g)}</span>) : g || ''))}
+9928-                              </td>
+9929-                            );
+--
+10618-                                  {([1, 2, 3, 4] as TermNumber[]).slice(0, numTerms).map(q => {
+10619-                                     const isTermEnabled = student.publishGrades?.[q];
+10620:                                     const isNotOffered = subject.subjectType === 'ELECTIVE' && subject.offeredTerms && !subject.offeredTerms.includes(q);
+10621-                                     
+10622-                                     return (
+10623-                                       <div 
+10624-                                          key={q} 
+10625:                                          onClick={() => !isNotOffered && isTermEnabled && setSelectedTermDetail({ subject, term: q })}
+10626:                                          className={`bg-slate-50/50 p-2 py-3 rounded-2xl text-center border transition-all ${isNotOffered ? 'opacity-30 grayscale cursor-not-allowed border-transparent' : (isTermEnabled ? 'cursor-pointer hover:bg-white hover:border-indigo-200 border-slate-100' : 'cursor-not-allowed opacity-50 border-transparent')}`}
+10627:                                          title={isNotOffered ? "Subject not offered this term" : (isTermEnabled ? "Click for grade breakdown" : "Grade locked")}
+10628-                                       >
+10629-                                          <p className="text-[9px] font-medium text-slate-400 uppercase tracking-widest mb-1">Q{q}</p>
+10630:                                          {isNotOffered ? (
+10631-                                             <p className="text-sm font-medium text-slate-300">-</p>
+10632-                                          ) : isTermEnabled ? (
