@@ -93,6 +93,47 @@ function EncodingClosedBanner() {
   );
 }
 
+function DeadlineBanner({ globalSettings }: { globalSettings?: any }) {
+  const [dismissed, setDismissed] = useState(() => sessionStorage.getItem('deadline_banner_dismissed') === 'true');
+
+  if (dismissed || !globalSettings?.finalizationDeadline) return null;
+
+  const handleDismiss = () => {
+    setDismissed(true);
+    sessionStorage.setItem('deadline_banner_dismissed', 'true');
+  };
+
+  const deadline = new Date(globalSettings.finalizationDeadline);
+  const now = new Date();
+  
+  if (deadline < now) {
+    return (
+      <div className="bg-rose-600 text-white px-4 py-2.5 flex items-center justify-center gap-3 animate-pulse shadow-lg z-[100] shrink-0 border-b border-rose-500/50 relative">
+        <Clock size={16} className="text-rose-100" />
+        <span className="text-[11px] font-black uppercase tracking-[0.2em] italic">
+          Deadline for Finalization has passed ({deadline.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })})
+        </span>
+        <Clock size={16} className="text-rose-100" />
+        <button onClick={handleDismiss} className="absolute right-4 text-rose-200 hover:text-white transition-colors" title="Dismiss">
+          <X size={16} />
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="bg-amber-500 text-white px-4 py-2 flex items-center justify-center gap-3 shadow-md z-[100] shrink-0 border-b border-amber-600/50 relative">
+      <Clock size={16} className="text-amber-100" />
+      <span className="text-[11px] font-bold uppercase tracking-widest">
+        Deadline for Finalization: {deadline.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+      </span>
+      <Clock size={16} className="text-amber-100" />
+      <button onClick={handleDismiss} className="absolute right-4 text-amber-100 hover:text-white transition-colors" title="Dismiss">
+        <X size={16} />
+      </button>
+    </div>
+  );
+}
+
 function SectionYearEndBadge({ sectionId, schoolYear, globalSettings, isSectionFinalized }: { sectionId: string; schoolYear?: string; globalSettings?: any; isSectionFinalized?: boolean }) {
   const [students, setStudents] = useState<Student[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -609,6 +650,7 @@ export default function App() {
   const [globalSettings, setGlobalSettings] = useState<any>(null);
   const [isAuthorizedCashier, setIsAuthorizedCashier] = useState(false);
   const [confirmYearEndUnfinalize, setConfirmYearEndUnfinalize] = useState(false);
+  const [confirmFinalizeSection, setConfirmFinalizeSection] = useState(false);
 
   useEffect(() => {
     if (!currentUser || !userProfile?.schoolId) {
@@ -782,6 +824,14 @@ export default function App() {
     const isAdviser = adviserEmailStr && (adviserEmailStr === authEmail || adviserEmailStr === profileEmail);
     return !!isAdviser;
   }, [currentUser, userProfile, selectedSection]);
+
+  const isEntireSchoolFinalized = useMemo(() => {
+    const activeYear = globalSettings?.activeSchoolYear;
+    if (!activeYear) return false;
+    const activeSections = sections.filter(s => s.schoolYear === activeYear);
+    if (activeSections.length === 0) return false;
+    return activeSections.every(s => s.isFinalized);
+  }, [sections, globalSettings?.activeSchoolYear]);
 
   const editableSubjects = useMemo(() => {
     const email = (currentUser?.email || userProfile?.email || "").trim().toLowerCase();
@@ -1623,8 +1673,14 @@ export default function App() {
     }
   };
 
-  const handleCalculateYearEnd = async () => {
+  const handleCalculateYearEnd = () => {
     if (!selectedSection) return;
+    setConfirmFinalizeSection(true);
+  };
+
+  const executeFinalizeSection = async () => {
+    if (!selectedSection) return;
+    setConfirmFinalizeSection(false);
     try {
       const activeStudents = students.filter(s => s.status === 'Active' || !s.status);
       const updatePromises = activeStudents.map(student => {
@@ -1669,17 +1725,33 @@ export default function App() {
     if (!selectedSection) return;
     setConfirmYearEndUnfinalize(false);
     try {
-      const finalizedStudents = students.filter(s => s.status === 'Promoted' || s.status === 'Retained');
-      const updatePromises = finalizedStudents.map(student => {
-         return updateDoc(doc(db, `sections/${selectedSection.id}/students`, student.id), {
-             status: 'Active'
-         });
-      });
-      await Promise.all(updatePromises);
-      await updateDoc(doc(db, 'sections', selectedSection.id), { isFinalized: false });
+      if (userProfile?.role === 'system_admin' || userProfile?.email === 'jessiemangabo@gmail.com') {
+        const finalizedStudents = students.filter(s => s.status === 'Promoted' || s.status === 'Retained');
+        const updatePromises = finalizedStudents.map(student => {
+           return updateDoc(doc(db, `sections/${selectedSection.id}/students`, student.id), {
+               status: 'Active'
+           });
+        });
+        await Promise.all(updatePromises);
+        await updateDoc(doc(db, 'sections', selectedSection.id), { isFinalized: false });
+        alert("Section successfully unfinalized.");
+      } else {
+        const docRef = doc(db, 'settings', 'general');
+        await updateDoc(docRef, {
+          unfinalizeRequests: arrayUnion({
+            schoolYear: selectedSection.schoolYear || 'active',
+            sectionId: selectedSection.id,
+            sectionName: selectedSection.name,
+            requestedBy: userProfile?.email,
+            timestamp: new Date().toISOString()
+          })
+        });
+        alert("Unfinalize Section request sent successfully. A System Admin will review your request.");
+      }
     } catch (error) {
       console.error(error);
-      handleFirestoreError(error, 'write', `sections/${selectedSection.id}/students`);
+      const isTeacher = !(userProfile?.role === 'system_admin' || userProfile?.email === 'jessiemangabo@gmail.com');
+      handleFirestoreError(error, 'write', isTeacher ? 'settings/general' : `sections/${selectedSection.id}`);
     }
   };
 
@@ -2233,6 +2305,7 @@ export default function App() {
       onShowFeedback={() => setShowFeedbackModal(true)}
       isFeedbackOpen={showFeedbackModal}
       onCloseFeedback={() => setShowFeedbackModal(false)}
+      sections={sections}
     />;
   }
 
@@ -2373,6 +2446,7 @@ export default function App() {
   return (
     <div className="flex flex-col h-screen bg-[#f8fafc] text-slate-900 font-sans overflow-hidden">
       {!globalSettings?.activeSchoolYear && <EncodingClosedBanner />}
+      <DeadlineBanner globalSettings={globalSettings} />
       <header className="sticky top-0 z-[100] h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 xl:px-8 shrink-0 shadow-sm overflow-visible">
         <div className="flex items-center gap-4 xl:gap-8 min-w-max pr-4">
           <div className="flex items-center gap-4 border-r border-slate-100 pr-4 shrink-0">
@@ -2713,6 +2787,7 @@ export default function App() {
                   onShowFinancialStatement={handleShowFinancialStatement}
                   isAuthorizedCashier={isAuthorizedCashier}
                   isSectionAdviser={isSectionAdviser}
+                  isEntireSchoolFinalized={isEntireSchoolFinalized}
                   onSelectSubject={(subjId) => {
                     setSelectedSubjectId(subjId);
                     setActiveTab('gradebook');
@@ -3056,6 +3131,44 @@ export default function App() {
       </AnimatePresence>
 
       <AnimatePresence>
+        {confirmFinalizeSection && selectedSection && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl relative overflow-hidden"
+            >
+              <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4 bg-emerald-100 text-emerald-600">
+                <Sparkles size={32} />
+              </div>
+              
+              <h3 className="text-xl font-black text-slate-900 mb-2">Finalize Section?</h3>
+              
+              <p className="text-slate-600 text-sm mb-6 leading-relaxed">
+                Are you sure you want to finalize this section? This will lock all student records, compute final averages, and set statuses. This action is irreversible without requesting unfinalization.
+              </p>
+              
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => setConfirmFinalizeSection(false)}
+                  className="flex-1 py-3 bg-slate-100/80 hover:bg-slate-200 text-slate-700 font-bold text-xs uppercase tracking-wider rounded-xl transition-colors"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={executeFinalizeSection}
+                  className="flex-1 py-3 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow-md active:scale-95 bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20"
+                >
+                  Confirm Finalize
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
         {confirmYearEndUnfinalize && selectedSection && (
           <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
             <motion.div 
@@ -3068,10 +3181,12 @@ export default function App() {
                 <AlertTriangle size={32} />
               </div>
               
-              <h3 className="text-xl font-black text-slate-900 mb-2">Unfinalize Year End?</h3>
+              <h3 className="text-xl font-black text-slate-900 mb-2">{userProfile?.role === 'system_admin' ? 'Unfinalize Section?' : 'Request Unfinalize Section?'}</h3>
               
               <p className="text-slate-600 text-sm mb-6 leading-relaxed">
-                Are you sure you want to unfinalize the school year end? This will reset the promotion and retention statuses for all learners in this section and unlock the gradebook.
+                {userProfile?.role === 'system_admin' 
+                  ? "Are you sure you want to unfinalize this section? This will reset the promotion and retention statuses for all learners in this section and unlock the gradebook."
+                  : "Are you sure you want to request unfinalization of this section? An admin will review and approve."}
               </p>
               
               <div className="flex gap-2">
@@ -3660,9 +3775,11 @@ function GlobalFinalizationController({
   const [confirmFinalizePrompt, setConfirmFinalizePrompt] = useState(false);
   const [confirmUnfinalizePrompt, setConfirmUnfinalizePrompt] = useState(false);
   const [requestUnfinalizePrompt, setRequestUnfinalizePrompt] = useState(false);
+  const [showDeadlineModal, setShowDeadlineModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const isMainAdmin = user?.email === 'jessiemangabo@gmail.com';
+  const isSystemAdmin = user?.role === 'system_admin';
 
   const targetSchoolYear = selectedFilterSchoolYear || activeSchoolYear;
 
@@ -4041,7 +4158,7 @@ function GlobalFinalizationController({
         </div>
         <button 
           onClick={handleFinalizeAll}
-          disabled={processing}
+          disabled={processing || !isSystemAdmin}
           className="self-start sm:self-auto shrink-0 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold rounded-xl text-xs transition-all uppercase tracking-wider shadow-md shadow-emerald-600/15 cursor-pointer flex items-center gap-2 disabled:opacity-50"
         >
           {processing ? (
@@ -4224,6 +4341,14 @@ function SectionsView({
     return globalSettings?.finalizedSchoolYears?.includes(globalSettings?.activeSchoolYear);
   }, [globalSettings]);
 
+  const isEntireSchoolFinalized = useMemo(() => {
+    const activeYear = globalSettings?.activeSchoolYear;
+    if (!activeYear) return false;
+    const activeSections = sections.filter(s => s.schoolYear === activeYear);
+    if (activeSections.length === 0) return false;
+    return activeSections.every(s => s.isFinalized);
+  }, [sections, globalSettings?.activeSchoolYear]);
+
   useEffect(() => {
     if (sectionToDelete && (user?.role === 'system_admin' || user?.role === 'admin' || user?.role === 'teacher')) {
       const checkEmpty = async () => {
@@ -4336,19 +4461,21 @@ function SectionsView({
   const handleApproveRequest = async (req: any) => {
     try {
       const docRef = doc(db, 'settings', 'general');
-      const reqs = pendingRequests.filter((r: any) => r.schoolYear !== req.schoolYear);
+      const reqs = pendingRequests.filter((r: any) => !(r.schoolYear === req.schoolYear && r.timestamp === req.timestamp));
       
       const sectionsSnap = await getDocs(collection(db, 'sections'));
       const allSections = sectionsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-      const targetSections = allSections.filter((s: any) => s.schoolYear === req.schoolYear || (!s.schoolYear && req.schoolYear === 'No School Year') || (!req.schoolYear && req.schoolYear === 'active'));
+      const targetSections = req.sectionId 
+        ? allSections.filter((s: any) => s.id === req.sectionId)
+        : allSections.filter((s: any) => s.schoolYear === req.schoolYear || (!s.schoolYear && req.schoolYear === 'No School Year') || (!req.schoolYear && req.schoolYear === 'active'));
       
       const updatePromises = [];
       for (const tsec of targetSections) {
          const snaps = await getDocs(collection(db, `sections/${tsec.id}/students`));
          for (const docSnap of snaps.docs) {
            const studentData = docSnap.data();
-           if (studentData.status === 'Promoted' || studentData.status === 'Retained') {
-             updatePromises.push(updateDoc(doc(db, `sections/${tsec.id}/students`, docSnap.id), { status: deleteField() }));
+           if (studentData.status === 'Promoted' || studentData.status === 'Retained' || studentData.status === 'Active') {
+             updatePromises.push(updateDoc(doc(db, `sections/${tsec.id}/students`, docSnap.id), { status: 'Active' }));
            }
          }
          updatePromises.push(updateDoc(doc(db, 'sections', tsec.id), { isFinalized: false }));
@@ -4356,9 +4483,11 @@ function SectionsView({
       
       await Promise.all(updatePromises);
       await updateDoc(docRef, { unfinalizeRequests: reqs });
+      alert(`Unfinalize Request Approved${req.sectionName ? ' for Section: ' + req.sectionName : ''}`);
       
     } catch (e) {
       console.error(e);
+      alert("Failed to approve request.");
     }
   };
 
@@ -4367,8 +4496,45 @@ function SectionsView({
       const docRef = doc(db, 'settings', 'general');
       const reqs = pendingRequests.filter((r: any) => !(r.schoolYear === req.schoolYear && r.timestamp === req.timestamp));
       await updateDoc(docRef, { unfinalizeRequests: reqs });
+      alert(`Unfinalize Request Rejected for School Year: ${req.schoolYear}`);
     } catch (e) {
       console.error(e);
+      alert("Failed to reject request.");
+    }
+  };
+
+  const handleFinalizeEntireSchool = async () => {
+    if (!globalSettings?.activeSchoolYear) {
+      alert("No active school year set.");
+      return;
+    }
+    if (window.confirm('Are you sure you want to finalize all sections for the current school year? This action cannot be undone.')) {
+      try {
+        const batch = writeBatch(db);
+        let count = 0;
+        sections.filter(s => s.schoolYear === globalSettings.activeSchoolYear && !s.isFinalized).forEach(s => {
+          batch.update(doc(db, 'sections', s.id), { isFinalized: true });
+          count++;
+        });
+
+        // Also finalize the school record itself in firestore
+        if (user?.schoolId) {
+          const q = query(collection(db, "schools"), where("schoolId", "==", user.schoolId));
+          const snap = await getDocs(q);
+          snap.forEach(d => {
+            batch.update(doc(db, 'schools', d.id), { isFinalized: true });
+          });
+        }
+
+        if (count > 0 || user?.schoolId) {
+          await batch.commit();
+          alert(`Successfully finalized the school and its ${count} sections for ${globalSettings.activeSchoolYear}.`);
+        } else {
+          alert('All active sections are already finalized or none exist for the active school year.');
+        }
+      } catch (err) {
+        handleFirestoreError(err, 'write', 'sections');
+      }
     }
   };
 
@@ -4409,7 +4575,7 @@ function SectionsView({
                        <CheckCircle size={32} />
                     </div>
                     <p className="text-slate-500 font-bold mb-1">All Caught Up</p>
-                    <p className="text-slate-400 text-sm">There are no pending requests to unfinalize any school year.</p>
+                    <p className="text-slate-400 text-sm">There are no pending requests to unfinalize any sections.</p>
                   </div>
                 ) : (
                   pendingRequests.map((req: any, idx: number) => (
@@ -4421,7 +4587,7 @@ function SectionsView({
                         <div>
                           <h4 className="font-bold text-slate-900 text-sm">Pending Action</h4>
                           <p className="text-xs text-slate-600">
-                            Requested by <span className="font-semibold text-slate-700">{req.requestedBy}</span> for <span className="font-bold text-indigo-600 border border-indigo-100 bg-indigo-50 px-1 rounded">{req.schoolYear}</span>
+                            Requested by <span className="font-semibold text-slate-700">{req.requestedBy}</span> for <span className="font-bold text-indigo-600 border border-indigo-100 bg-indigo-50 px-1 rounded">{req.sectionName ? `Section ${req.sectionName} (${req.schoolYear})` : req.schoolYear}</span>
                           </p>
                         </div>
                       </div>
@@ -4443,6 +4609,7 @@ function SectionsView({
       </AnimatePresence>
 
       {!globalSettings?.activeSchoolYear && <EncodingClosedBanner />}
+      <DeadlineBanner globalSettings={globalSettings} />
       <header className="h-16 bg-white px-6 md:px-8 flex items-center justify-between shrink-0 gap-4 relative z-50 border-b border-slate-200 shadow-sm">
         <div className="flex items-center gap-4 shrink-0">
           <div className="w-10 h-10 bg-indigo-50 text-indigo-600 border border-indigo-100 rounded-xl flex items-center justify-center shadow-sm">
@@ -4459,7 +4626,7 @@ function SectionsView({
           </div>
         </div>
         <div className="flex items-center gap-3 md:gap-4 shrink-0">
-           {isMainAdmin ? (
+           {(isMainAdmin || user?.role === 'system_admin') && (
              <button
                onClick={() => setShowRequestsModal(true)}
                className="flex items-center gap-2 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 font-semibold text-xs px-3 py-2 rounded-lg transition-all shadow-sm relative"
@@ -4471,27 +4638,7 @@ function SectionsView({
                  </span>
                )}
              </button>
-           ) : user?.role === 'system_admin' ? (
-             <button
-               onClick={() => {
-                 const confirmed = window.confirm("Are you sure you want to request unfinalization of the current school year?");
-                 if (confirmed) {
-                   const docRef = doc(db, 'settings', 'general');
-                   updateDoc(docRef, {
-                     unfinalizeRequests: arrayUnion({
-                       schoolYear: globalSettings?.activeSchoolYear || 'active',
-                       requestedBy: user?.email,
-                       timestamp: new Date().toISOString()
-                     })
-                   });
-                   alert("Request sent successfully to the Main Admin.");
-                 }
-               }}
-               className="flex items-center gap-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-semibold text-xs px-3 py-2 rounded-lg transition-all shadow-sm"
-             >
-               <Lock size={14} /> <span className="hidden sm:inline">Request Unfinalize</span>
-             </button>
-           ) : null}
+           )}
 
            {user?.role === 'system_admin' && onManageUsers && (
              <button 
@@ -4504,6 +4651,15 @@ function SectionsView({
                    {pendingUsersCount}
                  </span>
                )}
+             </button>
+           )}
+
+           {user?.role === 'system_admin' && (
+             <button 
+               onClick={handleFinalizeEntireSchool}
+               className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-3 py-2 rounded-lg transition-all shadow-sm"
+             >
+               <CheckCircle size={14} /> <span className="hidden sm:inline">Finalize Entire School</span>
              </button>
            )}
            
@@ -4723,14 +4879,6 @@ function SectionsView({
                   </div>
                 </div>
               )}
-
-              <GlobalFinalizationController 
-                sections={sections} 
-                subjects={subjects} 
-                user={user} 
-                activeSchoolYear={globalSettings?.activeSchoolYear}
-                selectedFilterSchoolYear={filters.schoolYear}
-              />
 
           <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end border-b border-slate-200 pb-6 mb-6 gap-6">
             <div className="space-y-4 flex-1 w-full xl:w-auto overflow-hidden">
@@ -5035,7 +5183,7 @@ function SectionsView({
               <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider font-sans">Academic Sections List</h3>
               <p className="text-[11px] text-slate-500 font-medium">Browse and manage active groups below.</p>
             </div>
-            {(user?.role === 'admin' || user?.role === 'system_admin') && (
+            {(user?.role === 'admin' || user?.role === 'system_admin') && !isEntireSchoolFinalized && (
               <button 
                 onClick={() => {
                   if (user?.email !== 'jessiemangabo@gmail.com' && (!globalSettings?.activeSchoolYear || isGlobalFinalized)) return;
@@ -5120,7 +5268,7 @@ function SectionsView({
                     </div>
                     
                     <div className="flex gap-2">
-                       {user?.role === 'system_admin' && (
+                       {user?.role === 'system_admin' && !isEntireSchoolFinalized && !section.isFinalized && (
                          <button 
                            onClick={(e) => { 
                              if (user?.email !== 'jessiemangabo@gmail.com' && (!globalSettings?.activeSchoolYear || isGlobalFinalized || section.isFinalized)) return;
@@ -5133,21 +5281,22 @@ function SectionsView({
                            <Edit2 size={14} />
                          </button>
                        )}
-                       {((user?.role === 'teacher') || (user?.role === 'system_admin') || (user?.role === 'admin')) && (
+                       {((user?.role === 'teacher') || (user?.role === 'system_admin') || (user?.role === 'admin')) && !isEntireSchoolFinalized && !section.isFinalized && (
                          <button 
                            onClick={(e) => { 
-                             if (user?.email !== 'jessiemangabo@gmail.com' && (!globalSettings?.activeSchoolYear || (user?.role !== 'system_admin' && (isGlobalFinalized || section.isFinalized)))) return;
+                             if (isGlobalFinalized || section.isFinalized) return;
+                             if (user?.email !== 'jessiemangabo@gmail.com' && !globalSettings?.activeSchoolYear) return;
                              e.stopPropagation(); 
                              setSectionToDelete(section); 
                            }}
-                           disabled={user?.email !== 'jessiemangabo@gmail.com' && (!globalSettings?.activeSchoolYear || (user?.role !== 'system_admin' && (isGlobalFinalized || section.isFinalized)))}
+                           disabled={(isGlobalFinalized || section.isFinalized) || (user?.email !== 'jessiemangabo@gmail.com' && !globalSettings?.activeSchoolYear)}
                            className={`p-1.5 rounded-md transition-all disabled:opacity-30 disabled:cursor-not-allowed border opacity-0 group-hover:opacity-100 focus:opacity-100 ${
                              true
                                  ? 'bg-white text-slate-400 hover:text-rose-600 border-transparent hover:border-rose-100 hover:bg-rose-50'
                                  : ''
                            }`}
                            title={
-                             user?.email === 'jessiemangabo@gmail.com' ? "Delete Section" : (
+                             (isGlobalFinalized || section.isFinalized) ? "Cannot delete when finalized. Please request unfinalization first." : user?.email === 'jessiemangabo@gmail.com' ? "Delete Section" : (
                                section.deletionStatus === 'pending'
                                  ? ((user?.role === 'admin' || user?.role === 'system_admin') ? "Approve Deletion Request" : "Awaiting Approval")
                                  : "Delete Section"
@@ -6861,30 +7010,30 @@ function AddLearnerView({
             >
               <HistoryIcon size={14} />
             </button>
-            <button 
-              onClick={(e) => { 
-                if (!isActiveSY) return;
-                e.stopPropagation(); 
-                onEdit(s); 
-              }}
-              disabled={!isActiveSY}
-              className="p-2 bg-white border border-slate-200 text-indigo-600 hover:bg-indigo-50 hover:border-indigo-200 rounded-xl transition-all disabled:opacity-30 disabled:cursor-not-allowed shadow-sm active:scale-95"
-              title="Edit"
-            >
-              <Edit2 size={14} />
-            </button>
-            <button 
-              onClick={(e) => { 
-                if (!isActiveSY) return;
-                e.stopPropagation(); 
-                setDeleteTarget(s); 
-              }}
-              disabled={!isActiveSY}
-              className="p-2 bg-white border border-slate-200 text-rose-600 hover:bg-rose-50 hover:border-rose-200 rounded-xl transition-all disabled:opacity-30 disabled:cursor-not-allowed shadow-sm active:scale-95"
-              title="Delete"
-            >
-              <Trash2 size={14} />
-            </button>
+            {isActiveSY && (
+              <>
+                <button 
+                  onClick={(e) => { 
+                    e.stopPropagation(); 
+                    onEdit(s); 
+                  }}
+                  className="p-2 bg-white border border-slate-200 text-indigo-600 hover:bg-indigo-50 hover:border-indigo-200 rounded-xl transition-all shadow-sm active:scale-95"
+                  title="Edit"
+                >
+                  <Edit2 size={14} />
+                </button>
+                <button 
+                  onClick={(e) => { 
+                    e.stopPropagation(); 
+                    setDeleteTarget(s); 
+                  }}
+                  className="p-2 bg-white border border-slate-200 text-rose-600 hover:bg-rose-50 hover:border-rose-200 rounded-xl transition-all shadow-sm active:scale-95"
+                  title="Delete"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -7287,44 +7436,46 @@ function AddLearnerView({
         <div className="p-8 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <div className="flex flex-wrap items-center gap-3 mt-2">
-              <button 
-                onClick={() => {
-                  if (!isActiveSY) return;
-                  setForm({
-                    lastName: "",
-                    firstName: "",
-                    middleName: "",
-                    extension: "",
-                    name: "",
-                    lrn: "",
-                    email: "",
-                    age: "",
-                    sex: "Male",
-                    dateOfFirstAttendance: "",
-                    weight: "",
-                    height: "",
-                    isTransferredIn: false,
-                    attendance: {}
-                  });
-                  setShowAddModal(true);
-                }}
-                disabled={!isActiveSY}
-                className="flex items-center gap-2 px-4 py-2 bg-rose-500 border border-rose-600 disabled:bg-slate-300 disabled:border-slate-400 text-white rounded-xl hover:bg-rose-600 transition-all text-xs font-bold shadow-lg shadow-rose-200 active:scale-95"
-              >
-                <UserPlus size={16} />
-                Add New Learner
-              </button>
-              <label className={`flex items-center gap-2 px-4 py-2 bg-indigo-600 border border-indigo-100 text-white rounded-xl transition-all text-xs font-bold shadow-lg shadow-indigo-600/20 active:scale-95 ${!isActiveSY ? 'opacity-50 cursor-not-allowed bg-slate-400' : 'cursor-pointer hover:bg-indigo-700'}`}>
-                <FileUp size={16} />
-                Bulk Upload (CSV)
-                <input 
-                  type="file" 
-                  accept=".csv" 
-                  className="hidden" 
-                  onChange={handleFileUpload}
-                  disabled={isUploading || !isActiveSY}
-                />
-              </label>
+              {isActiveSY && (
+                <>
+                  <button 
+                    onClick={() => {
+                      setForm({
+                        lastName: "",
+                        firstName: "",
+                        middleName: "",
+                        extension: "",
+                        name: "",
+                        lrn: "",
+                        email: "",
+                        age: "",
+                        sex: "Male",
+                        dateOfFirstAttendance: "",
+                        weight: "",
+                        height: "",
+                        isTransferredIn: false,
+                        attendance: {}
+                      });
+                      setShowAddModal(true);
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 bg-rose-500 border border-rose-600 text-white rounded-xl hover:bg-rose-600 transition-all text-xs font-bold shadow-lg shadow-rose-200 active:scale-95"
+                  >
+                    <UserPlus size={16} />
+                    Add New Learner
+                  </button>
+                  <label className="flex items-center gap-2 px-4 py-2 bg-indigo-600 border border-indigo-100 text-white rounded-xl transition-all text-xs font-bold shadow-lg shadow-indigo-600/20 active:scale-95 cursor-pointer hover:bg-indigo-700">
+                    <FileUp size={16} />
+                    Bulk Upload (CSV)
+                    <input 
+                      type="file" 
+                      accept=".csv" 
+                      className="hidden" 
+                      onChange={handleFileUpload}
+                      disabled={isUploading}
+                    />
+                  </label>
+                </>
+              )}
               <button 
                 onClick={downloadCSVTemplate}
                 className="flex items-center gap-2 px-4 py-2 bg-slate-100 border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-200 transition-all text-xs font-bold active:scale-95"
@@ -7332,14 +7483,12 @@ function AddLearnerView({
                 <Download size={16} />
                 Download CSV Template
               </button>
-              {students.length > 0 && (
+              {isActiveSY && students.length > 0 && (
                 <button
                   onClick={() => {
-                    if (!isActiveSY) return;
                     setDeleteAllType('all');
                   }}
-                  disabled={!isActiveSY}
-                  className="flex items-center gap-2 px-4 py-2 bg-white border border-rose-200 text-rose-600 rounded-xl hover:bg-rose-50 transition-all text-xs font-bold shadow-sm active:scale-95 disabled:opacity-50 disabled:bg-slate-100 disabled:border-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed"
+                  className="flex items-center gap-2 px-4 py-2 bg-white border border-rose-200 text-rose-600 rounded-xl hover:bg-rose-50 transition-all text-xs font-bold shadow-sm active:scale-95"
                 >
                   <Trash2 size={16} />
                   Delete All Learners
@@ -9254,52 +9403,6 @@ function GradebookView({
         </div>
       )}
 
-      {isYearEndFinalized && (
-        <div className="mx-8 mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
-           <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-indigo-800 shadow-sm">
-             <div className="flex items-center gap-4">
-               <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center shrink-0 animate-pulse">
-                 <Sparkles size={20} className="text-indigo-600" />
-               </div>
-               <div>
-                 <h4 className="font-black uppercase tracking-widest text-[10px] mb-1 text-indigo-900">Gradebook Locked (Finalized)</h4>
-                 <p className="text-xs font-medium text-indigo-700">The School Year has been finalized. All data entry, student records, and grades have been set to read-only.</p>
-               </div>
-             </div>
-             {(currentUser?.role === 'system_admin' || currentUser?.role === 'admin') && onUnfinalizeYearEnd && (
-                <button 
-                  onClick={onUnfinalizeYearEnd}
-                  className="self-start sm:self-auto shrink-0 px-4 py-2 bg-indigo-100/50 hover:bg-indigo-200 active:scale-95 text-indigo-700 font-bold rounded-xl text-xs transition-all uppercase tracking-wider"
-                >
-                  Unfinalize Section Year End
-                </button>
-             )}
-           </div>
-        </div>
-      )}
-
-      {!isYearEndFinalized && subjects.length > 0 && !!onCalculateYearEnd && (
-        <div className="mx-8 mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
-            <div className="p-4 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-250 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-emerald-800 shadow-sm">
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center shrink-0">
-                  <Sparkles size={20} className="text-emerald-600 mt-0.5 animate-bounce" />
-                </div>
-                <div>
-                  <h4 className="font-black uppercase tracking-widest text-[10px] mb-1 text-emerald-900">Finalize School Year</h4>
-                  <p className="text-xs font-medium text-emerald-700">You can finalize the entire school year to compute final averages, lock all student records, and set statuses.</p>
-                </div>
-              </div>
-              <button 
-                onClick={onCalculateYearEnd}
-                className="self-start sm:self-auto shrink-0 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold rounded-xl text-xs transition-all uppercase tracking-wider shadow-md shadow-emerald-600/15 cursor-pointer flex items-center gap-2"
-              >
-                <Sparkles size={14} className="animate-spin" style={{ animationDuration: '6s' }} />
-                Finalize School Year
-              </button>
-            </div>
-        </div>
-      )}
 
       {isSubjectTermFinalized && (
         <div className="mx-8 mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
@@ -9646,7 +9749,8 @@ function DashboardView({
   onSelectSubject,
   isSectionAdviser,
   onTermChange,
-  onToggleFinalizeSubjectTerm
+  onToggleFinalizeSubjectTerm,
+  isEntireSchoolFinalized
 }: { 
   students: Student[],
   subjects: Subject[],
@@ -9661,7 +9765,8 @@ function DashboardView({
   onSelectSubject?: (subjectId: string) => void,
   isSectionAdviser?: boolean,
   onTermChange?: (term: TermNumber) => void,
-  onToggleFinalizeSubjectTerm?: (subjectId: string, term: TermNumber, finalize: boolean) => void
+  onToggleFinalizeSubjectTerm?: (subjectId: string, term: TermNumber, finalize: boolean) => void,
+  isEntireSchoolFinalized?: boolean
 }) {
   const totalStudents = students.length;
   const totalSubjects = subjects.length;
@@ -9877,6 +9982,53 @@ function DashboardView({
       </div>
 
       <div className="px-8 md:px-10 py-10 space-y-8 max-w-full 2xl:max-w-[1600px] w-full mx-auto">
+
+      {isYearEndFinalized && (
+        <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+           <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-indigo-800 shadow-sm">
+             <div className="flex items-center gap-4">
+               <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center shrink-0 animate-pulse">
+                 <Sparkles size={20} className="text-indigo-600" />
+               </div>
+               <div>
+                 <h4 className="font-black uppercase tracking-widest text-[10px] mb-1 text-indigo-900">Section Locked (Finalized)</h4>
+                 <p className="text-xs font-medium text-indigo-700">This section has been finalized. All data entry, student records, and grades have been set to read-only.</p>
+               </div>
+             </div>
+             {(currentUser?.role === 'system_admin' || currentUser?.role === 'admin' || isSectionAdviser) && onUnfinalizeYearEnd && !isEntireSchoolFinalized && (
+                <button 
+                  onClick={onUnfinalizeYearEnd}
+                  className="self-start sm:self-auto shrink-0 px-4 py-2 bg-indigo-100/50 hover:bg-indigo-200 active:scale-95 text-indigo-700 font-bold rounded-xl text-xs transition-all uppercase tracking-wider"
+                >
+                  {currentUser?.role === 'system_admin' || currentUser?.email === 'jessiemangabo@gmail.com' ? 'Unfinalize Section' : 'Request Unfinalize'}
+                </button>
+             )}
+           </div>
+        </div>
+      )}
+
+      {!isYearEndFinalized && subjects.length > 0 && !!onCalculateYearEnd && isSectionAdviser && !isEntireSchoolFinalized && (
+        <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+            <div className="p-4 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-250 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-emerald-800 shadow-sm">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center shrink-0">
+                  <Sparkles size={20} className="text-emerald-600 mt-0.5 animate-bounce" />
+                </div>
+                <div>
+                  <h4 className="font-black uppercase tracking-widest text-[10px] mb-1 text-emerald-900">Finalize Section</h4>
+                  <p className="text-xs font-medium text-emerald-700">You can finalize this section to compute final averages, lock all student records, and set statuses.</p>
+                </div>
+              </div>
+              <button 
+                onClick={onCalculateYearEnd}
+                className="self-start sm:self-auto shrink-0 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold rounded-xl text-xs transition-all uppercase tracking-wider shadow-md shadow-emerald-600/15 cursor-pointer flex items-center gap-2"
+              >
+                <Sparkles size={14} className="animate-spin" style={{ animationDuration: '6s' }} />
+                Finalize Section
+              </button>
+            </div>
+        </div>
+      )}
 
         {/* Subject Load Status List */}
         {!isYearEndFinalized && myAssignedSubjects.length > 0 && (
@@ -10392,18 +10544,18 @@ function SubjectsView({
           </div>
         </div>
         
-        <button 
-          onClick={() => {
-            if (!isActiveSY) return;
-            setEditingId(null);
-            setIsModalOpen(true);
-          }}
-          disabled={!isActiveSY}
-          className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 w-full md:w-auto relative z-10 shrink-0"
-        >
-          <Plus size={16} />
-          Add Subject
-        </button>
+        {isActiveSY && (
+          <button 
+            onClick={() => {
+              setEditingId(null);
+              setIsModalOpen(true);
+            }}
+            className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 w-full md:w-auto relative z-10 shrink-0"
+          >
+            <Plus size={16} />
+            Add Subject
+          </button>
+        )}
       </div>
 
       <div className="max-w-7xl mx-auto px-8 md:px-12 py-10 space-y-8">
@@ -10906,13 +11058,13 @@ function SubjectsView({
                 <th className="px-6 py-4 text-[11px] uppercase tracking-widest font-semibold text-center" title="Written Works Weight">WW</th>
                 <th className="px-6 py-4 text-[11px] uppercase tracking-widest font-semibold text-center" title="Performance Tasks Weight">PT</th>
                 <th className="px-6 py-4 text-[11px] uppercase tracking-widest font-semibold text-center" title="Quarterly Assessment Weight">QA</th>
-                <th className="px-6 py-4 text-[11px] uppercase tracking-widest font-semibold text-right">Actions</th>
+                {isActiveSY && <th className="px-6 py-4 text-[11px] uppercase tracking-widest font-semibold text-right">Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
               {subjects.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-6 py-12">
+                  <td colSpan={isActiveSY ? 9 : 8} className="px-6 py-12">
                     <div className="flex flex-col items-center justify-center p-8 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200 text-center max-w-md mx-auto">
                       <div className="size-16 bg-white rounded-full border border-slate-200 flex items-center justify-center mx-auto mb-4 shadow-sm">
                         <BookOpen size={24} className="text-slate-400" />
@@ -10962,34 +11114,32 @@ function SubjectsView({
                     <td className="px-6 py-4 text-center">
                         <span className="text-xs font-semibold text-slate-700">{subject.taWeight}%</span>
                     </td>
-                    <td className="px-6 py-4 text-right align-middle">
-                      <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 flex-wrap">
-                        <button 
-                          onClick={() => {
-                            if (!isActiveSY) return;
-                            setForm(subject);
-                            setEditingId(subject.id);
-                            setIsModalOpen(true);
-                          }}
-                          disabled={!isActiveSY}
-                          className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 border border-transparent hover:border-indigo-100 rounded-md transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-                          title="Edit Subject"
-                        >
-                          <Edit2 size={14} />
-                        </button>
-                        <button 
-                          onClick={() => {
-                            if (!isActiveSY) return;
-                            onDeleteSubject(subject.id);
-                          }}
-                          disabled={!isActiveSY}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-100 rounded-md transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-                          title="Remove Subject"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </td>
+                    {isActiveSY && (
+                      <td className="px-6 py-4 text-right align-middle">
+                        <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 flex-wrap">
+                          <button 
+                            onClick={() => {
+                              setForm(subject);
+                              setEditingId(subject.id);
+                              setIsModalOpen(true);
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 border border-transparent hover:border-indigo-100 rounded-md transition-all"
+                            title="Edit Subject"
+                          >
+                            <Edit2 size={14} />
+                          </button>
+                          <button 
+                            onClick={() => {
+                              onDeleteSubject(subject.id);
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-100 rounded-md transition-all"
+                            title="Remove Subject"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))
               )}
@@ -17322,6 +17472,7 @@ function AdminUsersView({
   return (
     <div className="min-h-screen bg-slate-50 relative flex flex-col">
       {!globalSettings?.activeSchoolYear && <EncodingClosedBanner />}
+      <DeadlineBanner globalSettings={globalSettings} />
       {userToDelete && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
           <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl">
@@ -19120,14 +19271,16 @@ function AdminSchoolsView({
   globalSettings,
   onShowFeedback,
   isFeedbackOpen,
-  onCloseFeedback
+  onCloseFeedback,
+  sections = []
 }: { 
   onBack: () => void, 
   currentUser: UserProfile, 
   globalSettings?: any,
   onShowFeedback: () => void,
   isFeedbackOpen: boolean,
-  onCloseFeedback: () => void
+  onCloseFeedback: () => void,
+  sections?: Section[]
 }) {
   const [schools, setSchools] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -19136,6 +19289,11 @@ function AdminSchoolsView({
   const [uploadSuccess, setUploadSuccess] = useState(false);
   const [newSchool, setNewSchool] = useState({ name: '', schoolId: '', headOfSchool: '', region: '', division: '', district: '', schoolLogo: '', depEdLogo: '' });
   const [schoolToDelete, setSchoolToDelete] = useState<any | null>(null);
+
+  const isDeadlinePassed = useMemo(() => {
+    if (!globalSettings?.finalizationDeadline) return false;
+    return new Date(globalSettings.finalizationDeadline) < new Date();
+  }, [globalSettings]);
 
   useEffect(() => {
     const q = query(collection(db, "schools"));
@@ -19148,6 +19306,25 @@ function AdminSchoolsView({
     });
     return () => unsub();
   }, []);
+
+  const handleFinalizeAllSchools = async () => {
+    if (window.confirm('Are you sure you want to finalize all schools?')) {
+      setLoading(true);
+      try {
+        const batch = writeBatch(db);
+        schools.forEach(s => {
+          if (!s.isFinalized) {
+            batch.update(doc(db, 'schools', s.id), { isFinalized: true });
+          }
+        });
+        await batch.commit();
+        alert('All schools have been finalized.');
+      } catch (err) {
+        handleFirestoreError(err, 'write', 'schools');
+      }
+      setLoading(false);
+    }
+  };
 
   const handleSave = async () => {
     if (!newSchool.name || !newSchool.schoolId || !newSchool.headOfSchool) return;
@@ -19320,6 +19497,7 @@ function AdminSchoolsView({
   return (
     <div className="min-h-screen bg-slate-50 relative flex flex-col">
       {!globalSettings?.activeSchoolYear && <EncodingClosedBanner />}
+      <DeadlineBanner globalSettings={globalSettings} />
       {schoolToDelete && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
           <div className="bg-white rounded-xl p-6 w-full max-w-sm shadow-xl">
@@ -19454,30 +19632,41 @@ function AdminSchoolsView({
               Uploaded
             </motion.div>
           )}
-          <button 
-            onClick={downloadCSVTemplate}
-            className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-            title="Download Template"
-          >
-            <Download size={20} />
-          </button>
-          <label className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer">
-            <FileUp size={20} />
-            <input 
-              type="file" 
-              accept=".csv" 
-              className="hidden" 
-              onChange={handleFileUpload}
-              disabled={isUploading}
-            />
-          </label>
-          <button 
-            onClick={() => setIsAdding(true)}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-bold text-sm transition-colors flex items-center gap-2 ml-2"
-          >
-            <Plus size={18} />
-            <span>Add School</span>
-          </button>
+          {!isDeadlinePassed && (
+            <>
+              <button 
+                onClick={handleFinalizeAllSchools}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-bold text-sm transition-colors flex items-center gap-2 mr-2"
+              >
+                <CheckCircle size={18} />
+                <span>Finalize All Schools</span>
+              </button>
+              <button 
+                onClick={downloadCSVTemplate}
+                className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                title="Download Template"
+              >
+                <Download size={20} />
+              </button>
+              <label className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer">
+                <FileUp size={20} />
+                <input 
+                  type="file" 
+                  accept=".csv" 
+                  className="hidden" 
+                  onChange={handleFileUpload}
+                  disabled={isUploading}
+                />
+              </label>
+              <button 
+                onClick={() => setIsAdding(true)}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-bold text-sm transition-colors flex items-center gap-2 ml-2"
+              >
+                <Plus size={18} />
+                <span>Add School</span>
+              </button>
+            </>
+          )}
         </div>
       </nav>
       <main className="p-8 max-w-6xl w-full mx-auto">
@@ -19489,17 +19678,18 @@ function AdminSchoolsView({
                   <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider">School ID</th>
                   <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider">Name</th>
                   <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider">Location</th>
-                  <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-right">Actions</th>
+                  <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider">Status</th>
+                  {!isDeadlinePassed && <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-right">Actions</th>}
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={4} className="p-12 text-center text-xs font-semibold text-slate-400 uppercase tracking-widest">Loading Schools...</td>
+                  <td colSpan={isDeadlinePassed ? 4 : 5} className="p-12 text-center text-xs font-semibold text-slate-400 uppercase tracking-widest">Loading Schools...</td>
                 </tr>
               ) : schools.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-6 py-20 text-center">
+                  <td colSpan={isDeadlinePassed ? 4 : 5} className="px-6 py-20 text-center">
                     <div className="size-12 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4">
                       <Building size={24} className="text-slate-300" />
                     </div>
@@ -19508,52 +19698,116 @@ function AdminSchoolsView({
                   </td>
                 </tr>
               ) : (
-                schools.map(s => (
-                  <tr key={s.id} className="hover:bg-slate-50/50 transition-colors border-b border-slate-100 last:border-0">
-                    <td className="px-6 py-4">
-                       <span className="text-slate-500 font-mono text-[10px] uppercase font-medium">{s.schoolId}</span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        {s.schoolLogo ? (
-                          <img src={s.schoolLogo} alt={s.name} className="w-8 h-8 object-contain rounded-lg border border-slate-200" referrerPolicy="no-referrer" />
-                        ) : (
-                          <div className="w-8 h-8 bg-slate-50 flex items-center justify-center rounded-lg border border-slate-100 text-slate-300">
-                            <Building size={16} />
+                schools.map(s => {
+                  const activeYear = globalSettings?.activeSchoolYear;
+                  const schoolSections = (sections || []).filter(sec => sec.schoolId === s.schoolId && sec.schoolYear === activeYear);
+                  const hasSections = schoolSections.length > 0;
+                  const allSectionsFinalized = hasSections && schoolSections.every(sec => sec.isFinalized);
+                  const isSchoolFinalized = s.isFinalized || allSectionsFinalized;
+
+                  return (
+                    <tr key={s.id} className="hover:bg-slate-50/50 transition-colors border-b border-slate-100 last:border-0">
+                      <td className="px-6 py-4">
+                         <span className="text-slate-500 font-mono text-[10px] uppercase font-medium">{s.schoolId}</span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          {s.schoolLogo ? (
+                            <img src={s.schoolLogo} alt={s.name} className="w-8 h-8 object-contain rounded-lg border border-slate-200" referrerPolicy="no-referrer" />
+                          ) : (
+                            <div className="w-8 h-8 bg-slate-50 flex items-center justify-center rounded-lg border border-slate-100 text-slate-300">
+                              <Building size={16} />
+                            </div>
+                          )}
+                          <div>
+                            <p className="font-semibold text-slate-800 text-sm leading-tight">{s.name}</p>
+                            <p className="text-xs text-slate-500 mt-0.5">{s.headOfSchool}</p>
                           </div>
-                        )}
-                        <div>
-                          <p className="font-semibold text-slate-800 text-sm leading-tight">{s.name}</p>
-                          <p className="text-xs text-slate-500 mt-0.5">{s.headOfSchool}</p>
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <p className="text-sm text-slate-700 font-medium">{s.region || '—'}</p>
-                      <p className="text-xs text-slate-400">{s.division} {s.district && `• ${s.district}`}</p>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <button 
-                          onClick={() => {
-                             setNewSchool({ ...s });
-                             setIsAdding(true);
-                          }}
-                          className="text-indigo-600 hover:bg-indigo-50 px-3 py-1.5 font-bold text-xs rounded-lg transition-colors"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => setSchoolToDelete(s)}
-                          className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                          title="Delete School"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                      </td>
+                      <td className="px-6 py-4">
+                        <p className="text-sm text-slate-700 font-medium">{s.region || '—'}</p>
+                        <p className="text-xs text-slate-400">{s.division} {s.district && `• ${s.district}`}</p>
+                      </td>
+                      <td className="px-6 py-4">
+                        {isSchoolFinalized ? (
+                          <span className="bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">Finalized</span>
+                        ) : (
+                          <span className="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">Pending</span>
+                        )}
+                      </td>
+                      {!isDeadlinePassed && (
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            {isSchoolFinalized ? (
+                              <button
+                                onClick={async () => {
+                                  if (window.confirm(`Are you sure you want to unfinalize ${s.name}?`)) {
+                                    try {
+                                      await updateDoc(doc(db, "schools", s.id), { isFinalized: false });
+                                      const batch = writeBatch(db);
+                                      schoolSections.forEach(sec => {
+                                        batch.update(doc(db, 'sections', sec.id), { isFinalized: false });
+                                      });
+                                      if (schoolSections.length > 0) {
+                                        await batch.commit();
+                                      }
+                                      alert(`${s.name} and its sections have been unfinalized.`);
+                                    } catch (err) {
+                                      handleFirestoreError(err, 'write', 'schools');
+                                    }
+                                  }
+                                }}
+                                className="text-amber-600 hover:bg-amber-50 px-3 py-1.5 font-bold text-xs rounded-lg transition-colors"
+                              >
+                                Unfinalize
+                              </button>
+                            ) : (
+                              <button
+                                onClick={async () => {
+                                  if (window.confirm(`Are you sure you want to finalize ${s.name}?`)) {
+                                    try {
+                                      await updateDoc(doc(db, "schools", s.id), { isFinalized: true });
+                                      const batch = writeBatch(db);
+                                      schoolSections.forEach(sec => {
+                                        batch.update(doc(db, 'sections', sec.id), { isFinalized: true });
+                                      });
+                                      if (schoolSections.length > 0) {
+                                        await batch.commit();
+                                      }
+                                      alert(`${s.name} and its sections have been finalized.`);
+                                    } catch (err) {
+                                      handleFirestoreError(err, 'write', 'schools');
+                                    }
+                                  }
+                                }}
+                                className="text-emerald-600 hover:bg-emerald-50 px-3 py-1.5 font-bold text-xs rounded-lg transition-colors"
+                              >
+                                Finalize
+                              </button>
+                            )}
+                            <button 
+                              onClick={() => {
+                                 setNewSchool({ ...s });
+                                 setIsAdding(true);
+                              }}
+                              className="text-indigo-600 hover:bg-indigo-50 px-3 py-1.5 font-bold text-xs rounded-lg transition-colors"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => setSchoolToDelete(s)}
+                              className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                              title="Delete School"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })
               )}
               </tbody>
             </table>

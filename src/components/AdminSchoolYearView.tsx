@@ -19,6 +19,8 @@ export function AdminSchoolYearView({ onBack, currentUser, onShowFeedback, isFee
   const [loading, setLoading] = useState(true);
   const [globalSettings, setGlobalSettings] = useState<any>(null);
   const [newSchoolYear, setNewSchoolYear] = useState("");
+  const [isSettingDeadline, setIsSettingDeadline] = useState(false);
+  const [tempDeadline, setTempDeadline] = useState("");
 
   useEffect(() => {
     if (!currentUser) return;
@@ -169,7 +171,59 @@ export function AdminSchoolYearView({ onBack, currentUser, onShowFeedback, isFee
                           <div key={sy} className={`flex items-center justify-between p-4 rounded-lg border ${isActive ? 'bg-indigo-50 border-indigo-100' : isClosed ? 'bg-slate-50 border-slate-100' : 'bg-white border-slate-200'}`}>
                             <div className="flex items-center gap-3">
                                <span className={`font-semibold ${isClosed ? 'text-slate-500' : 'text-slate-900'}`}>{sy}</span>
-                               {isActive && <span className="bg-indigo-100 text-indigo-700 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">Active</span>}
+                               {isActive && (
+                                   <>
+                                       <span className="bg-indigo-100 text-indigo-700 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">Active</span>
+                                       {isSettingDeadline ? (
+                                         <div className="flex items-center gap-2">
+                                           <input 
+                                             type="datetime-local"
+                                             value={tempDeadline}
+                                             onChange={e => setTempDeadline(e.target.value)}
+                                             className="px-2 py-1 border border-indigo-200 rounded-lg text-xs font-bold"
+                                           />
+                                           <button 
+                                             onClick={async () => {
+                                               try {
+                                                  await setDoc(doc(db, 'settings', 'general'), { finalizationDeadline: tempDeadline }, { merge: true });
+                                                  alert('Deadline set successfully.');
+                                                  setIsSettingDeadline(false);
+                                               } catch (e: any) {
+                                                  console.error("Firestore error:", e);
+                                                  alert('Failed to set deadline. Error: ' + e.message);
+                                               }
+                                             }}
+                                             className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold transition-colors hover:bg-indigo-700"
+                                           >
+                                             Save
+                                           </button>
+                                           <button 
+                                             onClick={() => setIsSettingDeadline(false)}
+                                             className="px-3 py-1.5 text-slate-600 hover:bg-slate-100 rounded-lg text-xs font-bold transition-colors"
+                                           >
+                                             Cancel
+                                           </button>
+                                         </div>
+                                       ) : (
+                                         <>
+                                         <button 
+                                             onClick={() => {
+                                                 setTempDeadline(globalSettings?.finalizationDeadline || "");
+                                                 setIsSettingDeadline(true);
+                                             }}
+                                             className="px-3 py-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg text-xs font-bold transition-colors"
+                                         >
+                                             {globalSettings?.finalizationDeadline ? 'Change Deadline' : 'Set Deadline'}
+                                         </button>
+                                         {globalSettings?.finalizationDeadline && (
+                                           <span className="ml-2 text-[10px] text-indigo-700 font-bold px-2 py-1 bg-indigo-50 border border-indigo-100 rounded-lg whitespace-nowrap uppercase tracking-wider">
+                                             Deadline: {new Date(globalSettings.finalizationDeadline).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                                           </span>
+                                         )}
+                                       </>
+                                       )}
+                                   </>
+                               )}
                                {isClosed && <span className="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">Closed</span>}
                             </div>
                             <div className="flex items-center gap-2">

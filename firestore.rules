@@ -128,7 +128,7 @@ service cloud.firestore {
 
     match /settings/{docId} {
       allow read: if isSignedIn();
-      allow write: if isAdmin() || isSystemAdmin();
+      allow write: if isAdmin() || isSystemAdmin() || (isTeacher() && incoming().diff(existing()).affectedKeys().hasOnly(['unfinalizeRequests']));
     }
 
     // 2. Section Rules
@@ -157,7 +157,7 @@ service cloud.firestore {
       );
       allow update: if (isAdmin() || isSystemAdmin() || isTeacher()) && 
                     isValidSection(incoming()) &&
-                    incoming().createdBy == existing().createdBy &&
+                    incoming().get('createdBy', '') == existing().get('createdBy', '') &&
                     (!isSystemAdmin() || incoming().get('schoolId', '') == getSchoolId()) &&
                     (
                       // Case 1: Teacher or System Admin requesting/canceling deletion
@@ -238,9 +238,9 @@ service cloud.firestore {
     // 4. Anecdotal Records Rules
     match /anecdotal_records/{recordId} {
       allow read: if isSignedIn();
-      allow create: if (isTeacher() || isAdmin() || isSystemAdmin()) && incoming().createdBy == request.auth.uid;
-      allow update: if (isAdmin() || isSystemAdmin() || (isTeacher() && existing().createdBy == request.auth.uid)) && incoming().createdBy == existing().createdBy;
-      allow delete: if isAdmin() || isSystemAdmin() || (isTeacher() && existing().createdBy == request.auth.uid);
+      allow create: if (isTeacher() || isAdmin() || isSystemAdmin()) && incoming().get('createdBy', '') == request.auth.uid;
+      allow update: if (isAdmin() || isSystemAdmin() || (isTeacher() && existing().get('createdBy', '') == request.auth.uid)) && incoming().get('createdBy', '') == existing().get('createdBy', '');
+      allow delete: if isAdmin() || isSystemAdmin() || (isTeacher() && existing().get('createdBy', '') == request.auth.uid);
     }
 
     // 5. PTA Fees Rules
