@@ -4626,7 +4626,7 @@ function SectionsView({
           </div>
         </div>
         <div className="flex items-center gap-3 md:gap-4 shrink-0">
-           {(isMainAdmin || user?.role === 'system_admin') && (
+           {(isMainAdmin || user?.role === 'system_admin') && !!globalSettings?.finalizationDeadline && (
              <button
                onClick={() => setShowRequestsModal(true)}
                className="flex items-center gap-2 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 font-semibold text-xs px-3 py-2 rounded-lg transition-all shadow-sm relative"
@@ -4654,7 +4654,7 @@ function SectionsView({
              </button>
            )}
 
-           {user?.role === 'system_admin' && (
+           {user?.role === 'system_admin' && !!globalSettings?.finalizationDeadline && (
              <button 
                onClick={handleFinalizeEntireSchool}
                className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-3 py-2 rounded-lg transition-all shadow-sm"
@@ -9428,7 +9428,7 @@ function GradebookView({
         </div>
       )}
 
-      {!isSubjectTermFinalized && isActiveTermReady && onToggleFinalizeSubjectTerm && (
+      {!isSubjectTermFinalized && isActiveTermReady && onToggleFinalizeSubjectTerm && !!globalSettings?.finalizationDeadline && (
         <div className="mx-8 mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
            <div className="p-4 bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-indigo-800 shadow-sm">
              <div className="flex items-center gap-4">
@@ -10007,7 +10007,7 @@ function DashboardView({
         </div>
       )}
 
-      {!isYearEndFinalized && subjects.length > 0 && !!onCalculateYearEnd && isSectionAdviser && !isEntireSchoolFinalized && (
+      {!isYearEndFinalized && subjects.length > 0 && !!onCalculateYearEnd && isSectionAdviser && !isEntireSchoolFinalized && !!globalSettings?.finalizationDeadline && (
         <div className="animate-in fade-in slide-in-from-top-2 duration-300">
             <div className="p-4 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-250 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-emerald-800 shadow-sm">
               <div className="flex items-center gap-4">

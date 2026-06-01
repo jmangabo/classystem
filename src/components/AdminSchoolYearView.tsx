@@ -78,6 +78,10 @@ export function AdminSchoolYearView({ onBack, currentUser, onShowFeedback, isFee
     };
     if (globalSettings?.activeSchoolYear === sy) {
       updates.activeSchoolYear = updatedList.length > 0 ? updatedList[0] : null;
+      updates.finalizationDeadline = "";
+    }
+    if (updatedList.length === 0) {
+      updates.finalizationDeadline = "";
     }
     
     try {
@@ -215,10 +219,27 @@ export function AdminSchoolYearView({ onBack, currentUser, onShowFeedback, isFee
                                          >
                                              {globalSettings?.finalizationDeadline ? 'Change Deadline' : 'Set Deadline'}
                                          </button>
-                                         {globalSettings?.finalizationDeadline && (
+                                         {globalSettings?.finalizationDeadline && (<>
                                            <span className="ml-2 text-[10px] text-indigo-700 font-bold px-2 py-1 bg-indigo-50 border border-indigo-100 rounded-lg whitespace-nowrap uppercase tracking-wider">
                                              Deadline: {new Date(globalSettings.finalizationDeadline).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
-                                           </span>
+                                            </span>
+                                            <button
+                                              onClick={async () => {
+                                                if (window.confirm("Are you sure you want to clear the finalization deadline?")) {
+                                                  try {
+                                                    await setDoc(doc(db, "settings", "general"), { finalizationDeadline: "" }, { merge: true });
+                                                    alert("Deadline cleared successfully.");
+                                                  } catch (e: any) {
+                                                    console.error(e);
+                                                    alert("Failed to clear deadline: " + e.message);
+                                                  }
+                                                }
+                                              }}
+                                              className="ml-2 px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors"
+                                            >
+                                              Clear Deadline
+                                            </button>
+                                            </>
                                          )}
                                        </>
                                        )}
