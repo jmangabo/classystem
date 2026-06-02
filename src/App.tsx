@@ -4290,6 +4290,23 @@ function SectionsView({
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
   const [confirmFinalizeConfig, setConfirmFinalizeConfig] = useState<{ subjectId: string, term: number, finalize: boolean } | null>(null);
   
+  const [isSchoolDbFinalized, setIsSchoolDbFinalized] = useState(false);
+
+  useEffect(() => {
+    if (!user?.schoolId) return;
+    const q = query(collection(db, "schools"), where("schoolId", "==", user.schoolId));
+    const unsub = onSnapshot(q, (snap) => {
+      if (!snap.empty) {
+        setIsSchoolDbFinalized(snap.docs[0].data().isFinalized || false);
+      } else {
+        setIsSchoolDbFinalized(false);
+      }
+    }, (err) => {
+      console.error("Error checking school finalized status:", err);
+    });
+    return () => unsub();
+  }, [user?.schoolId]);
+  
   // Real-time listener for behavioral records
   const [behavioralRecords, setBehavioralRecords] = useState<AnecdotalRecord[]>([]);
   const [loadingBehavioral, setLoadingBehavioral] = useState(true);
@@ -4658,7 +4675,7 @@ function SectionsView({
              </button>
            )}
 
-           {user?.role === 'system_admin' && !!globalSettings?.finalizationDeadline && (
+           {user?.role === 'system_admin' && !!globalSettings?.finalizationDeadline && !isEntireSchoolFinalized && !isSchoolDbFinalized && (
              <button 
                onClick={handleFinalizeEntireSchool}
                className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-3 py-2 rounded-lg transition-all shadow-sm"
