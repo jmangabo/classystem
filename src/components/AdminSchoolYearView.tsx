@@ -15,6 +15,18 @@ function EncodingClosedBanner() {
   );
 }
 
+function formatDateTimeLocal(dateStr: string) {
+  if (!dateStr) return "";
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return "";
+    const pad = (num: number) => String(num).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  } catch (e) {
+    return "";
+  }
+}
+
 export function AdminSchoolYearView({ onBack, currentUser, onShowFeedback, isFeedbackOpen, onCloseFeedback }: { onBack: () => void, currentUser: any, onShowFeedback?: () => void, isFeedbackOpen?: boolean, onCloseFeedback?: () => void }) {
   const [loading, setLoading] = useState(true);
   const [globalSettings, setGlobalSettings] = useState<any>(null);
@@ -189,7 +201,7 @@ export function AdminSchoolYearView({ onBack, currentUser, onShowFeedback, isFee
                                            <button 
                                              onClick={async () => {
                                                try {
-                                                  await setDoc(doc(db, 'settings', 'general'), { finalizationDeadline: tempDeadline }, { merge: true });
+                                                  await setDoc(doc(db, 'settings', 'general'), { ...globalSettings, finalizationDeadline: tempDeadline });
                                                   alert('Deadline set successfully.');
                                                   setIsSettingDeadline(false);
                                                } catch (e: any) {
@@ -212,7 +224,7 @@ export function AdminSchoolYearView({ onBack, currentUser, onShowFeedback, isFee
                                          <>
                                          <button 
                                              onClick={() => {
-                                                 setTempDeadline(globalSettings?.finalizationDeadline || "");
+                                                 setTempDeadline(formatDateTimeLocal(globalSettings?.finalizationDeadline || ""));
                                                  setIsSettingDeadline(true);
                                              }}
                                              className="px-3 py-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg text-xs font-bold transition-colors"
@@ -227,7 +239,7 @@ export function AdminSchoolYearView({ onBack, currentUser, onShowFeedback, isFee
                                               onClick={async () => {
                                                 if (window.confirm("Are you sure you want to clear the finalization deadline?")) {
                                                   try {
-                                                    await setDoc(doc(db, "settings", "general"), { finalizationDeadline: "" }, { merge: true });
+                                                    await setDoc(doc(db, 'settings', 'general'), { ...globalSettings, finalizationDeadline: "" });
                                                     alert("Deadline cleared successfully.");
                                                   } catch (e: any) {
                                                     console.error(e);

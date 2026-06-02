@@ -1341,8 +1341,12 @@ export default function App() {
     try {
       await signInWithPopup(auth, provider);
     } catch (error: any) {
-      if (error.code === 'auth/popup-closed-by-user') {
-        console.log("Login popup was closed by the user.");
+      const isCancelled = 
+        error.code === 'auth/popup-closed-by-user' || 
+        error.code === 'auth/user-cancelled' || 
+        error.code === 'auth/cancelled-popup-request';
+      if (isCancelled) {
+        console.log("Login flow was cancelled or closed by the user.");
       } else {
         console.error("Login Error:", error);
       }
@@ -9428,7 +9432,7 @@ function GradebookView({
         </div>
       )}
 
-      {!isSubjectTermFinalized && isActiveTermReady && onToggleFinalizeSubjectTerm && !!globalSettings?.finalizationDeadline && (
+      {!isSubjectTermFinalized && isActiveTermReady && onToggleFinalizeSubjectTerm && (
         <div className="mx-8 mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
            <div className="p-4 bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-indigo-800 shadow-sm">
              <div className="flex items-center gap-4">
