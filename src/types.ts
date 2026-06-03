@@ -153,6 +153,8 @@ export interface School {
   region?: string;
   division?: string;
   district?: string;
+  createdAt?: string;
+  isFinalized?: boolean;
 }
 
 export interface Section {

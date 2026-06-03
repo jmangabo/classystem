@@ -74,6 +74,7 @@ import {
   UserX,
   Coins,
   Printer,
+  Receipt,
   Tag,
   FileSpreadsheet
 } from "lucide-react";
@@ -708,8 +709,10 @@ export default function App() {
 
   const [students, setStudents] = useState<Student[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [activeSchool, setActiveSchool] = useState<School | null>(null);
+  const [teacherCount, setTeacherCount] = useState<number>(0);
   
-  const [activeTab, setActiveTab] = useState<"dashboard" | "gradebook" | "enroll" | "subjects" | "summary" | "guide" | "sys-docs" | "attendance" | "sf2" | "observed-values" | "sf10" | "transfers" | "sf8" | "sf4" | "anecdotes" | "pta">("dashboard");
+  const [activeTab, setActiveTab ] = useState<"dashboard" | "gradebook" | "enroll" | "subjects" | "summary" | "guide" | "sys-docs" | "attendance" | "sf2" | "observed-values" | "sf10" | "transfers" | "sf8" | "sf4" | "anecdotes" | "pta">("dashboard");
   const [ptaInitialTab, setPtaInitialTab] = useState<'collection' | 'setup' | 'reports' | 'audit'>('collection');
   const [preselectedStudentForAnecdotal, setPreselectedStudentForAnecdotal] = useState<Student | null>(null);
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
@@ -804,6 +807,45 @@ export default function App() {
       setNoApprovedAdminFound(false);
     }
   }, [userProfile]);
+
+  useEffect(() => {
+    const sId = userProfile?.schoolId;
+    if (!sId) {
+      setActiveSchool(null);
+      return;
+    }
+    const q = query(collection(db, "schools"), where("schoolId", "==", sId));
+    const unsub = onSnapshot(q, (snap) => {
+      if (!snap.empty) {
+        const docSnap = snap.docs[0];
+        setActiveSchool({ id: docSnap.id, ...docSnap.data() } as School);
+      } else {
+        setActiveSchool(null);
+      }
+    }, (err) => {
+      console.error("Error listening to active school:", err);
+    });
+    return () => unsub();
+  }, [userProfile?.schoolId]);
+
+  useEffect(() => {
+    const sId = userProfile?.schoolId;
+    if (!sId) {
+      setTeacherCount(0);
+      return;
+    }
+    const q = query(
+      collection(db, "users"),
+      where("role", "==", "teacher"),
+      where("schoolId", "==", sId)
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      setTeacherCount(snap.size);
+    }, (err) => {
+      console.error("Error listening to teachers count:", err);
+    });
+    return () => unsub();
+  }, [userProfile?.schoolId]);
 
   const isAnySectionAdviser = useMemo(() => {
     if (!userProfile || userProfile.role !== 'teacher') return false;
@@ -1334,6 +1376,13 @@ export default function App() {
     }
   }, [userProfile?.role]);
 
+  useEffect(() => {
+    const isExpired = userProfile?.expiresAt ? new Date(userProfile.expiresAt) < new Date() : false;
+    if (isExpired && selectedSection !== null && userProfile?.email !== 'jessiemangabo@gmail.com') {
+      setSelectedSection(null);
+    }
+  }, [userProfile, selectedSection]);
+
   const handleLogin = async () => {
     if (isLoggingIn) return;
     setIsLoggingIn(true);
@@ -1366,6 +1415,55 @@ export default function App() {
       localStorage.removeItem(`sf2_selectedMonthKey_${currentUser.uid}`);
     }
     signOut(auth);
+  };
+
+  const handleRenewSubscription = async (yearIndex: number) => {
+    if (!activeSchool?.id || !activeSchool?.schoolId) return;
+    try {
+      const currentExpiration = activeSchool.expiresAt 
+        ? new Date(activeSchool.expiresAt)
+        : null;
+
+      let newExpiration: Date;
+      if (currentExpiration) {
+        newExpiration = new Date(currentExpiration);
+        newExpiration.setFullYear(currentExpiration.getFullYear() + 1);
+      } else {
+        const schoolCreatedAt = activeSchool.createdAt || new Date().toISOString();
+        const createdDate = new Date(schoolCreatedAt);
+        newExpiration = new Date(createdDate);
+        newExpiration.setFullYear(createdDate.getFullYear() + yearIndex);
+      }
+      const newExpiresAt = newExpiration.toISOString();
+
+      const batch = writeBatch(db);
+
+      // 1. Update activeSchool document
+      const schoolRef = doc(db, "schools", activeSchool.id);
+      batch.update(schoolRef, {
+        paidYears: arrayUnion(yearIndex),
+        expiresAt: newExpiresAt
+      });
+
+      // 2. Find and update all users associated with this school ID to synchronize in real time
+      const usersQuery = query(collection(db, "users"), where("schoolId", "==", activeSchool.schoolId));
+      const usersSnap = await getDocs(usersQuery);
+      
+      usersSnap.forEach((userDoc) => {
+        if (userDoc.data().role !== 'admin' && userDoc.data().email !== 'jessiemangabo@gmail.com') {
+          batch.update(userDoc.ref, {
+            expiresAt: newExpiresAt
+          });
+        }
+      });
+
+      // 3. Commit atomic batch in Firestore
+      await batch.commit();
+      console.log(`Successfully renewed subscription for Year ${yearIndex} until ${newExpiresAt}`);
+    } catch (err) {
+      console.error("Error during renewal transaction: ", err);
+      handleFirestoreError(err, 'update', 'subscription renewal');
+    }
   };
 
   const handleCreateSection = async (sectionData: any) => {
@@ -2157,10 +2255,10 @@ export default function App() {
 
   const isExpired = userProfile?.expiresAt ? new Date(userProfile.expiresAt) < new Date() : false;
 
-  if (userProfile && (userProfile.approvalStatus !== 'approved' || (isExpired && userProfile.role !== 'admin')) && userProfile.email !== 'jessiemangabo@gmail.com') {
+  if (userProfile && (userProfile.approvalStatus !== 'approved') && userProfile.email !== 'jessiemangabo@gmail.com') {
     return <PendingApprovalView 
       onLogout={handleLogout} 
-      isExpired={userProfile.approvalStatus === 'approved' && isExpired} 
+      isExpired={false} 
       isRejected={userProfile.approvalStatus === 'rejected'}
       noAdminFound={noApprovedAdminFound}
       userRole={userProfile.role} 
@@ -2401,6 +2499,9 @@ export default function App() {
         onShowFeedbackDashboard={() => setShowAdminFeedback(true)}
         schoolCalendar={schoolCalendar}
         onToggleFinalizeSubjectTerm={handleToggleFinalizeSubjectTerm}
+        activeSchool={activeSchool}
+        teacherCount={teacherCount}
+        onRenew={handleRenewSubscription}
       />
     );
   }
@@ -2797,6 +2898,8 @@ export default function App() {
                     setActiveTab('gradebook');
                   }}
                   onTermChange={(t) => setActiveTerm(t)}
+                  teacherCount={teacherCount}
+                  activeSchool={activeSchool}
                 />
               </motion.div>
             )}
@@ -4216,6 +4319,425 @@ function GlobalFinalizationController({
   );
 }
 
+function StatementOfAccountView({ 
+  activeSchool, 
+  teacherCount, 
+  onBack,
+  onRenew,
+  userProfile
+}: { 
+  activeSchool: any, 
+  teacherCount: number, 
+  onBack: () => void,
+  onRenew?: (yearIndex: number) => Promise<void>,
+  userProfile?: any
+}) {
+  const [renewingYearIdx, setRenewingYearIdx] = useState<number | null>(null);
+  const schoolCreatedAt = activeSchool?.createdAt || new Date().toISOString();
+  const createdDate = new Date(schoolCreatedAt);
+
+  const ledger = useMemo(() => {
+    const rows = [];
+    let grossTotal = 0;
+    let promoDiscountTotal = 0;
+    let netTotal = 0;
+    let amountPaid = 0;
+    let currentBalance = 0;
+
+    // Resolve expiration source of truth:
+    const userExpiresAt = (userProfile?.schoolId === activeSchool?.schoolId) ? userProfile?.expiresAt : null;
+    const finalExpiresAtStr = activeSchool?.expiresAt || userExpiresAt;
+    const expirationDate = finalExpiresAtStr 
+      ? new Date(finalExpiresAtStr)
+      : new Date(createdDate.getTime() + 365 * 24 * 60 * 60 * 1000);
+
+    // Year 1 (Trial Year) ALWAYS spans from createdDate to 1 year later (or expiration date if shorter)
+    const firstYearEnd = new Date(createdDate);
+    firstYearEnd.setFullYear(createdDate.getFullYear() + 1);
+    
+    let currentYearIndex = 1;
+    let currentStart = new Date(createdDate);
+    let currentEnd = new Date(firstYearEnd);
+
+    // Adjust Year 1 end if expiration is sooner
+    if (expirationDate <= firstYearEnd) {
+      currentEnd = new Date(expirationDate);
+    }
+
+    while (true) {
+      const yearIndex = currentYearIndex;
+      const start = new Date(currentStart);
+      const end = new Date(currentEnd);
+
+      const periodStr = `${start.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} - ${end.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`;
+      
+      const count = teacherCount || 0;
+      let category = 'Small';
+      let fee = 599;
+
+      if (count <= 9) {
+        category = 'Small';
+        fee = 599;
+      } else if (count <= 25) {
+        category = 'Medium';
+        fee = 1199;
+      } else if (count <= 100) {
+        category = 'Large';
+        fee = 2499;
+      } else {
+        category = 'Mega';
+        fee = 4999;
+      }
+
+      const isFirstYear = yearIndex === 1;
+      const discount = isFirstYear ? fee : 0;
+      const netFee = isFirstYear ? 0 : fee;
+
+      // The year is Paid/Settled if it is Year 1 OR if its end date is <= the expirationDate
+      const isPaid = isFirstYear || 
+                     (end.getTime() <= expirationDate.getTime() + 10000) || 
+                     (activeSchool?.paidYears && activeSchool.paidYears.includes(yearIndex));
+
+      grossTotal += fee;
+      promoDiscountTotal += discount;
+      netTotal += netFee;
+
+      if (isPaid) {
+        amountPaid += netFee;
+      } else {
+        currentBalance += netFee;
+      }
+
+      rows.push({
+        yearIndex,
+        schoolYearStr: `${start.getFullYear()}-${end.getFullYear()}`,
+        periodStr,
+        category,
+        count,
+        fee,
+        discount,
+        netFee,
+        isFirstYear,
+        isPaid
+      });
+
+      // Break condition: We stop looping once we have generated a year that is unpaid/pending (the succeeding year)
+      // or if we have at least shown Year 2.
+      if (!isPaid && yearIndex >= 2) {
+        break;
+      }
+
+      // Prepare for next year
+      currentYearIndex++;
+      currentStart = new Date(currentEnd);
+      
+      // If the current year's end is before expirationDate, the next year should extend up to expirationDate
+      if (currentEnd < expirationDate) {
+        currentEnd = new Date(expirationDate);
+      } else {
+        const nextEnd = new Date(currentEnd);
+        nextEnd.setFullYear(currentEnd.getFullYear() + 1);
+        currentEnd = nextEnd;
+      }
+    }
+
+    return {
+      rows,
+      grossTotal,
+      promoDiscountTotal,
+      netTotal,
+      amountPaid,
+      currentBalance,
+      isExpired: new Date() > expirationDate,
+      expirationDate
+    };
+  }, [createdDate, teacherCount, activeSchool, userProfile]);
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  return (
+    <div className="space-y-8 animate-in fade-in duration-200">
+      {/* Back & Actions - Hidden during print */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-5 print:hidden">
+        <button 
+          onClick={onBack}
+          className="inline-flex items-center gap-2 text-slate-600 hover:text-indigo-600 font-bold text-sm bg-white hover:bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 shadow-sm transition-all cursor-pointer"
+        >
+          <ArrowLeft size={16} /> Back to Active Sections
+        </button>
+        
+        <div className="flex items-center gap-3 font-mono">
+          <button 
+            onClick={handlePrint}
+            className="inline-flex items-center gap-2 text-slate-750 hover:text-slate-900 font-bold text-xs bg-white hover:bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 shadow-sm transition-all cursor-pointer"
+          >
+            <Printer size={16} /> Print Statement of Account
+          </button>
+        </div>
+      </div>
+
+      {/* Main Print Wrapper */}
+      <div className="bg-white border border-slate-200 shadow-sm rounded-3xl overflow-hidden print:border-0 print:shadow-none print:rounded-none">
+        
+        {/* Top Header Decors / Corporate Ribbon (hidden in print) */}
+        <div className="bg-gradient-to-r from-indigo-600 to-indigo-800 h-2.5 print:hidden"></div>
+
+        {/* Invoice Structure */}
+        <div className="p-8 md:p-12 space-y-10">
+          
+          {/* Brand & Metas */}
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 border-b border-slate-100 pb-8">
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-black tracking-tighter shadow-md">
+                  <span className="text-lg font-sans">E</span>
+                </div>
+                <div>
+                  <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">DepEd Enterprise System</h2>
+                  <p className="text-[10px] text-indigo-600 font-black tracking-widest uppercase">Class Record Solutions</p>
+                </div>
+              </div>
+              <p className="text-xs text-slate-400 max-w-sm">
+                Real-Time Cloud Ledger & Continuous Gradebook Integration Service
+              </p>
+            </div>
+            
+            <div className="md:text-right space-y-1 font-mono text-xs text-slate-500">
+              <span className="bg-indigo-50 text-indigo-700 text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider block w-fit md:ml-auto mb-2 print:border print:border-indigo-100 print:text-indigo-900">
+                Statement of Account
+              </span>
+              <p><span className="font-semibold text-slate-800">SOA Reference:</span> CRM-SOA-{activeSchool?.schoolId || 'NEW'}-{new Date().getFullYear()}</p>
+              <p><span className="font-semibold text-slate-800">Date Issued:</span> {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
+              <p><span className="font-semibold text-slate-800">Valid Until:</span> {ledger.expirationDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+              <p><span className="font-semibold text-slate-800">Status:</span> 
+                {ledger.isExpired ? (
+                  <span className="text-rose-600 font-extrabold uppercase ml-1 bg-rose-50 px-1 rounded">Expired Account</span>
+                ) : (
+                  <span className="text-emerald-700 font-extrabold uppercase ml-1">Active Account</span>
+                )}
+              </p>
+            </div>
+          </div>
+
+          {/* Parties Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-slate-50/50 p-6 rounded-2xl border border-slate-100 print:bg-white print:border-slate-200">
+            <div className="space-y-2">
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Statement For:</h3>
+              <div className="space-y-1">
+                <p className="text-sm font-bold text-slate-900">{activeSchool?.name || 'Authorized DepEd School'}</p>
+                <p className="text-xs text-slate-500 font-semibold">School ID: <span className="font-mono">{activeSchool?.schoolId || 'N/A'}</span></p>
+                {activeSchool?.headOfSchool && <p className="text-xs text-slate-500">Head of School: <span className="font-semibold">{activeSchool.headOfSchool}</span></p>}
+                <p className="text-xs text-slate-400">
+                  {activeSchool?.division} Division {activeSchool?.district && `• ${activeSchool.district}`} • {activeSchool?.region || 'DepEd'}
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Issued By:</h3>
+              <div className="space-y-1 text-slate-600 text-xs">
+                <p className="text-sm font-bold text-slate-900">Class Record Management Enterprise</p>
+                <p>Support & Accounts Desk</p>
+                <p>Email: <span className="font-mono">billing@deped-crm-enterprise.com</span></p>
+                <p>Hotline: <span className="font-mono">+63 (2) 8800-4848</span></p>
+                <p className="text-[10px] text-slate-400 italic">Enterprise Cloud Invoicing Division</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Ledger Table Section */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+              <Receipt size={16} className="text-indigo-600 animate-pulse" />
+              Annual Subscription History & Breakdown
+            </h3>
+            
+            <div className="overflow-x-auto border border-slate-200/80 rounded-2xl shadow-sm">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 text-slate-500 text-[10px] uppercase font-bold tracking-wider border-b border-slate-200">
+                    <th className="px-6 py-4">Subscription Year</th>
+                    <th className="px-6 py-4">Coverage Period</th>
+                    <th className="px-6 py-4">Licensing Tier</th>
+                    <th className="px-6 py-4">Teachers Count</th>
+                    <th className="px-6 py-4 text-right">Base rate</th>
+                    <th className="px-6 py-4 text-right">Promos / Discounts</th>
+                    <th className="px-6 py-4 text-right">Net annual Fee</th>
+                    <th className="px-6 py-4 text-right print:hidden">Status / Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-xs font-semibold text-slate-700">
+                  {ledger.rows.map((row) => (
+                    <tr key={row.yearIndex} className={row.yearIndex === 2 ? 'bg-indigo-50/25 border-l-2 border-indigo-500' : ''}>
+                      <td className="px-6 py-4">
+                        <div className="space-y-0.5">
+                          <p className="font-bold text-slate-900">Year {row.yearIndex} Subscription</p>
+                          <p className="text-[9px] text-slate-400 font-mono">SY {row.schoolYearStr}</p>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-slate-500 text-[11px] font-mono">
+                        {row.periodStr}
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-slate-100 text-slate-600 border border-slate-200">
+                          {row.category} Tier
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        {row.count} active {row.count === 1 ? 'teacher' : 'teachers'}
+                      </td>
+                      <td className="px-6 py-4 text-right font-mono text-slate-500">
+                        ₱{row.fee.toLocaleString()}
+                      </td>
+                      <td className="px-6 py-4 text-right font-mono text-emerald-600">
+                        {row.isFirstYear ? (
+                          <span>-₱{row.discount.toLocaleString()} (100% Promo)</span>
+                        ) : (
+                          <span className="text-slate-400">₱0</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-right font-semibold font-mono text-slate-900">
+                        {row.isFirstYear ? (
+                          <span className="text-emerald-600 font-extrabold">₱0 (Free Promo)</span>
+                        ) : (
+                          <span>₱{row.netFee.toLocaleString()}</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-right print:hidden">
+                        {row.isPaid ? (
+                          <span className="inline-flex items-center gap-1 text-emerald-750 bg-emerald-50 px-2.5 py-1 rounded-xl border border-emerald-150 text-[10px] font-extrabold uppercase">
+                            <CheckCircle size={12} className="text-emerald-600" /> Paid & Settled
+                          </span>
+                        ) : (
+                          <button
+                            id={`pay-btn-year-${row.yearIndex}`}
+                            onClick={async () => {
+                              try {
+                                setRenewingYearIdx(row.yearIndex);
+                                if (onRenew) {
+                                  await onRenew(row.yearIndex);
+                                }
+                              } catch (err) {
+                                console.error("Error during renewal: ", err);
+                              } finally {
+                                setRenewingYearIdx(null);
+                              }
+                            }}
+                            disabled={renewingYearIdx !== null}
+                            className="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-750 disabled:bg-slate-300 text-white font-extrabold text-[10px] px-3 py-1.5 rounded-xl shadow-sm cursor-pointer transition-all hover:scale-105 active:scale-95 text-center uppercase"
+                          >
+                            {renewingYearIdx === row.yearIndex ? (
+                              <svg className="animate-spin -ml-0.5 mr-1 h-3 w-3 text-white" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                              </svg>
+                            ) : null}
+                            PAID
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* totals calculation box */}
+          <div className="flex flex-col md:flex-row justify-between items-start gap-8 pt-4">
+            <div className="space-y-3 max-w-sm">
+              <h4 className="text-[10px] font-black uppercase tracking-widest text-indigo-600">Account Settlement Policy</h4>
+              <p className="text-xs text-slate-500 leading-relaxed font-semibold">
+                🔒 Subscription Year 1 (First 12 Months) introductory access is 100% sponsored under the trial program promotion.
+              </p>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Subsequent renewals (Year 2 onwards) are calculated in real-time according to total registered educator profiles active on the roster. No credit check or upfront collateral required.
+              </p>
+            </div>
+
+            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 w-full md:w-80 space-y-3 font-mono text-xs print:bg-white">
+              <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 font-sans">Payment Summary</h4>
+              
+              <div className="flex justify-between text-slate-500">
+                <span>Total Base Value:</span>
+                <span>₱{ledger.grossTotal.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between text-emerald-600">
+                <span>Promo Discounts:</span>
+                <span>-₱{ledger.promoDiscountTotal.toLocaleString()}</span>
+              </div>
+              
+              <div className="w-full h-px bg-slate-200 my-2"></div>
+              
+              <div className="flex justify-between text-slate-900 font-bold text-sm">
+                <span className="font-sans">Total Subscription Price:</span>
+                <span>₱{ledger.netTotal.toLocaleString()}</span>
+              </div>
+
+              <div className="flex justify-between text-indigo-600 font-bold">
+                <span>Amount Paid:</span>
+                <span>-₱{ledger.amountPaid.toLocaleString()}</span>
+              </div>
+
+              <div className="w-full h-px bg-slate-200 my-2"></div>
+
+              <div className="flex justify-between text-slate-900 font-black text-sm pt-1 border-t border-dashed border-slate-300">
+                <span className="font-sans">Current Balance:</span>
+                <span className="text-indigo-600">₱{ledger.currentBalance.toLocaleString()}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Payment execution details */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-6 border-t border-slate-100">
+            <div className="space-y-2">
+              <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider block">Option 1: GCash Transfer</span>
+              <p className="text-xs text-slate-600 leading-relaxed font-semibold">
+                Send payment to GCash Merchant ID: <strong className="font-mono text-slate-800">4800-2499-1199</strong>.<br/>
+                Or via QR Scan. Quote reference: <strong className="font-mono text-slate-800">{activeSchool?.schoolId}</strong>.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider block">Option 2: Bank transfer</span>
+              <p className="text-xs text-slate-600 leading-relaxed font-semibold">
+                Land Bank of the Philippines (LBP)<br/>
+                Account Name: <strong className="text-slate-800">CRM Enterprise INC</strong><br/>
+                Account Number: <strong className="font-mono text-slate-800">1234-5678-90</strong>
+              </p>
+            </div>
+            <div className="space-y-2">
+              <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider block">Option 3: Division Cashier</span>
+              <p className="text-xs text-slate-600 leading-relaxed font-semibold">
+                Pay directly over-the-counter via the DepEd Division Cashier. Submit receipt copy to billing desk to auto sign-off renewal.
+              </p>
+            </div>
+          </div>
+
+          {/* Final signatures */}
+          <div className="flex justify-between items-end pt-12 border-t border-slate-100 text-xs">
+            <div className="space-y-1">
+              <p className="text-slate-400 font-medium">Prepared by:</p>
+              <div className="w-40 h-px bg-slate-300 my-2"></div>
+              <p className="font-bold text-slate-800">Enterprise Billing Desk</p>
+              <p className="text-[10px] text-slate-400 font-mono">ID: CRM-78904</p>
+            </div>
+
+            <div className="space-y-1 text-right">
+              <p className="text-slate-400 font-medium">Verified For Authorization:</p>
+              <div className="w-40 h-px bg-slate-300 my-2 ml-auto"></div>
+              <p className="font-bold text-slate-800">{activeSchool?.headOfSchool || 'School Administrator'}</p>
+              <p className="text-[10px] text-slate-400">Head / Principal Representative</p>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SectionsView({ 
   sections, 
   expiredSchoolIds = [],
@@ -4246,7 +4768,10 @@ function SectionsView({
   globalSettings,
   subjects,
   schoolCalendar,
-  onToggleFinalizeSubjectTerm
+  onToggleFinalizeSubjectTerm,
+  activeSchool = null,
+  teacherCount = 0,
+  onRenew
 }: { 
   sections: Section[], 
   expiredSchoolIds?: string[],
@@ -4277,10 +4802,15 @@ function SectionsView({
   globalSettings?: any,
   subjects: Subject[],
   schoolCalendar: any[],
-  onToggleFinalizeSubjectTerm?: (subjectId: string, term: TermNumber, finalize: boolean) => void
+  onToggleFinalizeSubjectTerm?: (subjectId: string, term: TermNumber, finalize: boolean) => void,
+  activeSchool?: any,
+  teacherCount?: number,
+  onRenew?: (yearIndex: number) => Promise<void>
 }) {
   const [showAdd, setShowAdd] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [showSOA, setShowSOA] = useState(false);
+  const [isBannerPaying, setIsBannerPaying] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [sectionToDelete, setSectionToDelete] = useState<Section | null>(null);
   const [isSectionEmpty, setIsSectionEmpty] = useState<boolean | null>(null);
@@ -4428,6 +4958,52 @@ function SectionsView({
   }, [globalSettings?.activeSchoolYear]);
 
   const isFiltered = filters.schoolYear !== '' || filters.region !== '' || filters.division !== '' || filters.district !== '' || filters.visibility !== 'all';
+
+  const subDetails = useMemo(() => {
+    const count = teacherCount || 0;
+    let category = 'Small';
+    let fee = 599;
+
+    if (count <= 9) {
+      category = 'Small';
+      fee = 599;
+    } else if (count <= 25) {
+      category = 'Medium';
+      fee = 1199;
+    } else if (count <= 100) {
+      category = 'Large';
+      fee = 2499;
+    } else {
+      category = 'Mega';
+      fee = 4999;
+    }
+
+    let isFreeAccess = false;
+    let expirationDateStr = '';
+    const schoolCreatedAt = activeSchool?.createdAt || new Date().toISOString();
+    const createdDate = new Date(schoolCreatedAt);
+
+    const userExpiresAt = (user?.schoolId === activeSchool?.schoolId) ? user?.expiresAt : null;
+    const finalExpiresAtStr = activeSchool?.expiresAt || userExpiresAt;
+    const expirationDate = finalExpiresAtStr ? new Date(finalExpiresAtStr) : new Date(createdDate.getTime() + 365 * 24 * 60 * 60 * 1000);
+
+    expirationDateStr = expirationDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+
+    const firstYearEnd = new Date(createdDate);
+    firstYearEnd.setFullYear(createdDate.getFullYear() + 1);
+    const isPaidYear2 = expirationDate > firstYearEnd;
+    isFreeAccess = !isPaidYear2 && (new Date() < expirationDate);
+
+    return {
+      category,
+      fee,
+      isFreeAccess,
+      isPaidYear2,
+      priceLabel: `₱${fee.toLocaleString()}`,
+      expirationDateStr,
+      isExpired: new Date() >= expirationDate
+    };
+  }, [activeSchool, teacherCount, user]);
 
   const filteredSections = sections.filter(section => {
     const effectiveYear = filters.schoolYear || globalSettings?.activeSchoolYear;
@@ -4631,6 +5207,17 @@ function SectionsView({
 
       {!globalSettings?.activeSchoolYear && <EncodingClosedBanner />}
       <DeadlineBanner globalSettings={globalSettings} />
+      {(subDetails.isExpired && user?.email !== 'jessiemangabo@gmail.com') && (
+        <div className="bg-rose-500 text-white px-4 py-2.5 text-center text-sm font-semibold flex items-center justify-center gap-2 relative z-50 shadow-sm shrink-0">
+          <AlertTriangle size={18} className="animate-pulse" />
+          {(user?.role === 'system_admin' || user?.role === 'admin')
+             ? "Your school's enterprise license has expired. Please contact the system provider to renew your subscription."
+             : "Your school's enterprise license has expired. Please contact your system administrator to restore access."}
+          {(user?.role === 'system_admin' || user?.role === 'admin') && onRenew && (
+             <button onClick={() => setShowSOA(true)} className="ml-4 px-3 py-1 bg-white/20 hover:bg-white/30 rounded border border-white/30 transition-colors text-xs uppercase tracking-wider">Renew Now</button>
+          )}
+        </div>
+      )}
       <header className="h-16 bg-white px-6 md:px-8 flex items-center justify-between shrink-0 gap-4 relative z-50 border-b border-slate-200 shadow-sm">
         <div className="flex items-center gap-4 shrink-0">
           <div className="w-10 h-10 bg-indigo-50 text-indigo-600 border border-indigo-100 rounded-xl flex items-center justify-center shadow-sm">
@@ -4796,6 +5383,14 @@ function SectionsView({
                }} 
                onBack={() => setShowProfile(false)}
             />
+          ) : showSOA ? (
+            <StatementOfAccountView 
+               activeSchool={activeSchool}
+               teacherCount={teacherCount}
+               onBack={() => setShowSOA(false)}
+               onRenew={onRenew}
+               userProfile={user}
+            />
           ) : (
             <>
               <div className="flex items-center gap-3 mb-2">
@@ -4897,6 +5492,117 @@ function SectionsView({
                         <XCircle size={14} /> {sections.filter(s => s.deletionStatus === 'rejected').length} Disapproved
                       </span>
                     )}
+                  </div>
+                </div>
+              )}
+
+              {activeSchool && (user?.role === 'system_admin' || user?.role === 'admin' || user?.role === 'school_head') && (
+                <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-6 mb-8 animate-in fade-in duration-200">
+                  <div className="flex items-center gap-4">
+                    <div className={`p-3.5 rounded-2xl flex items-center justify-center shrink-0 border ${
+                      subDetails.isFreeAccess 
+                        ? 'bg-emerald-50 text-emerald-600 border-emerald-100' 
+                        : 'bg-indigo-50 text-indigo-600 border-indigo-100'
+                    }`}>
+                      <CreditCard size={24} />
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className="text-sm font-bold text-slate-900">
+                          {activeSchool.name} Subscription Status
+                        </h4>
+                        <span className="bg-slate-100 text-slate-600 text-[10px] font-extrabold uppercase px-2 py-0.5 rounded border border-slate-200">
+                          {subDetails.category} Tier ({teacherCount} active {teacherCount === 1 ? 'teacher' : 'teachers'})
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 leading-relaxed">
+                        Your data subscription tier is calculated in real-time based on the number of registered school teachers.
+                      </p>
+                      <button
+                        onClick={() => setShowSOA(true)}
+                        className="inline-flex items-center gap-1.5 text-xs text-indigo-600 hover:text-indigo-800 font-extrabold cursor-pointer hover:underline mt-1"
+                        title="View Ledger"
+                      >
+                        <Receipt size={14} /> View Statement of Account & Ledger
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 self-stretch md:self-auto justify-between border-t border-slate-100 pt-4 md:border-0 md:pt-0">
+                    <div className="text-left md:text-right">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Computed Annual Payment</span>
+                      <div className="flex items-baseline gap-1.5 mt-0.5">
+                        {subDetails.isFreeAccess ? (
+                          <>
+                            <span className="text-xl font-black text-emerald-600 font-sans">Free Access Mode</span>
+                            <span className="text-xs text-slate-400 line-through">{subDetails.priceLabel}</span>
+                          </>
+                        ) : (
+                          <span className="text-xl font-black text-indigo-600 font-sans">{subDetails.priceLabel}</span>
+                        )}
+                        <span className="text-[10px] text-slate-400">/ year</span>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+                      {subDetails.isFreeAccess ? (
+                        <div className="bg-emerald-50 border border-emerald-200/50 text-emerald-800 px-4 py-2.5 rounded-xl text-xs space-y-0.5 font-semibold">
+                          <p className="font-extrabold flex items-center gap-1.5 uppercase text-[9px] tracking-widest text-emerald-950">
+                            🎁 One-Year Free Access Active
+                          </p>
+                          <p className="text-[11px] text-emerald-750 font-medium">Valid until {subDetails.expirationDateStr}</p>
+                        </div>
+                      ) : subDetails.isPaidYear2 ? (
+                        <div className="bg-emerald-50 border border-emerald-200/50 text-emerald-800 px-4 py-2.5 rounded-xl text-xs space-y-0.5 font-semibold">
+                          <p className="font-extrabold flex items-center gap-1.5 uppercase text-[9px] tracking-widest text-emerald-950">
+                            ✅ Paid Subscription (Year 2) Active
+                          </p>
+                          <p className="text-[11px] text-emerald-750 font-medium">Fully paid. Valid until {subDetails.expirationDateStr}</p>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+                          <div className="bg-rose-50 border border-rose-200 text-rose-900 px-4 py-2.5 rounded-xl text-xs space-y-0.5 font-semibold">
+                            <p className="font-extrabold flex items-center gap-1.5 uppercase text-[9px] tracking-widest text-rose-950">
+                              ⚠️ Renewal Pending (Year 2)
+                            </p>
+                            <p className="text-[11px] text-rose-750 font-bold">Unpaid. Click PAID to renew subscription</p>
+                          </div>
+                          
+                          <button
+                            id="banner-pay-btn"
+                            disabled={isBannerPaying}
+                            onClick={async () => {
+                              try {
+                                setIsBannerPaying(true);
+                                if (onRenew) {
+                                  await onRenew(2);
+                                }
+                              } catch (err) {
+                                console.error("Error trigger renew:", err);
+                              } finally {
+                                setIsBannerPaying(false);
+                              }
+                            }}
+                            className="bg-indigo-600 hover:bg-indigo-755 disabled:bg-slate-300 text-white font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-md cursor-pointer transition-all hover:scale-105 active:scale-95 text-center uppercase whitespace-nowrap inline-flex items-center justify-center gap-1.5"
+                          >
+                            {isBannerPaying && (
+                              <svg className="animate-spin h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                              </svg>
+                            )}
+                            PAID
+                          </button>
+                        </div>
+                      )}
+
+                      <button
+                        onClick={() => setShowSOA(true)}
+                        className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer"
+                      >
+                        <Receipt size={14} /> View SOA & Payments
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
@@ -9771,7 +10477,9 @@ function DashboardView({
   isSectionAdviser,
   onTermChange,
   onToggleFinalizeSubjectTerm,
-  isEntireSchoolFinalized
+  isEntireSchoolFinalized,
+  teacherCount = 0,
+  activeSchool = null
 }: { 
   students: Student[],
   subjects: Subject[],
@@ -9787,10 +10495,57 @@ function DashboardView({
   isSectionAdviser?: boolean,
   onTermChange?: (term: TermNumber) => void,
   onToggleFinalizeSubjectTerm?: (subjectId: string, term: TermNumber, finalize: boolean) => void,
-  isEntireSchoolFinalized?: boolean
+  isEntireSchoolFinalized?: boolean,
+  teacherCount?: number,
+  activeSchool?: any
 }) {
   const totalStudents = students.length;
   const totalSubjects = subjects.length;
+
+  const subDetails = useMemo(() => {
+    const count = teacherCount || 0;
+    let category = 'Small';
+    let fee = 599;
+
+    if (count <= 9) {
+      category = 'Small';
+      fee = 599;
+    } else if (count <= 25) {
+      category = 'Medium';
+      fee = 1199;
+    } else if (count <= 100) {
+      category = 'Large';
+      fee = 2499;
+    } else {
+      category = 'Mega';
+      fee = 4999;
+    }
+
+    let isFreeAccess = false;
+    let expirationDateStr = '';
+    const schoolCreatedAt = activeSchool?.createdAt || new Date().toISOString();
+    const createdDate = new Date(schoolCreatedAt);
+
+    const userExpiresAt = (currentUser?.schoolId === activeSchool?.schoolId) ? currentUser?.expiresAt : null;
+    const finalExpiresAtStr = activeSchool?.expiresAt || userExpiresAt;
+    const expirationDate = finalExpiresAtStr ? new Date(finalExpiresAtStr) : new Date(createdDate.getTime() + 365 * 24 * 60 * 60 * 1000);
+
+    expirationDateStr = expirationDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+
+    const firstYearEnd = new Date(createdDate);
+    firstYearEnd.setFullYear(createdDate.getFullYear() + 1);
+    const isPaidYear2 = expirationDate > firstYearEnd;
+    isFreeAccess = !isPaidYear2 && (new Date() < expirationDate);
+
+    return {
+      category,
+      fee,
+      isFreeAccess,
+      isPaidYear2,
+      priceLabel: `₱${fee.toLocaleString()}`,
+      expirationDateStr
+    };
+  }, [activeSchool, teacherCount, currentUser]);
 
   const [confirmFinalizeConfig, setConfirmFinalizeConfig] = useState<{ subjectId: string, term: number, finalize: boolean } | null>(null);
 
@@ -17472,6 +18227,12 @@ function AdminUsersView({
                batch.update(d.ref, { expiresAt: newExpiresAt });
             }
          });
+
+         const schoolQ = query(collection(db, "schools"), where("schoolId", "==", userToUpdate.schoolId));
+         const schoolSnap = await getDocs(schoolQ);
+         schoolSnap.forEach(d => {
+            batch.update(d.ref, { expiresAt: newExpiresAt });
+         });
       }
       
       await batch.commit();
@@ -19308,8 +20069,68 @@ function AdminSchoolsView({
   const [isAdding, setIsAdding] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
-  const [newSchool, setNewSchool] = useState({ name: '', schoolId: '', headOfSchool: '', region: '', division: '', district: '', schoolLogo: '', depEdLogo: '' });
+  const [newSchool, setNewSchool] = useState({ name: '', schoolId: '', headOfSchool: '', region: '', division: '', district: '', schoolLogo: '', depEdLogo: '', createdAt: '' });
   const [schoolToDelete, setSchoolToDelete] = useState<any | null>(null);
+  const [teacherCounts, setTeacherCounts] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    const q = query(collection(db, "users"), where("role", "==", "teacher"));
+    const unsub = onSnapshot(q, (snap) => {
+      const counts: Record<string, number> = {};
+      snap.docs.forEach(doc => {
+        const data = doc.data();
+        if (data.schoolId) {
+          counts[data.schoolId] = (counts[data.schoolId] || 0) + 1;
+        }
+      });
+      setTeacherCounts(counts);
+    }, (err) => {
+      console.error("Error fetching teachers counts in admin view: ", err);
+    });
+    return () => unsub();
+  }, []);
+
+  const getSubscriptionDetails = (createdAt: string | undefined, teacherCount: number, expiresAt?: string) => {
+    const count = teacherCount || 0;
+    let category = 'Small';
+    let fee = 599;
+
+    if (count <= 9) {
+      category = 'Small';
+      fee = 599;
+    } else if (count <= 25) {
+      category = 'Medium';
+      fee = 1199;
+    } else if (count <= 100) {
+      category = 'Large';
+      fee = 2499;
+    } else {
+      category = 'Mega';
+      fee = 4999;
+    }
+
+    let isFreeAccess = false;
+    let expirationDateStr = '';
+    const schoolCreatedAt = createdAt || new Date().toISOString();
+    const createdDate = new Date(schoolCreatedAt);
+    const expirationDate = expiresAt ? new Date(expiresAt) : new Date(createdDate.getTime() + 365 * 24 * 60 * 60 * 1000);
+
+    expirationDateStr = expirationDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+
+    const firstYearEnd = new Date(createdDate);
+    firstYearEnd.setFullYear(createdDate.getFullYear() + 1);
+    const isPaidYear2 = expirationDate > firstYearEnd;
+    isFreeAccess = !isPaidYear2 && (new Date() < expirationDate);
+
+    return {
+      category,
+      fee,
+      isFreeAccess,
+      isPaidYear2,
+      priceLabel: `₱${fee.toLocaleString()}`,
+      expirationDateStr
+    };
+  };
 
   const isDeadlinePassed = useMemo(() => {
     if (!globalSettings?.finalizationDeadline) return false;
@@ -19347,18 +20168,82 @@ function AdminSchoolsView({
     }
   };
 
+  const handleClearAllSubscriptions = async () => {
+    if (window.confirm('Are you ABSOLUTELY sure you want to clear all subscriptions for the entire system? This resets access and prepares the system for serving.')) {
+      setLoading(true);
+      try {
+        const usersSnap = await getDocs(collection(db, "users"));
+        
+        let writeCount = 0;
+        let batch = writeBatch(db);
+        
+        const commitBatch = async () => {
+           if (writeCount > 0) {
+              await batch.commit();
+              batch = writeBatch(db);
+              writeCount = 0;
+           }
+        };
+
+        for (const s of schools) {
+          batch.update(doc(db, 'schools', s.id), { 
+            expiresAt: deleteField(),
+            paidYears: deleteField()
+          });
+          writeCount++;
+          if (writeCount >= 450) await commitBatch();
+        }
+
+        for (const d of usersSnap.docs) {
+          const data = d.data();
+          if (data.expiresAt) {
+            batch.update(d.ref, { expiresAt: deleteField() });
+            writeCount++;
+            if (writeCount >= 450) await commitBatch();
+          }
+        }
+
+        await commitBatch();
+        alert('All subscriptions have been successfully cleared.');
+      } catch (err) {
+        handleFirestoreError(err, 'write', 'clearSubscriptions');
+      }
+      setLoading(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!newSchool.name || !newSchool.schoolId || !newSchool.headOfSchool) return;
     try {
+      const createdAt = newSchool.createdAt || new Date().toISOString();
+      const expiresDate = new Date(createdAt);
+      expiresDate.setFullYear(expiresDate.getFullYear() + 1);
+      const expiresAt = expiresDate.toISOString();
+
       if ((newSchool as any).id) {
-         const updates = { ...newSchool };
+         const updates: any = { ...newSchool, createdAt, expiresAt };
          delete (updates as any).id;
          await updateDoc(doc(db, "schools", (newSchool as any).id), updates);
+         
+         const q = query(collection(db, "users"), where("schoolId", "==", updates.schoolId));
+         const snap = await getDocs(q);
+         const batch = writeBatch(db);
+         snap.forEach(d => {
+            if (d.data().role !== 'admin' && d.data().email !== 'jessiemangabo@gmail.com') {
+               batch.update(d.ref, { expiresAt });
+            }
+         });
+         await batch.commit();
       } else {
-         await addDoc(collection(db, "schools"), newSchool);
+         const dataToSave = {
+           ...newSchool,
+           createdAt,
+           expiresAt
+         };
+         await addDoc(collection(db, "schools"), dataToSave);
       }
       setIsAdding(false);
-      setNewSchool({ name: '', schoolId: '', headOfSchool: '', region: '', division: '', district: '', schoolLogo: '', depEdLogo: '' });
+      setNewSchool({ name: '', schoolId: '', headOfSchool: '', region: '', division: '', district: '', schoolLogo: '', depEdLogo: '', createdAt: '' });
     } catch (err) {
       handleFirestoreError(err, 'write', 'schools');
     }
@@ -19483,13 +20368,20 @@ function AdminSchoolsView({
           const district = disIdx >= 0 ? values[disIdx]?.replace(/^"|"$/g, '').trim() : '';
 
           if (name && schoolId) {
+             const createdAt = new Date().toISOString();
+             const expiresDate = new Date(createdAt);
+             expiresDate.setFullYear(expiresDate.getFullYear() + 1);
+             const expiresAt = expiresDate.toISOString();
+
              schoolsToAdd.push({ 
                name, 
                schoolId, 
                headOfSchool: headOfSchool || 'N/A',
                region: region || '',
                division: division || '',
-               district: district || ''
+               district: district || '',
+               createdAt,
+               expiresAt
              });
           }
         }
@@ -19547,7 +20439,7 @@ function AdminSchoolsView({
           <div className="bg-white rounded-xl p-8 w-full max-w-md shadow-xl">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-xl font-bold text-slate-900">{(newSchool as any).id ? 'Edit School' : 'Add School'}</h3>
-              <button onClick={() => { setIsAdding(false); setNewSchool({ name: '', schoolId: '', headOfSchool: '', region: '', division: '', district: '' }); }} className="text-slate-400 hover:text-slate-600 transition-colors">
+              <button onClick={() => { setIsAdding(false); setNewSchool({ name: '', schoolId: '', headOfSchool: '', region: '', division: '', district: '', schoolLogo: '', depEdLogo: '', createdAt: '' }); }} className="text-slate-400 hover:text-slate-600 transition-colors">
                 <X size={20} />
               </button>
             </div>
@@ -19614,6 +20506,16 @@ function AdminSchoolsView({
                     <input value={newSchool.district || ''} onChange={e => setNewSchool({...newSchool, district: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" />
                   </div>
                 </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 mb-1.5 ml-1">Registration Date</label>
+                  <input 
+                    type="date"
+                    value={newSchool.createdAt ? newSchool.createdAt.split('T')[0] : ''}
+                    onChange={e => setNewSchool({...newSchool, createdAt: e.target.value ? new Date(e.target.value).toISOString() : ''})}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-mono"
+                  />
+                </div>
               </div>
 
               <button 
@@ -19655,6 +20557,15 @@ function AdminSchoolsView({
           )}
           {!isDeadlinePassed && (
             <>
+              {currentUser.role === 'admin' && (
+                <button 
+                  onClick={handleClearAllSubscriptions}
+                  className="bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-lg font-bold text-sm transition-colors flex items-center gap-2 mr-2"
+                >
+                  <AlertTriangle size={18} />
+                  <span>Clear All Subscriptions</span>
+                </button>
+              )}
               <button 
                 onClick={handleFinalizeAllSchools}
                 className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-bold text-sm transition-colors flex items-center gap-2 mr-2"
@@ -19699,6 +20610,7 @@ function AdminSchoolsView({
                   <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider">School ID</th>
                   <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider">Name</th>
                   <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider">Location</th>
+                  <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider">Subscription</th>
                   <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider">Status</th>
                   {!isDeadlinePassed && <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-right">Actions</th>}
                 </tr>
@@ -19706,11 +20618,11 @@ function AdminSchoolsView({
               <tbody className="bg-white divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={isDeadlinePassed ? 4 : 5} className="p-12 text-center text-xs font-semibold text-slate-400 uppercase tracking-widest">Loading Schools...</td>
+                  <td colSpan={isDeadlinePassed ? 5 : 6} className="p-12 text-center text-xs font-semibold text-slate-400 uppercase tracking-widest">Loading Schools...</td>
                 </tr>
               ) : schools.length === 0 ? (
                 <tr>
-                  <td colSpan={isDeadlinePassed ? 4 : 5} className="px-6 py-20 text-center">
+                  <td colSpan={isDeadlinePassed ? 5 : 6} className="px-6 py-20 text-center">
                     <div className="size-12 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4">
                       <Building size={24} className="text-slate-300" />
                     </div>
@@ -19749,6 +20661,42 @@ function AdminSchoolsView({
                       <td className="px-6 py-4">
                         <p className="text-sm text-slate-700 font-medium">{s.region || '—'}</p>
                         <p className="text-xs text-slate-400">{s.division} {s.district && `• ${s.district}`}</p>
+                      </td>
+                      <td className="px-6 py-4">
+                        {(() => {
+                          const tCount = teacherCounts[s.schoolId] || 0;
+                          const sub = getSubscriptionDetails(s.createdAt, tCount, s.expiresAt);
+                          return (
+                            <div className="space-y-0.5">
+                              <span className="inline-flex items-center text-[10px] font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                                {sub.category} ({tCount} {tCount === 1 ? 'Teacher' : 'Teachers'})
+                              </span>
+                              <div className="flex flex-col text-xs font-semibold">
+                                {sub.isFreeAccess ? (
+                                  <>
+                                    <span className="text-emerald-600 font-extrabold text-[11px] flex items-center gap-1">
+                                      🎁 One-Year Free Access
+                                    </span>
+                                    <span className="text-[9px] text-slate-400 font-medium">
+                                      Expires: {sub.expirationDateStr}
+                                    </span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span className="text-indigo-600 font-extrabold text-[11px]">
+                                      {sub.priceLabel} / year
+                                    </span>
+                                    {sub.expirationDateStr && (
+                                      <span className="text-[9px] text-slate-400 font-medium">
+                                        Promo ended: {sub.expirationDateStr}
+                                      </span>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </td>
                       <td className="px-6 py-4">
                         {isSchoolFinalized ? (
@@ -19804,7 +20752,7 @@ function AdminSchoolsView({
                                 }}
                                 className="text-emerald-600 hover:bg-emerald-50 px-3 py-1.5 font-bold text-xs rounded-lg transition-colors"
                               >
-                                Finalize
+                                Finalize Entire School
                               </button>
                             )}
                             <button 
