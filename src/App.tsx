@@ -20168,6 +20168,62 @@ function AdminSchoolsView({
     }
   };
 
+  const handleFactoryResetDatabase = async () => {
+    if (window.confirm('CRITICAL WARNING: Are you incredibly sure you want to FACTORY RESET the entire database? This will permanently delete ALL schools, sections, and users (except your admin account). This action CANNOT be undone!')) {
+      const confirmation = window.prompt("Type 'FACTORY RESET' to confirm.");
+      if (confirmation !== 'FACTORY RESET') {
+        alert("Factory reset cancelled.");
+        return;
+      }
+      setLoading(true);
+      try {
+        let writeCount = 0;
+        let batch = writeBatch(db);
+        
+        const commitBatch = async () => {
+           if (writeCount > 0) {
+              await batch.commit();
+              batch = writeBatch(db);
+              writeCount = 0;
+           }
+        };
+
+        const collectionsToClear = ["schools", "sections", "audit_logs", "settings"];
+
+        for (const col of collectionsToClear) {
+           const snap = await getDocs(collection(db, col));
+           for (const d of snap.docs) {
+             batch.delete(d.ref);
+             writeCount++;
+             if (writeCount >= 450) await commitBatch();
+           }
+        }
+
+        const usersSnap = await getDocs(collection(db, "users"));
+        for (const d of usersSnap.docs) {
+           const data = d.data();
+           if (data.email !== 'jessiemangabo@gmail.com') {
+             batch.delete(d.ref);
+             writeCount++;
+             if (writeCount >= 450) await commitBatch();
+           } else {
+             // Free admin from any residual school association
+             batch.update(d.ref, { schoolId: deleteField(), lrn: deleteField(), employeeId: deleteField(), position: deleteField() });
+             writeCount++;
+             if (writeCount >= 450) await commitBatch();
+           }
+        }
+
+        await commitBatch();
+        alert('Factory Reset Complete. ALL DATA has been wiped.');
+        window.location.reload();
+      } catch (err) {
+        handleFirestoreError(err, 'write', 'factory_reset');
+      }
+      setLoading(false);
+    }
+  };
+
   const handleClearAllSubscriptions = async () => {
     if (window.confirm('Are you ABSOLUTELY sure you want to clear all subscriptions for the entire system? This resets access and prepares the system for serving.')) {
       setLoading(true);
@@ -20558,13 +20614,22 @@ function AdminSchoolsView({
           {!isDeadlinePassed && (
             <>
               {currentUser.role === 'admin' && (
-                <button 
-                  onClick={handleClearAllSubscriptions}
-                  className="bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-lg font-bold text-sm transition-colors flex items-center gap-2 mr-2"
-                >
-                  <AlertTriangle size={18} />
-                  <span>Clear All Subscriptions</span>
-                </button>
+                <>
+                  <button 
+                    onClick={handleFactoryResetDatabase}
+                    className="bg-red-700 hover:bg-red-800 text-white px-4 py-2 rounded-lg font-black text-sm transition-colors flex items-center gap-2 mr-2 shadow-sm border border-red-900"
+                  >
+                    <AlertTriangle size={18} />
+                    <span>FACTORY RESET DB</span>
+                  </button>
+                  <button 
+                    onClick={handleClearAllSubscriptions}
+                    className="bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-lg font-bold text-sm transition-colors flex items-center gap-2 mr-2"
+                  >
+                    <AlertTriangle size={18} />
+                    <span>Clear All Subscriptions</span>
+                  </button>
+                </>
               )}
               <button 
                 onClick={handleFinalizeAllSchools}
