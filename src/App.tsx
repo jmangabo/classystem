@@ -1359,29 +1359,32 @@ export default function App() {
 
   useEffect(() => {
     if (userProfile?.role === 'admin') {
-      const q = query(collection(db, 'users'), where('role', '==', 'system_admin'));
-      const unsub = onSnapshot(q, (snap) => {
+      const unsub = onSnapshot(collection(db, 'schools'), (snap) => {
         const expiredIds: string[] = [];
         snap.forEach(d => {
-           const sysAdmin = d.data() as UserProfile;
-           if (sysAdmin.schoolId && sysAdmin.expiresAt && new Date(sysAdmin.expiresAt) < new Date()) {
-              expiredIds.push(sysAdmin.schoolId);
+           const school = d.data();
+           const now = new Date();
+           const fallbackDate = new Date(school.createdAt || now.toISOString());
+           fallbackDate.setFullYear(fallbackDate.getFullYear() + 1);
+           const expirationDate = school.expiresAt ? new Date(school.expiresAt) : fallbackDate;
+           if (expirationDate < now) {
+              expiredIds.push(school.schoolId);
            }
         });
         setExpiredSchoolIds(expiredIds);
-      }, (err) => console.error("Admin system admin snapshot error:", err));
-      return unsub;
+      }, (err) => console.error("Admin schools snapshot error:", err));
+      return () => unsub();
     } else {
       setExpiredSchoolIds([]);
     }
   }, [userProfile?.role]);
 
   useEffect(() => {
-    const isExpired = userProfile?.expiresAt ? new Date(userProfile.expiresAt) < new Date() : false;
+    const isExpired = activeSchool?.expiresAt ? new Date(activeSchool.expiresAt) < new Date() : false;
     if (isExpired && selectedSection !== null && userProfile?.email !== 'jessiemangabo@gmail.com') {
       setSelectedSection(null);
     }
-  }, [userProfile, selectedSection]);
+  }, [activeSchool, selectedSection, userProfile]);
 
   const handleLogin = async () => {
     if (isLoggingIn) return;
@@ -1443,18 +1446,6 @@ export default function App() {
       batch.update(schoolRef, {
         paidYears: arrayUnion(yearIndex),
         expiresAt: newExpiresAt
-      });
-
-      // 2. Find and update all users associated with this school ID to synchronize in real time
-      const usersQuery = query(collection(db, "users"), where("schoolId", "==", activeSchool.schoolId));
-      const usersSnap = await getDocs(usersQuery);
-      
-      usersSnap.forEach((userDoc) => {
-        if (userDoc.data().role !== 'admin' && userDoc.data().email !== 'jessiemangabo@gmail.com') {
-          batch.update(userDoc.ref, {
-            expiresAt: newExpiresAt
-          });
-        }
       });
 
       // 3. Commit atomic batch in Firestore
@@ -2253,7 +2244,7 @@ export default function App() {
     }} />;
   }
 
-  const isExpired = userProfile?.expiresAt ? new Date(userProfile.expiresAt) < new Date() : false;
+  const isExpired = activeSchool?.expiresAt ? new Date(activeSchool.expiresAt) < new Date() : false;
 
   if (userProfile && (userProfile.approvalStatus !== 'approved') && userProfile.email !== 'jessiemangabo@gmail.com') {
     return <PendingApprovalView 
@@ -2399,7 +2390,7 @@ export default function App() {
     />;
   }
 
-  if (showAdminSchools && (userProfile?.role === 'admin')) {
+  if (showAdminSchools && (userProfile?.role === 'admin' || userProfile?.role === 'system_admin')) {
     return <AdminSchoolsView 
       onBack={() => setShowAdminSchools(false)} 
       currentUser={userProfile} 
@@ -2736,6 +2727,13 @@ export default function App() {
                         {pendingUsersCount > 0 && (
                           <span className="absolute top-1 right-1 flex h-2 w-2 items-center justify-center rounded-full bg-rose-500" />
                         )}
+                      </button>
+                      <button 
+                        onClick={() => setShowAdminSchools(true)}
+                        className={`flex shrink-0 items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all relative text-slate-400 hover:text-slate-700 hover:bg-slate-50`}
+                      >
+                        <Building size={14} />
+                        <span className="uppercase tracking-wide">Manage School</span>
                       </button>
                     </div>
                   )}
@@ -4345,11 +4343,10 @@ function StatementOfAccountView({
     let currentBalance = 0;
 
     // Resolve expiration source of truth:
-    const userExpiresAt = (userProfile?.schoolId === activeSchool?.schoolId) ? userProfile?.expiresAt : null;
-    const finalExpiresAtStr = activeSchool?.expiresAt || userExpiresAt;
+    const finalExpiresAtStr = activeSchool?.expiresAt;
     const expirationDate = finalExpiresAtStr 
       ? new Date(finalExpiresAtStr)
-      : new Date(createdDate.getTime() + 365 * 24 * 60 * 60 * 1000);
+      : new Date(new Date(createdDate).setFullYear(createdDate.getFullYear() + 1));
 
     // Year 1 (Trial Year) ALWAYS spans from createdDate to 1 year later (or expiration date if shorter)
     const firstYearEnd = new Date(createdDate);
@@ -4397,6 +4394,12 @@ function StatementOfAccountView({
       const isPaid = isFirstYear || 
                      (end.getTime() <= expirationDate.getTime() + 10000) || 
                      (activeSchool?.paidYears && activeSchool.paidYears.includes(yearIndex));
+
+      const isCurrentSubscriptionExpired = new Date() > expirationDate;
+
+      if (!isPaid && !isCurrentSubscriptionExpired && yearIndex >= 2) {
+        break;
+      }
 
       grossTotal += fee;
       promoDiscountTotal += discount;
@@ -4453,8 +4456,85 @@ function StatementOfAccountView({
     };
   }, [createdDate, teacherCount, activeSchool, userProfile]);
 
-  const handlePrint = () => {
-    window.print();
+  const handleExportExcel = () => {
+    const ws_data: any[][] = [];
+
+    const headerStyle = {
+      font: { bold: true, color: { rgb: "FFFFFF" } },
+      fill: { fgColor: { rgb: "4F46E5" } },
+      alignment: { horizontal: "center", vertical: "center" },
+      border: {
+        top: { style: "thin", color: { rgb: "000000" } },
+        bottom: { style: "thin", color: { rgb: "000000" } },
+        left: { style: "thin", color: { rgb: "000000" } },
+        right: { style: "thin", color: { rgb: "000000" } }
+      }
+    };
+
+    const cellStyle = {
+      border: {
+        top: { style: "thin", color: { rgb: "000000" } },
+        bottom: { style: "thin", color: { rgb: "000000" } },
+        left: { style: "thin", color: { rgb: "000000" } },
+        right: { style: "thin", color: { rgb: "000000" } }
+      }
+    };
+    
+    const boldCellStyle = {
+      font: { bold: true },
+      border: cellStyle.border
+    };
+    
+    ws_data.push([{ v: "Statement of Account", s: { font: { bold: true, sz: 16 } } }]);
+    ws_data.push([{ v: `SOA Reference: CLASS-SOA-${activeSchool?.schoolId || 'NEW'}-${new Date().getFullYear()}` }]);
+    ws_data.push([{ v: `School: ${activeSchool?.name || 'N/A'}` }]);
+    ws_data.push([{ v: `School ID: ${activeSchool?.schoolId || 'N/A'}` }]);
+    ws_data.push([{ v: `Date Issued: ${new Date().toLocaleDateString()}` }]);
+    ws_data.push([]);
+    
+    ws_data.push([
+      { v: "Coverage Period", s: headerStyle },
+      { v: "Licensing Tier", s: headerStyle },
+      { v: "Teachers Count", s: headerStyle },
+      { v: "Base Rate", s: headerStyle },
+      { v: "Promos / Discounts", s: headerStyle },
+      { v: "Net Subscription Fee", s: headerStyle },
+      { v: "Payment Status", s: headerStyle }
+    ]);
+    
+    ledger.rows.forEach(row => {
+      ws_data.push([
+        { v: `Year ${row.yearIndex} (${row.schoolYearStr})\n${row.periodStr}`, s: cellStyle },
+        { v: row.category, s: cellStyle },
+        { v: teacherCount, s: cellStyle },
+        { v: row.fee, t: "n", z: "₱#,##0.00", s: cellStyle },
+        { v: row.discount > 0 ? -row.discount : 0, t: "n", z: "₱#,##0.00", s: cellStyle },
+        { v: row.netFee, t: "n", z: "₱#,##0.00", s: cellStyle },
+        { v: row.isPaid ? 'PAID' : 'UNPAID', s: cellStyle }
+      ]);
+    });
+    
+    ws_data.push([]);
+    ws_data.push(["", "", "", "", { v: "Total Subscription Price:", s: boldCellStyle }, { v: ledger.netTotal, t: "n", z: "₱#,##0.00", s: boldCellStyle }]);
+    ws_data.push(["", "", "", "", { v: "Amount Paid:", s: boldCellStyle }, { v: ledger.amountPaid, t: "n", z: "₱#,##0.00", s: boldCellStyle }]);
+    ws_data.push(["", "", "", "", { v: "Action Required / Balance due:", s: boldCellStyle }, { v: ledger.currentBalance, t: "n", z: "₱#,##0.00", s: boldCellStyle }]);
+    
+    const ws = XLSX.utils.aoa_to_sheet(ws_data);
+    
+    ws['!cols'] = [
+      { wch: 30 },
+      { wch: 20 },
+      { wch: 15 },
+      { wch: 15 },
+      { wch: 20 },
+      { wch: 20 },
+      { wch: 15 }
+    ];
+    
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Statement of Account");
+    
+    XLSX.writeFile(wb, `SOA_${activeSchool?.schoolId || 'NEW'}_${new Date().getFullYear()}.xlsx`);
   };
 
   return (
@@ -4470,16 +4550,16 @@ function StatementOfAccountView({
         
         <div className="flex items-center gap-3 font-mono">
           <button 
-            onClick={handlePrint}
-            className="inline-flex items-center gap-2 text-slate-750 hover:text-slate-900 font-bold text-xs bg-white hover:bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 shadow-sm transition-all cursor-pointer"
+            onClick={handleExportExcel}
+            className="inline-flex items-center gap-2 text-emerald-750 hover:text-emerald-900 font-bold text-xs bg-white hover:bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2.5 shadow-sm transition-all cursor-pointer"
           >
-            <Printer size={16} /> Print Statement of Account
+            <Download size={16} /> Export Excel
           </button>
         </div>
       </div>
 
       {/* Main Print Wrapper */}
-      <div className="bg-white border border-slate-200 shadow-sm rounded-3xl overflow-hidden print:border-0 print:shadow-none print:rounded-none">
+      <div className="bg-white border border-slate-200 shadow-sm rounded-3xl overflow-hidden print:overflow-visible print:border-0 print:shadow-none print:rounded-none">
         
         {/* Top Header Decors / Corporate Ribbon (hidden in print) */}
         <div className="bg-gradient-to-r from-indigo-600 to-indigo-800 h-2.5 print:hidden"></div>
@@ -4495,7 +4575,7 @@ function StatementOfAccountView({
                   <span className="text-lg font-sans">E</span>
                 </div>
                 <div>
-                  <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">DepEd Enterprise System</h2>
+                  <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">CLASS Enterprise Solution</h2>
                   <p className="text-[10px] text-indigo-600 font-black tracking-widest uppercase">Class Record Solutions</p>
                 </div>
               </div>
@@ -4508,7 +4588,7 @@ function StatementOfAccountView({
               <span className="bg-indigo-50 text-indigo-700 text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider block w-fit md:ml-auto mb-2 print:border print:border-indigo-100 print:text-indigo-900">
                 Statement of Account
               </span>
-              <p><span className="font-semibold text-slate-800">SOA Reference:</span> CRM-SOA-{activeSchool?.schoolId || 'NEW'}-{new Date().getFullYear()}</p>
+              <p><span className="font-semibold text-slate-800">SOA Reference:</span> CLASS-SOA-{activeSchool?.schoolId || 'NEW'}-{new Date().getFullYear()}</p>
               <p><span className="font-semibold text-slate-800">Date Issued:</span> {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
               <p><span className="font-semibold text-slate-800">Valid Until:</span> {ledger.expirationDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
               <p><span className="font-semibold text-slate-800">Status:</span> 
@@ -4538,10 +4618,10 @@ function StatementOfAccountView({
             <div className="space-y-2">
               <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Issued By:</h3>
               <div className="space-y-1 text-slate-600 text-xs">
-                <p className="text-sm font-bold text-slate-900">Class Record Management Enterprise</p>
+                <p className="text-sm font-bold text-slate-900">CLASS Enterprise Solution</p>
                 <p>Support & Accounts Desk</p>
-                <p>Email: <span className="font-mono">billing@deped-crm-enterprise.com</span></p>
-                <p>Hotline: <span className="font-mono">+63 (2) 8800-4848</span></p>
+                <p>Email: <span className="font-mono">jessiemangabo@gmail.com</span></p>
+                <p>Hotline: <span className="font-mono">0905 152 6827</span></p>
                 <p className="text-[10px] text-slate-400 italic">Enterprise Cloud Invoicing Division</p>
               </div>
             </div>
@@ -4691,26 +4771,20 @@ function StatementOfAccountView({
           </div>
 
           {/* Payment execution details */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-6 border-t border-slate-100">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t border-slate-100">
             <div className="space-y-2">
               <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider block">Option 1: GCash Transfer</span>
               <p className="text-xs text-slate-600 leading-relaxed font-semibold">
-                Send payment to GCash Merchant ID: <strong className="font-mono text-slate-800">4800-2499-1199</strong>.<br/>
-                Or via QR Scan. Quote reference: <strong className="font-mono text-slate-800">{activeSchool?.schoolId}</strong>.
+                Send payment to GCash Merchant ID: <strong className="font-mono text-slate-800">0905 152 6827</strong><br/>
+                Quote reference: <strong className="font-mono text-slate-800">{activeSchool?.schoolId}</strong>.
               </p>
             </div>
             <div className="space-y-2">
               <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider block">Option 2: Bank transfer</span>
               <p className="text-xs text-slate-600 leading-relaxed font-semibold">
                 Land Bank of the Philippines (LBP)<br/>
-                Account Name: <strong className="text-slate-800">CRM Enterprise INC</strong><br/>
-                Account Number: <strong className="font-mono text-slate-800">1234-5678-90</strong>
-              </p>
-            </div>
-            <div className="space-y-2">
-              <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider block">Option 3: Division Cashier</span>
-              <p className="text-xs text-slate-600 leading-relaxed font-semibold">
-                Pay directly over-the-counter via the DepEd Division Cashier. Submit receipt copy to billing desk to auto sign-off renewal.
+                Account Name: <strong className="text-slate-800">Jessie J. Mangabo</strong><br/>
+                Account Number: <strong className="font-mono text-slate-800">107 640 6444</strong>
               </p>
             </div>
           </div>
@@ -4721,7 +4795,7 @@ function StatementOfAccountView({
               <p className="text-slate-400 font-medium">Prepared by:</p>
               <div className="w-40 h-px bg-slate-300 my-2"></div>
               <p className="font-bold text-slate-800">Enterprise Billing Desk</p>
-              <p className="text-[10px] text-slate-400 font-mono">ID: CRM-78904</p>
+              <p className="text-[10px] text-slate-400 font-mono">ID: CLASS-78904</p>
             </div>
 
             <div className="space-y-1 text-right">
@@ -4983,9 +5057,8 @@ function SectionsView({
     const schoolCreatedAt = activeSchool?.createdAt || new Date().toISOString();
     const createdDate = new Date(schoolCreatedAt);
 
-    const userExpiresAt = (user?.schoolId === activeSchool?.schoolId) ? user?.expiresAt : null;
-    const finalExpiresAtStr = activeSchool?.expiresAt || userExpiresAt;
-    const expirationDate = finalExpiresAtStr ? new Date(finalExpiresAtStr) : new Date(createdDate.getTime() + 365 * 24 * 60 * 60 * 1000);
+    const finalExpiresAtStr = activeSchool?.expiresAt;
+    const expirationDate = finalExpiresAtStr ? new Date(finalExpiresAtStr) : new Date(new Date(createdDate).setFullYear(createdDate.getFullYear() + 1));
 
     expirationDateStr = expirationDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 
@@ -5136,7 +5209,7 @@ function SectionsView({
   };
 
   return (
-    <div className="h-screen bg-slate-50 flex flex-col font-sans overflow-hidden">
+    <div className="h-screen print:h-auto bg-slate-50 flex flex-col font-sans overflow-hidden print:overflow-visible">
       
       <AnimatePresence>
         {showRequestsModal && (
@@ -5205,10 +5278,12 @@ function SectionsView({
         )}
       </AnimatePresence>
 
-      {!globalSettings?.activeSchoolYear && <EncodingClosedBanner />}
-      <DeadlineBanner globalSettings={globalSettings} />
+      <div className="print:hidden">
+        {!globalSettings?.activeSchoolYear && <EncodingClosedBanner />}
+        <DeadlineBanner globalSettings={globalSettings} />
+      </div>
       {(subDetails.isExpired && user?.email !== 'jessiemangabo@gmail.com') && (
-        <div className="bg-rose-500 text-white px-4 py-2.5 text-center text-sm font-semibold flex items-center justify-center gap-2 relative z-50 shadow-sm shrink-0">
+        <div className="bg-rose-500 text-white px-4 py-2.5 text-center text-sm font-semibold flex items-center justify-center gap-2 relative z-50 shadow-sm shrink-0 print:hidden">
           <AlertTriangle size={18} className="animate-pulse" />
           {(user?.role === 'system_admin' || user?.role === 'admin')
              ? "Your school's enterprise license has expired. Please contact the system provider to renew your subscription."
@@ -5218,7 +5293,7 @@ function SectionsView({
           )}
         </div>
       )}
-      <header className="h-16 bg-white px-6 md:px-8 flex items-center justify-between shrink-0 gap-4 relative z-50 border-b border-slate-200 shadow-sm">
+      <header className="h-16 bg-white px-6 md:px-8 flex items-center justify-between shrink-0 gap-4 relative z-50 border-b border-slate-200 shadow-sm print:hidden">
         <div className="flex items-center gap-4 shrink-0">
           <div className="w-10 h-10 bg-indigo-50 text-indigo-600 border border-indigo-100 rounded-xl flex items-center justify-center shadow-sm">
             <GraduationCap size={22} />
@@ -5249,17 +5324,27 @@ function SectionsView({
            )}
 
            {user?.role === 'system_admin' && onManageUsers && (
-             <button 
-               onClick={onManageUsers}
-               className="flex items-center gap-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-semibold text-xs px-3 py-2 rounded-lg transition-all shadow-sm"
-             >
-               <Users size={14} /> <span className="hidden sm:inline">Manage Users</span>
-               {pendingUsersCount > 0 && (
-                 <span className="ml-1 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[9px] font-bold text-white">
-                   {pendingUsersCount}
-                 </span>
+             <>
+               <button 
+                 onClick={onManageUsers}
+                 className="flex items-center gap-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-semibold text-xs px-3 py-2 rounded-lg transition-all shadow-sm"
+               >
+                 <Users size={14} /> <span className="hidden sm:inline">Manage Users</span>
+                 {pendingUsersCount > 0 && (
+                   <span className="ml-1 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[9px] font-bold text-white">
+                     {pendingUsersCount}
+                   </span>
+                 )}
+               </button>
+               {onManageSchools && (
+                 <button 
+                   onClick={onManageSchools}
+                   className="flex items-center gap-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-semibold text-xs px-3 py-2 rounded-lg transition-all shadow-sm"
+                 >
+                   <Building size={14} /> <span className="hidden sm:inline">Manage School</span>
+                 </button>
                )}
-             </button>
+             </>
            )}
 
            {user?.role === 'system_admin' && !!globalSettings?.finalizationDeadline && !isEntireSchoolFinalized && !isSchoolDbFinalized && (
@@ -5373,7 +5458,7 @@ function SectionsView({
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto p-12 custom-scrollbar">
+      <main className="flex-1 overflow-y-auto print:overflow-visible print:h-auto print:block print:p-0 p-12 custom-scrollbar">
         <div className="max-w-full 2xl:max-w-[1600px] w-full mx-auto space-y-12">
           {showProfile ? (
             <ProfileView 
@@ -10526,9 +10611,8 @@ function DashboardView({
     const schoolCreatedAt = activeSchool?.createdAt || new Date().toISOString();
     const createdDate = new Date(schoolCreatedAt);
 
-    const userExpiresAt = (currentUser?.schoolId === activeSchool?.schoolId) ? currentUser?.expiresAt : null;
-    const finalExpiresAtStr = activeSchool?.expiresAt || userExpiresAt;
-    const expirationDate = finalExpiresAtStr ? new Date(finalExpiresAtStr) : new Date(createdDate.getTime() + 365 * 24 * 60 * 60 * 1000);
+    const finalExpiresAtStr = activeSchool?.expiresAt;
+    const expirationDate = finalExpiresAtStr ? new Date(finalExpiresAtStr) : new Date(new Date(createdDate).setFullYear(createdDate.getFullYear() + 1));
 
     expirationDateStr = expirationDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 
@@ -15752,6 +15836,14 @@ function RoleSelectionView({ user, onComplete }: { user: FirebaseUser, onComplet
       if (schoolId.length >= 3) {
         setAdminCheckLoading(true);
         try {
+          // First, always ensure the schoolId actually exists in Manage Schools
+          const schoolQ = query(collection(db, "schools"), where("schoolId", "==", schoolId), limit(1));
+          const schoolSnap = await getDocs(schoolQ);
+          if (schoolSnap.empty) {
+            setError("The School ID you entered does not exist. Please check your School ID or contact the system administrator.");
+            return;
+          }
+
           if (role === 'system_admin') {
             // If user is trying to be a system_admin, check if one already exists for this schoolId
             const q = query(
@@ -15823,9 +15915,24 @@ function RoleSelectionView({ user, onComplete }: { user: FirebaseUser, onComplet
   }, [schoolId, role, lrn]);
 
   const handleSave = async () => {
+    console.log("handleSave called");
     setLoading(true);
     setError(null);
+    if (!schoolId) {
+      setError("Please enter a School ID.");
+      setLoading(false);
+      return;
+    }
     try {
+      // Check if schoolId exists first
+      const schoolQ = query(collection(db, "schools"), where("schoolId", "==", schoolId), limit(1));
+      const schoolSnap = await getDocs(schoolQ);
+      if (schoolSnap.empty) {
+        setError("The School ID you entered does not exist in Manage Schools. Please add the school in the Manage Schools page first.");
+        setLoading(false);
+        return;
+      }
+      
       // Check if an approved system admin exists for this schoolId if the user is not registering as one
       if (role !== 'system_admin') {
         const q = query(
@@ -15887,7 +15994,8 @@ function RoleSelectionView({ user, onComplete }: { user: FirebaseUser, onComplet
       await setDoc(doc(db, "users", user.uid), profile);
       onComplete(profile as UserProfile);
     } catch (err) {
-      console.error(err);
+      console.error("handleSave error:", err);
+      setError("An error occurred during profile completion. Please check if your schoolId is valid or try again.");
     } finally {
       setLoading(false);
     }
@@ -16144,6 +16252,7 @@ function StudentPortal({
       where("studentId", "in", queryIds)
     );
 
+    let unsubFallback: (() => void) | null = null;
     const unsubRecords = onSnapshot(recordsQ, (snap) => {
       const list = snap.docs.map(d => ({ id: d.id, ...d.data() } as AnecdotalRecord));
       
@@ -16164,7 +16273,7 @@ function StudentPortal({
           recordsRef,
           where("studentId", "==", student.id)
         );
-        onSnapshot(fallbackQ, (fallbackSnap) => {
+        unsubFallback = onSnapshot(fallbackQ, (fallbackSnap) => {
           const list = fallbackSnap.docs.map(d => ({ id: d.id, ...d.data() } as AnecdotalRecord));
           list.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
           setAnecdotalRecords(list);
@@ -16178,6 +16287,7 @@ function StudentPortal({
 
     return () => {
       unsubRecords();
+      if (unsubFallback) unsubFallback();
     };
   }, [student.id, allEnrollments]);
 
@@ -18151,89 +18261,12 @@ function AdminUsersView({
     return () => unsub();
   }, [currentUser]);
 
-  const changeStatus = async (userToUpdate: UserProfile, status: 'approved' | 'rejected' | 'pending', duration?: '1year' | '3days' | '1month' | '6months' | 'expire' | string) => {
+  const changeStatus = async (userToUpdate: UserProfile, status: 'approved' | 'rejected' | 'pending') => {
     try {
       const updates: any = { approvalStatus: status };
-      let newExpiresAt: string | null = null;
-      if (status === 'approved' || duration === 'expire') {
-         if (userToUpdate.role === 'system_admin') {
-            const now = new Date();
-            if (duration?.startsWith('term_') || duration === 'sy_cycle') {
-               const termNum = duration === 'sy_cycle' ? '4' : duration.split('_')[1];
-               // Get the latest school year first or use active school year
-               const activeYear = globalSettings?.activeSchoolYear;
-               const years = Array.from(new Set(schoolCalendar.map(c => c.schoolYear).filter(Boolean))) as string[];
-               const latestYear = activeYear || years.sort((a, b) => b.localeCompare(a))[0] || "";
-               
-               let termEntries = schoolCalendar.filter(c => (c.term || '1').toString() === termNum && c.schoolYear === latestYear);
-               
-               // If sy_cycle and term 4 doesn't exist, try getting the absolute latest month of the year
-               if (duration === 'sy_cycle' && termEntries.length === 0) {
-                 termEntries = schoolCalendar.filter(c => c.schoolYear === latestYear);
-               }
-
-               if (termEntries.length > 0) {
-                  // Find the latest month in this term for the latest year
-                  const monthOrder = ["June", "July", "August", "September", "October", "November", "December", "January", "February", "March", "April", "May"];
-                  const latestEntry = [...termEntries].sort((a, b) => {
-                    const yearDiff = parseInt(b.year) - parseInt(a.year);
-                    if (yearDiff !== 0) return yearDiff;
-                    return monthOrder.indexOf(b.month) - monthOrder.indexOf(a.month);
-                  })[0];
-                  
-                  const year = parseInt(latestEntry.year);
-                  const jsMonthMap: Record<string, number> = {
-                    'January': 0, 'February': 1, 'March': 2, 'April': 3, 'May': 4, 'June': 5,
-                    'July': 6, 'August': 7, 'September': 8, 'October': 9, 'November': 10, 'December': 11
-                  };
-                  const jsMonth = jsMonthMap[latestEntry.month];
-                  const expiryDate = new Date(year, jsMonth + 1, 0, 23, 59, 59); // End of last day
-                  newExpiresAt = expiryDate.toISOString();
-               } else {
-                  // Fallback to default if term not found
-                  now.setDate(now.getDate() + 30);
-                  newExpiresAt = now.toISOString();
-               }
-            } else if (duration === '3days') {
-               now.setDate(now.getDate() + 3);
-               newExpiresAt = now.toISOString();
-            } else if (duration === '1month') {
-               now.setMonth(now.getMonth() + 1);
-               newExpiresAt = now.toISOString();
-            } else if (duration === '6months') {
-               now.setMonth(now.getMonth() + 6);
-               newExpiresAt = now.toISOString();
-            } else if (duration === 'expire') {
-               now.setDate(now.getDate() - 1);
-               newExpiresAt = now.toISOString();
-            } else {
-               now.setDate(now.getDate() + 365);
-               newExpiresAt = now.toISOString();
-            }
-            updates.expiresAt = newExpiresAt;
-         } else {
-            updates.expiresAt = deleteField();
-         }
-      }
       
       const batch = writeBatch(db);
       batch.update(doc(db, "users", userToUpdate.uid), updates);
-      
-      if (userToUpdate.role === 'system_admin' && userToUpdate.schoolId && newExpiresAt) {
-         const q = query(collection(db, "users"), where("schoolId", "==", userToUpdate.schoolId));
-         const snap = await getDocs(q);
-         snap.forEach(d => {
-            if (d.id !== userToUpdate.uid && d.data().role !== 'admin' && d.data().email !== 'jessiemangabo@gmail.com') {
-               batch.update(d.ref, { expiresAt: newExpiresAt });
-            }
-         });
-
-         const schoolQ = query(collection(db, "schools"), where("schoolId", "==", userToUpdate.schoolId));
-         const schoolSnap = await getDocs(schoolQ);
-         schoolSnap.forEach(d => {
-            batch.update(d.ref, { expiresAt: newExpiresAt });
-         });
-      }
       
       await batch.commit();
     } catch (err) {
@@ -18984,7 +19017,6 @@ function AdminUsersView({
                   <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider">LRN</th>
                   <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider">School ID</th>
                   <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider">Expiration</th>
                   <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-right">Actions</th>
                 </tr>
               </thead>
@@ -19077,43 +19109,13 @@ function AdminUsersView({
                         </span>
                       </div>
                     </td>
-                    <td className="px-6 py-4">
-                      <div className="flex flex-col gap-1">
-                         <span className="text-slate-700 font-mono text-[10px] uppercase font-bold">
-                           {u.expiresAt ? new Date(u.expiresAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'No License'}
-                         </span>
-                         {u.expiresAt && new Date(u.expiresAt) < new Date() && (
-                           <span className="text-[9px] bg-rose-50 text-rose-600 px-1.5 py-0.5 rounded-md font-black uppercase tracking-tighter w-fit text-center">Expired</span>
-                         )}
-                      </div>
-                    </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2 text-right">
                         {u.role !== 'admin' && u.email !== 'jessiemangabo@gmail.com' && canManage && (
                           <div className="flex items-center gap-1">
-                            {u.role === 'system_admin' && u.approvalStatus === 'approved' && (
-                               <select 
-                                 className="text-[10px] font-bold uppercase text-slate-500 bg-white border border-slate-200 rounded-md px-2 py-1 outline-none hover:border-indigo-300 transition-all mr-2"
-                                 onChange={(e) => {
-                                   if (e.target.value) changeStatus(u, 'approved', e.target.value);
-                                   e.target.value = "";
-                                 }}
-                                 value=""
-                               >
-                                 <option value="" disabled>Set Expiry</option>
-                                 <option value="term_1">End of Term 1</option>
-                                 <option value="term_2">End of Term 2</option>
-                                 <option value="term_3">End of Term 3</option>
-                                 <option value="term_4">End of Term 4</option>
-                                 <option value="1month">+1 Month</option>
-                                 <option value="6months">+6 Months</option>
-                                 <option value="sy_cycle">School Year Cycle</option>
-                                 <option value="expire">Expire Now</option>
-                               </select>
-                            )}
                             {u.approvalStatus !== 'approved' && (
                               <button 
-                                onClick={() => changeStatus(u, 'approved', 'sy_cycle')}
+                                onClick={() => changeStatus(u, 'approved')}
                                 className="text-emerald-600 hover:bg-emerald-50 px-3 py-1.5 font-bold text-xs rounded-lg transition-colors"
                               >
                                 Approve
@@ -20113,7 +20115,7 @@ function AdminSchoolsView({
     let expirationDateStr = '';
     const schoolCreatedAt = createdAt || new Date().toISOString();
     const createdDate = new Date(schoolCreatedAt);
-    const expirationDate = expiresAt ? new Date(expiresAt) : new Date(createdDate.getTime() + 365 * 24 * 60 * 60 * 1000);
+    const expirationDate = expiresAt ? new Date(expiresAt) : new Date(new Date(createdDate).setFullYear(createdDate.getFullYear() + 1));
 
     expirationDateStr = expirationDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 
@@ -20138,7 +20140,10 @@ function AdminSchoolsView({
   }, [globalSettings]);
 
   useEffect(() => {
-    const q = query(collection(db, "schools"));
+    let q = query(collection(db, "schools"));
+    if (currentUser?.role === 'system_admin' && currentUser?.schoolId) {
+      q = query(collection(db, "schools"), where("schoolId", "==", currentUser.schoolId));
+    }
     const unsub = onSnapshot(q, (snap) => {
       setSchools(snap.docs.map(skip => ({...skip.data(), id: skip.id})));
       setLoading(false);
@@ -20147,7 +20152,7 @@ function AdminSchoolsView({
       setLoading(false);
     });
     return () => unsub();
-  }, []);
+  }, [currentUser]);
 
   const handleFinalizeAllSchools = async () => {
     if (window.confirm('Are you sure you want to finalize all schools?')) {
@@ -20280,16 +20285,6 @@ function AdminSchoolsView({
          const updates: any = { ...newSchool, createdAt, expiresAt };
          delete (updates as any).id;
          await updateDoc(doc(db, "schools", (newSchool as any).id), updates);
-         
-         const q = query(collection(db, "users"), where("schoolId", "==", updates.schoolId));
-         const snap = await getDocs(q);
-         const batch = writeBatch(db);
-         snap.forEach(d => {
-            if (d.data().role !== 'admin' && d.data().email !== 'jessiemangabo@gmail.com') {
-               batch.update(d.ref, { expiresAt });
-            }
-         });
-         await batch.commit();
       } else {
          const dataToSave = {
            ...newSchool,
@@ -20636,32 +20631,36 @@ function AdminSchoolsView({
                 className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-bold text-sm transition-colors flex items-center gap-2 mr-2"
               >
                 <CheckCircle size={18} />
-                <span>Finalize All Schools</span>
+                <span>Finalize {currentUser.role === 'system_admin' ? 'School' : 'All Schools'}</span>
               </button>
-              <button 
-                onClick={downloadCSVTemplate}
-                className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                title="Download Template"
-              >
-                <Download size={20} />
-              </button>
-              <label className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer">
-                <FileUp size={20} />
-                <input 
-                  type="file" 
-                  accept=".csv" 
-                  className="hidden" 
-                  onChange={handleFileUpload}
-                  disabled={isUploading}
-                />
-              </label>
-              <button 
-                onClick={() => setIsAdding(true)}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-bold text-sm transition-colors flex items-center gap-2 ml-2"
-              >
-                <Plus size={18} />
-                <span>Add School</span>
-              </button>
+              {currentUser.role === 'admin' && (
+                <>
+                  <button 
+                    onClick={downloadCSVTemplate}
+                    className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                    title="Download Template"
+                  >
+                    <Download size={20} />
+                  </button>
+                  <label className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer">
+                    <FileUp size={20} />
+                    <input 
+                      type="file" 
+                      accept=".csv" 
+                      className="hidden" 
+                      onChange={handleFileUpload}
+                      disabled={isUploading}
+                    />
+                  </label>
+                  <button 
+                    onClick={() => setIsAdding(true)}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-bold text-sm transition-colors flex items-center gap-2 ml-2"
+                  >
+                    <Plus size={18} />
+                    <span>Add School</span>
+                  </button>
+                </>
+              )}
             </>
           )}
         </div>
@@ -20829,13 +20828,15 @@ function AdminSchoolsView({
                             >
                               Edit
                             </button>
-                            <button
-                              onClick={() => setSchoolToDelete(s)}
-                              className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                              title="Delete School"
-                            >
-                              <Trash2 size={14} />
-                            </button>
+                            {currentUser?.role !== 'system_admin' && (
+                              <button
+                                onClick={() => setSchoolToDelete(s)}
+                                className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                                title="Delete School"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            )}
                           </div>
                         </td>
                       )}
