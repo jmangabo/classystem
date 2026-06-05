@@ -136,6 +136,7 @@ export interface Subject {
   order?: number;
   offeredTerms?: TermNumber[];
   finalizedTerms?: TermNumber[];
+  isZeroBasedGrading?: boolean;
 }
 
 export const DEFAULT_TERM_DATA: TermData = {
