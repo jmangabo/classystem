@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
+import QRCode from "react-qr-code";
 import * as XLSX from "xlsx-js-style";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas-pro";
@@ -63,6 +64,7 @@ import {
   BarChart2,
   Heart,
   CreditCard,
+  IdCard,
   Share2,
   RefreshCw,
   Clock,
@@ -76,11 +78,22 @@ import {
   Printer,
   Receipt,
   Tag,
-  FileSpreadsheet
+  FileSpreadsheet,
+  ExternalLink
 } from "lucide-react";
 
 import { SystemDocumentationView } from "./components/SystemDocumentationView";
 import { SF8View } from "./components/SF8View";
+
+const formatGradeSection = (gradeLevel?: string | number, sectionName?: string) => {
+  const g = String(gradeLevel || "7").trim();
+  const s = String(sectionName || "MATATAG").trim();
+  
+  if (s.toLowerCase() === `grade ${g}`) return `Grade ${g}`;
+  if (s.toLowerCase().includes(`grade ${g}`)) return s;
+  
+  return `Grade ${g} - ${s}`;
+};
 
 function EncodingClosedBanner() {
   return (
@@ -766,6 +779,8 @@ export default function App() {
     motherName: "",
     guardianName: "",
     guardianRelationship: "",
+    primaryContact: "guardian" as "father" | "mother" | "guardian",
+    contactNumber: "",
     dateOfFirstAttendance: "",
     attendance: {} as any,
     weight: "",
@@ -1697,6 +1712,8 @@ export default function App() {
           motherName: learnerForm.motherName || "",
           guardianName: learnerForm.guardianName || "",
           guardianRelationship: learnerForm.guardianRelationship || "",
+          primaryContact: learnerForm.primaryContact || "guardian",
+          contactNumber: learnerForm.contactNumber || "",
           weight: parseFloat(learnerForm.weight) || 0,
           height: parseFloat(learnerForm.height) || 0,
           bmi: bmi,
@@ -1714,7 +1731,7 @@ export default function App() {
       setLearnerForm({ 
         lastName: "", firstName: "", middleName: "", extension: "", name: "", 
         lrn: "", email: "", age: "", birthdate: "", sex: "Male", weight: "", height: "", attendance: {}, 
-        birthplace: "", address: "", fatherName: "", motherName: "", guardianName: "", guardianRelationship: "",
+        birthplace: "", address: "", fatherName: "", motherName: "", guardianName: "", guardianRelationship: "", primaryContact: "guardian", contactNumber: "",
         nutritionalStatus: {}, isTransferredIn: false, eligibility: { type: 'Elementary School Completer' } as Eligibility 
       });
     } catch (error) {
@@ -1916,9 +1933,18 @@ export default function App() {
       sex: student.sex || "Male",
       weight: student.weight?.toString() || "",
       height: student.height?.toString() || "",
+      birthplace: student.birthplace || "",
+      address: student.address || "",
+      fatherName: student.fatherName || "",
+      motherName: student.motherName || "",
+      guardianName: student.guardianName || "",
+      guardianRelationship: student.guardianRelationship || "",
+      primaryContact: student.primaryContact || "guardian",
+      contactNumber: student.contactNumber || "",
       dateOfFirstAttendance: student.dateOfFirstAttendance || "",
       attendance: student.attendance || {},
       nutritionalStatus: student.nutritionalStatus || {},
+      isTransferredIn: student.isTransferredIn || false,
       eligibility: student.eligibility || { type: 'Elementary School Completer' } as Eligibility
     });
   };
@@ -3003,7 +3029,7 @@ export default function App() {
                     setLearnerForm({ 
                       lastName: "", firstName: "", middleName: "", extension: "", name: "", 
                       lrn: "", email: "", age: "", birthdate: "", sex: "Male", weight: "", height: "", attendance: {}, 
-                      birthplace: "", address: "", fatherName: "", motherName: "", guardianName: "", guardianRelationship: "",
+                      birthplace: "", address: "", fatherName: "", motherName: "", guardianName: "", guardianRelationship: "", primaryContact: "guardian", contactNumber: "",
                       nutritionalStatus: {}, isTransferredIn: false, eligibility: { type: 'Elementary School Completer' } as any
                     });
                   }}
@@ -3017,7 +3043,8 @@ export default function App() {
                   onTogglePublishGrades={handleTogglePublishGrades}
                   onToggleParentSignature={handleToggleParentSignature}
                   section={selectedSection}
-                  currentUser={currentUser}
+                  currentUser={userProfile}
+                  isSectionAdviser={isSectionAdviser}
                   onViewAnecdotals={(s) => {
                     setPreselectedStudentForAnecdotal(s);
                     setActiveTab('anecdotes');
@@ -7180,7 +7207,7 @@ function AddLearnerModal({
                 <input 
                   type="text"
                   placeholder="e.g. Dela Cruz"
-                  value={form.lastName}
+                  value={form.lastName || ''}
                   onChange={e => setForm({...form, lastName: capitalizeName(e.target.value)})}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none font-medium"
                 />
@@ -7191,7 +7218,7 @@ function AddLearnerModal({
                 <input 
                   type="text"
                   placeholder="e.g. Juan"
-                  value={form.firstName}
+                  value={form.firstName || ''}
                   onChange={e => setForm({...form, firstName: capitalizeName(e.target.value)})}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none font-medium"
                 />
@@ -7202,7 +7229,7 @@ function AddLearnerModal({
                 <input 
                   type="text"
                   placeholder="e.g. Proto"
-                  value={form.middleName}
+                  value={form.middleName || ''}
                   onChange={e => setForm({...form, middleName: capitalizeName(e.target.value)})}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none font-medium"
                 />
@@ -7213,7 +7240,7 @@ function AddLearnerModal({
                 <input 
                   type="text"
                   placeholder="e.g. Jr, III"
-                  value={form.extension}
+                  value={form.extension || ''}
                   onChange={e => setForm({...form, extension: capitalizeName(e.target.value)})}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none font-medium"
                 />
@@ -7226,7 +7253,7 @@ function AddLearnerModal({
                   inputMode="numeric"
                   required
                   placeholder="12-digit number"
-                  value={form.lrn}
+                  value={form.lrn || ''}
                   onChange={e => setForm({...form, lrn: e.target.value})}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none font-medium"
                 />
@@ -7262,7 +7289,7 @@ function AddLearnerModal({
               <input 
                 type="email"
                 placeholder="Portal access email"
-                value={form.email}
+                value={form.email || ''}
                 onChange={e => setForm({...form, email: e.target.value})}
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none font-medium"
               />
@@ -7304,7 +7331,7 @@ function AddLearnerModal({
                     type="number"
                     step="0.1"
                     placeholder="e.g. 45.5"
-                    value={form.weight}
+                    value={form.weight || ''}
                     onChange={e => setForm({...form, weight: e.target.value})}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none text-sm font-medium"
                   />
@@ -7315,7 +7342,7 @@ function AddLearnerModal({
                     type="number"
                     step="0.1"
                     placeholder="e.g. 150"
-                    value={form.height}
+                    value={form.height || ''}
                     onChange={e => setForm({...form, height: e.target.value})}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none text-sm font-medium"
                   />
@@ -7360,7 +7387,7 @@ function AddLearnerModal({
               <input 
                 type="text"
                 placeholder="e.g. Manila"
-                value={form.birthplace}
+                value={form.birthplace || ''}
                 onChange={e => setForm({...form, birthplace: capitalizeName(e.target.value)})}
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none text-sm font-medium"
               />
@@ -7371,7 +7398,7 @@ function AddLearnerModal({
               <input 
                 type="text"
                 placeholder="Complete Address"
-                value={form.address}
+                value={form.address || ''}
                 onChange={e => setForm({...form, address: e.target.value})}
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none text-sm font-medium"
               />
@@ -7379,33 +7406,51 @@ function AddLearnerModal({
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-600 uppercase tracking-widest">Father's Full Name</label>
+                <label className="text-xs font-bold text-slate-600 uppercase tracking-widest flex justify-between">
+                  <span>Father's Full Name</span>
+                  <label className="flex items-center gap-1.5 cursor-pointer text-[10px]">
+                    <input type="radio" name="primaryAdd" checked={form.primaryContact === 'father'} onChange={() => setForm({...form, primaryContact: 'father'})} className="rounded text-indigo-600 cursor-pointer" />
+                    <span>Set Primary</span>
+                  </label>
+                </label>
                 <input 
                   type="text"
                   placeholder="Last, First, Middle"
-                  value={form.fatherName}
+                  value={form.fatherName || ''}
                   onChange={e => setForm({...form, fatherName: capitalizeName(e.target.value)})}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none text-sm font-medium"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-600 uppercase tracking-widest">Mother's Full Name</label>
+                <label className="text-xs font-bold text-slate-600 uppercase tracking-widest flex justify-between">
+                  <span>Mother's Full Name</span>
+                  <label className="flex items-center gap-1.5 cursor-pointer text-[10px]">
+                    <input type="radio" name="primaryAdd" checked={form.primaryContact === 'mother'} onChange={() => setForm({...form, primaryContact: 'mother'})} className="rounded text-indigo-600 cursor-pointer" />
+                    <span>Set Primary</span>
+                  </label>
+                </label>
                 <input 
                   type="text"
                   placeholder="Last, First, Middle"
-                  value={form.motherName}
+                  value={form.motherName || ''}
                   onChange={e => setForm({...form, motherName: capitalizeName(e.target.value)})}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none text-sm font-medium"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-600 uppercase tracking-widest">Guardian's Full Name</label>
+                <label className="text-xs font-bold text-slate-600 uppercase tracking-widest flex justify-between">
+                  <span>Guardian's Full Name</span>
+                  <label className="flex items-center gap-1.5 cursor-pointer text-[10px]">
+                    <input type="radio" name="primaryAdd" checked={form.primaryContact === 'guardian'} onChange={() => setForm({...form, primaryContact: 'guardian'})} className="rounded text-indigo-600 cursor-pointer" />
+                    <span>Set Primary</span>
+                  </label>
+                </label>
                 <input 
                   type="text"
                   placeholder="If not parents"
-                  value={form.guardianName}
+                  value={form.guardianName || ''}
                   onChange={e => setForm({...form, guardianName: capitalizeName(e.target.value)})}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none text-sm font-medium"
                 />
@@ -7416,11 +7461,22 @@ function AddLearnerModal({
                 <input 
                   type="text"
                   placeholder="e.g. Auntie"
-                  value={form.guardianRelationship}
+                  value={form.guardianRelationship || ''}
                   onChange={e => setForm({...form, guardianRelationship: capitalizeFirst(e.target.value)})}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none text-sm font-medium"
                 />
               </div>
+            </div>
+
+            <div className="space-y-1.5 mt-5">
+              <label className="text-xs font-bold text-slate-600 uppercase tracking-widest">Primary CP / Contact Number</label>
+              <input 
+                type="text"
+                placeholder="e.g. 09123456789"
+                value={form.contactNumber || ''}
+                onChange={e => setForm({...form, contactNumber: e.target.value})}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none text-sm font-medium"
+              />
             </div>
 
             <EligibilityForm form={form} setForm={setForm} />
@@ -7629,7 +7685,8 @@ function AddLearnerView({
   onToggleParentSignature,
   section,
   currentUser,
-  onViewAnecdotals
+  onViewAnecdotals,
+  isSectionAdviser = false
 }: {
   form: any,
   setForm: any,
@@ -7654,11 +7711,45 @@ function AddLearnerView({
   onToggleParentSignature?: (id: string, term: number, val: boolean) => void,
   section?: Section | null,
   currentUser?: any,
-  onViewAnecdotals?: (s: Student) => void
+  onViewAnecdotals?: (s: Student) => void,
+  isSectionAdviser?: boolean
 }) {
   const [showAddModal, setShowAddModal] = useState(false);
-  const maleCount = students.filter(s => s.sex?.toLowerCase() === 'male').length;
-  const femaleCount = students.filter(s => s.sex?.toLowerCase() === 'female').length;
+  const studentsMale = useMemo(() => {
+    return [...students]
+      .filter(s => s.sex?.toLowerCase() === 'male')
+      .sort((a, b) => {
+        const nameA = (a.name || `${a.lastName || ''}, ${a.firstName || ''}`).trim();
+        const nameB = (b.name || `${b.lastName || ''}, ${b.firstName || ''}`).trim();
+        return nameA.localeCompare(nameB);
+      });
+  }, [students]);
+
+  const studentsFemale = useMemo(() => {
+    return [...students]
+      .filter(s => s.sex?.toLowerCase() === 'female')
+      .sort((a, b) => {
+        const nameA = (a.name || `${a.lastName || ''}, ${a.firstName || ''}`).trim();
+        const nameB = (b.name || `${b.lastName || ''}, ${b.firstName || ''}`).trim();
+        return nameA.localeCompare(nameB);
+      });
+  }, [students]);
+
+  const studentsOther = useMemo(() => {
+    return [...students]
+      .filter(s => {
+        const sex = s.sex?.toLowerCase();
+        return sex !== 'male' && sex !== 'female';
+      })
+      .sort((a, b) => {
+        const nameA = (a.name || `${a.lastName || ''}, ${a.firstName || ''}`).trim();
+        const nameB = (b.name || `${b.lastName || ''}, ${b.firstName || ''}`).trim();
+        return nameA.localeCompare(nameB);
+      });
+  }, [students]);
+
+  const maleCount = studentsMale.length;
+  const femaleCount = studentsFemale.length;
   const [isUploading, setIsUploading] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Student | null>(null);
@@ -7668,14 +7759,16 @@ function AddLearnerView({
   const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
   const [bulkFirstAttendanceDate, setBulkFirstAttendanceDate] = useState("");
   const [academicHistoryModalStudent, setAcademicHistoryModalStudent] = useState<Student | null>(null);
-  const isActiveSY = !!globalSettings?.activeSchoolYear && 
+  const [showIDPrintModal, setShowIDPrintModal] = useState(false);
+  const [idPrintPreselectedStudent, setIdPrintPreselectedStudent] = useState<Student | null>(null);
+  const isMainAdmin = currentUser?.email === 'jessiemangabo@gmail.com';
+  const isSystemAdmin = currentUser?.role === 'system_admin' || currentUser?.role === 'admin' || isMainAdmin;
+  const isAdviser = !!isSectionAdviser;
+  const isActiveSY = isSystemAdmin || isAdviser || (
+    !!globalSettings?.activeSchoolYear && 
     !globalSettings?.finalizedSchoolYears?.includes(globalSettings?.activeSchoolYear) && 
-    !section?.isFinalized;
-
-  const studentsOther = students.filter(s => {
-    const sex = s.sex?.toLowerCase();
-    return sex !== 'male' && sex !== 'female';
-  });
+    !section?.isFinalized
+  );
 
   const StudentRow: React.FC<{ s: Student, variant: 'blue' | 'fuchsia' | 'emerald' }> = ({ s, variant }) => {
     const totalSchoolDays = Number(schoolCalendar.reduce((sum: number, c: any) => sum + (Number(c.days) || 0), 0)) || 0;
@@ -7834,6 +7927,19 @@ function AddLearnerView({
             >
               <HistoryIcon size={14} />
             </button>
+            {isSectionAdviser && (
+              <button 
+                onClick={(e) => { 
+                  e.stopPropagation(); 
+                  setIdPrintPreselectedStudent(s);
+                  setShowIDPrintModal(true);
+                }}
+                className="p-2 bg-slate-50 border border-slate-200 text-slate-600 hover:bg-slate-800 hover:text-white hover:border-slate-800 rounded-xl transition-all shadow-sm active:scale-95"
+                title="Print Student ID"
+              >
+                <IdCard size={14} />
+              </button>
+            )}
             {isActiveSY && (
               <>
                 <button 
@@ -8307,6 +8413,19 @@ function AddLearnerView({
                 <Download size={16} />
                 Download CSV Template
               </button>
+              {isSectionAdviser && students.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIdPrintPreselectedStudent(null);
+                    setShowIDPrintModal(true);
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 bg-slate-900 border border-slate-800 text-white rounded-xl hover:bg-slate-800 transition-all text-xs font-bold shadow-lg shadow-slate-900/10 active:scale-95"
+                >
+                  <IdCard size={16} />
+                  Print Section IDs
+                </button>
+              )}
               {isActiveSY && students.length > 0 && (
                 <button
                   onClick={() => {
@@ -8389,7 +8508,7 @@ function AddLearnerView({
               </div>
             ) : (
               <div className="w-full space-y-2">
-                {[...students].sort((a, b) => a.name.localeCompare(b.name)).filter(s => s.sex?.toLowerCase() === 'male').map(s => (
+                {studentsMale.map(s => (
                   <StudentRow key={s.id} s={s} variant="blue" />
                 ))}
               </div>
@@ -8426,7 +8545,7 @@ function AddLearnerView({
               </div>
             ) : (
               <div className="w-full space-y-2">
-                {[...students].sort((a, b) => a.name.localeCompare(b.name)).filter(s => s.sex?.toLowerCase() === 'female').map(s => (
+                {studentsFemale.map(s => (
                   <StudentRow key={s.id} s={s} variant="fuchsia" />
                 ))}
               </div>
@@ -8477,7 +8596,1479 @@ function AddLearnerView({
           onClose={() => setAcademicHistoryModalStudent(null)} 
         />
       )}
+
+      {/* ID Printing Center Modal */}
+      {showIDPrintModal && isSectionAdviser && (
+        <IDPrintingCenterModal 
+          students={students} 
+          preselectedStudent={idPrintPreselectedStudent}
+          section={section}
+          onClose={() => {
+            setShowIDPrintModal(false);
+            setIdPrintPreselectedStudent(null);
+          }} 
+        />
+      )}
     </div>
+  );
+}
+
+
+interface IDPrintingCenterModalProps {
+  students: Student[];
+  preselectedStudent: Student | null;
+  section: Section | null | undefined;
+  onClose: () => void;
+}
+
+function IDPrintingCenterModal({
+  students,
+  preselectedStudent,
+  section,
+  onClose
+}: IDPrintingCenterModalProps) {
+  // Select all by default or preselect the single student
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => {
+    if (preselectedStudent) {
+      return new Set([preselectedStudent.id]);
+    } else {
+      return new Set(students.map(s => s.id));
+    }
+  });
+
+  const [cardTheme, setCardTheme] = useState<'presidential' | 'metro' | 'forest' | 'amethyst' | 'crimson' | 'noir' | 'gold' | 'ocean' | 'sunset' | 'cyber' | 'vintage' | 'sky' | 'sakura' | 'monochrome'>('presidential');
+  const [orientation, setOrientation] = useState<'portrait' | 'landscape'>('portrait');
+  const [layoutType, setLayoutType] = useState<'front-back-vertical' | 'front-back' | 'front-only' | 'back-only'>('front-back-vertical');
+  const [includePhotoBox, setIncludePhotoBox] = useState(true);
+  const [includeBarcode, setIncludeBarcode] = useState(true);
+  const [watermarkLogo, setWatermarkLogo] = useState<'shield' | 'star' | 'book'>('shield');
+  
+  const [emergencyNotes, setEmergencyNotes] = useState(
+    "This card is non-transferable and must be worn inside the school premises at all times. If recovered, please return to the school administration."
+  );
+  const [contactNumber, setContactNumber] = useState(
+    section?.district ? `District: ${section.district}` : "Local Unit Office: (02) 8303-1234"
+  );
+  const [searchStudentTerm, setSearchStudentTerm] = useState("");
+  const [previewIndex, setPreviewIndex] = useState(0);
+
+  const [schoolHead, setSchoolHead] = useState<string>("School Principal");
+  const [schoolLogo, setSchoolLogo] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchSchoolData = async () => {
+      if (!section?.schoolId) return;
+      try {
+        const schoolsRef = collection(db, "schools");
+        const q = query(schoolsRef, where("schoolId", "==", section.schoolId));
+        const querySnapshot = await getDocs(q);
+        if (!querySnapshot.empty) {
+          const docSnap = querySnapshot.docs[0];
+          const schoolData = docSnap.data();
+          if (schoolData.headOfSchool) setSchoolHead(schoolData.headOfSchool);
+          if (schoolData.schoolLogo) setSchoolLogo(schoolData.schoolLogo);
+        }
+      } catch (err) {
+        console.error("Error fetching school data:", err);
+      }
+    };
+    fetchSchoolData();
+  }, [section?.schoolId]);
+
+  // Filter students based on search term
+  const searchedStudents = useMemo(() => {
+    if (!searchStudentTerm) return students;
+    const term = searchStudentTerm.toLowerCase();
+    return students.filter(s => 
+      s.name.toLowerCase().includes(term) || 
+      (s.lrn || "").includes(term)
+    );
+  }, [students, searchStudentTerm]);
+
+  // Selected students list for rendering
+  const selectedStudentsToPrint = useMemo(() => {
+    return students.filter(s => selectedIds.has(s.id));
+  }, [students, selectedIds]);
+
+  // Handle individual selection toggles
+  const toggleStudentSelection = (id: string) => {
+    const next = new Set(selectedIds);
+    if (next.has(id)) {
+      next.delete(id);
+    } else {
+      next.add(id);
+    }
+    setSelectedIds(next);
+  };
+
+  const selectAllStudents = () => {
+    setSelectedIds(new Set(students.map(s => s.id)));
+  };
+
+  const deselectAllStudents = () => {
+    setSelectedIds(new Set());
+  };
+
+  // Safe Index paging for live previews
+  const activePreviewStudent = selectedStudentsToPrint[previewIndex] || selectedStudentsToPrint[0] || null;
+
+  let previewGuardian = "Guardian Signature";
+  let previewRelationship = "Guardian";
+  let previewContactNumber = contactNumber;
+  if (activePreviewStudent) {
+    previewGuardian = activePreviewStudent.guardianName || activePreviewStudent.fatherName || activePreviewStudent.motherName || "Guardian Signature";
+    previewRelationship = activePreviewStudent.guardianRelationship || (activePreviewStudent.fatherName ? "Father" : activePreviewStudent.motherName ? "Mother" : "Guardian");
+    
+    if (activePreviewStudent.primaryContact === 'father' && activePreviewStudent.fatherName) {
+      previewGuardian = activePreviewStudent.fatherName;
+      previewRelationship = "Father";
+    } else if (activePreviewStudent.primaryContact === 'mother' && activePreviewStudent.motherName) {
+      previewGuardian = activePreviewStudent.motherName;
+      previewRelationship = "Mother";
+    } else if (activePreviewStudent.primaryContact === 'guardian' && activePreviewStudent.guardianName) {
+      previewGuardian = activePreviewStudent.guardianName;
+      previewRelationship = activePreviewStudent.guardianRelationship || "Guardian";
+    }
+    previewContactNumber = activePreviewStudent.contactNumber || contactNumber;
+  }
+
+  // Get SVG watermark icon
+  const getWatermarkIcon = () => {
+    switch (watermarkLogo) {
+      case 'star':
+        return (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-24 h-24 text-slate-450 opacity-[0.06] select-none pointer-events-none">
+            <circle cx={12} cy={12} r={10} strokeWidth={1} />
+            <path strokeWidth={1} d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+          </svg>
+        );
+      case 'book':
+        return (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-24 h-24 text-slate-450 opacity-[0.06] select-none pointer-events-none">
+            <path strokeWidth={1} d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+            <path strokeWidth={1} d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+          </svg>
+        );
+      case 'shield':
+      default:
+        return (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-24 h-24 text-slate-450 opacity-[0.06] select-none pointer-events-none">
+            <path strokeWidth={1} d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+          </svg>
+        );
+    }
+  };
+
+  // Theme Visual Maps
+  const getThemeClasses = () => {
+    switch (cardTheme) {
+      case 'metro':
+        return {
+          bannerBg: 'bg-slate-700 text-white',
+          accentText: 'text-slate-650',
+          accentBorder: 'border-slate-400',
+          pillBg: 'bg-slate-100 text-slate-800',
+          cardBorder: 'border-slate-300',
+          colorScheme: { primaryHex: '#334155', secondaryHex: '#475569' }
+        };
+      case 'forest':
+        return {
+          bannerBg: 'bg-emerald-800 text-emerald-50',
+          accentText: 'text-emerald-700',
+          accentBorder: 'border-emerald-500/30',
+          pillBg: 'bg-emerald-50 text-emerald-900',
+          cardBorder: 'border-emerald-250',
+          colorScheme: { primaryHex: '#064e3b', secondaryHex: '#047857' }
+        };
+      case 'amethyst':
+        return {
+          bannerBg: 'bg-violet-800 text-violet-50',
+          accentText: 'text-violet-700',
+          accentBorder: 'border-fuchsia-400/30',
+          pillBg: 'bg-violet-50 text-violet-955',
+          cardBorder: 'border-violet-200',
+          colorScheme: { primaryHex: '#4c1d95', secondaryHex: '#7c3aed' }
+        };
+      case 'crimson':
+        return {
+          bannerBg: 'bg-rose-900 text-rose-50',
+          accentText: 'text-rose-700',
+          accentBorder: 'border-rose-500/30',
+          pillBg: 'bg-rose-50 text-rose-950',
+          cardBorder: 'border-rose-250',
+          colorScheme: { primaryHex: '#881337', secondaryHex: '#e11d48' }
+        };
+      case 'noir':
+        return {
+          bannerBg: 'bg-black text-white border-b border-zinc-800',
+          accentText: 'text-black',
+          accentBorder: 'border-neutral-500',
+          pillBg: 'bg-zinc-100 text-zinc-900 border border-zinc-205',
+          cardBorder: 'border-zinc-300',
+          colorScheme: { primaryHex: '#000000', secondaryHex: '#18181b' }
+        };
+      case 'gold':
+        return {
+          bannerBg: 'bg-stone-900 border-b-2 border-yellow-500 text-yellow-100',
+          accentText: 'text-amber-600',
+          accentBorder: 'border-yellow-500/40',
+          pillBg: 'bg-stone-100 text-stone-900',
+          cardBorder: 'border-yellow-600',
+          colorScheme: { primaryHex: '#1c1917', secondaryHex: '#eab308' }
+        };
+      case 'ocean':
+        return {
+          bannerBg: 'bg-cyan-950 border-b-2 border-cyan-405 text-cyan-100',
+          accentText: 'text-cyan-700',
+          accentBorder: 'border-cyan-400/40',
+          pillBg: 'bg-cyan-50 text-cyan-950',
+          cardBorder: 'border-cyan-805',
+          colorScheme: { primaryHex: '#083344', secondaryHex: '#06b6d4' }
+        };
+      case 'sunset':
+        return {
+          bannerBg: 'bg-orange-955 border-b-2 border-orange-500 text-orange-100',
+          accentText: 'text-orange-700',
+          accentBorder: 'border-orange-500/40',
+          pillBg: 'bg-orange-50 text-orange-950',
+          cardBorder: 'border-orange-805',
+          colorScheme: { primaryHex: '#451a03', secondaryHex: '#f97316' }
+        };
+      case 'cyber':
+        return {
+          bannerBg: 'bg-zinc-950 border-b-2 border-emerald-400 text-emerald-300',
+          accentText: 'text-emerald-700',
+          accentBorder: 'border-emerald-400/30',
+          pillBg: 'bg-zinc-900 text-emerald-300 border border-zinc-800',
+          cardBorder: 'border-zinc-800',
+          colorScheme: { primaryHex: '#09090b', secondaryHex: '#34d399' }
+        };
+      case 'vintage':
+        return {
+          bannerBg: 'bg-amber-955 border-b border-amber-800 text-amber-200',
+          accentText: 'text-amber-800',
+          accentBorder: 'border-amber-800/40',
+          pillBg: 'bg-amber-100/50 text-amber-955',
+          cardBorder: 'border-amber-900',
+          colorScheme: { primaryHex: '#451a03', secondaryHex: '#d97706' }
+        };
+      case 'sky':
+        return {
+          bannerBg: 'bg-sky-700 border-b border-sky-600 text-white',
+          accentText: 'text-sky-700',
+          accentBorder: 'border-sky-400/40',
+          pillBg: 'bg-sky-50 text-sky-950',
+          cardBorder: 'border-sky-400',
+          colorScheme: { primaryHex: '#0369a1', secondaryHex: '#38bdf8' }
+        };
+      case 'sakura':
+        return {
+          bannerBg: 'bg-pink-700 border-b border-pink-400 text-pink-50',
+          accentText: 'text-pink-600',
+          accentBorder: 'border-pink-300/40',
+          pillBg: 'bg-pink-50 text-pink-950',
+          cardBorder: 'border-pink-300',
+          colorScheme: { primaryHex: '#be185d', secondaryHex: '#f472b6' }
+        };
+      case 'monochrome':
+        return {
+          bannerBg: 'bg-neutral-800 border-b border-neutral-600 text-white',
+          accentText: 'text-neutral-700',
+          accentBorder: 'border-neutral-400',
+          pillBg: 'bg-neutral-100 text-neutral-900',
+          cardBorder: 'border-neutral-400',
+          colorScheme: { primaryHex: '#262626', secondaryHex: '#737373' }
+        };
+      case 'presidential':
+      default:
+        return {
+          bannerBg: 'bg-indigo-950 text-amber-100 border-b-2 border-amber-400',
+          accentText: 'text-amber-700',
+          accentBorder: 'border-amber-300/60',
+          pillBg: 'bg-indigo-50 text-indigo-950',
+          cardBorder: 'border-indigo-150',
+          colorScheme: { primaryHex: '#1e1b4b', secondaryHex: '#d97706' }
+        };
+    }
+  };
+
+  const theme = getThemeClasses();
+
+  // Print execution handler
+  const handlePrint = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (selectedIds.size === 0) {
+      alert("Please select at least one learner to print.");
+      return;
+    }
+    setTimeout(() => {
+      window.print();
+    }, 200);
+  };
+
+  const handleGeneratePrintPage = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (selectedIds.size === 0) {
+      alert("Please select at least one learner to print.");
+      return;
+    }
+
+    const payloadEl = document.getElementById("id-print-payload-area");
+    if (!payloadEl) {
+      alert("Print preview payload is not loaded yet.");
+      return;
+    }
+
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      alert("Could not open print window. Please disable your browser's pop-up blocker and try again.");
+      return;
+    }
+
+    const contentHTML = payloadEl.innerHTML;
+
+    const pageHTML = `
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Printed ID Cards - ${section?.schoolName || "Matatag High School"}</title>
+  <meta charset="utf-8" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;700;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            slate: {
+              350: '#cbd5e1',
+              450: '#94a3b8',
+              550: '#64748b',
+              650: '#475569',
+              705: '#334155',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      background-color: #f1f5f9;
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', sans-serif;
+    }
+    
+    #print-payload-wrapper {
+      padding: 20px;
+      max-width: 210mm;
+      margin: 20px auto;
+      background: white;
+      box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1);
+      border-radius: 16px;
+      min-height: 297mm;
+      box-sizing: border-box;
+    }
+
+    .id-print-grid {
+      display: grid !important;
+      grid-template-columns: repeat(3, 54mm) !important;
+      justify-content: center !important;
+      gap: 12mm 8mm !important;
+      width: 100% !important;
+      box-sizing: border-box !important;
+      margin: 0 auto !important;
+    }
+
+    .id-print-card-box {
+      display: flex !important;
+      flex-direction: column !important;
+      width: 54mm !important;
+      height: 86mm !important;
+      border: 1px solid #cbd5e1 !important;
+      border-radius: 4.5mm !important;
+      overflow: hidden !important;
+      background: white !important;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+      position: relative !important;
+      box-sizing: border-box !important;
+      margin-bottom: 5px !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+
+    .id-print-card-box-vertical {
+      display: flex !important;
+      flex-direction: column !important;
+      width: 54mm !important;
+      height: 172mm !important;
+      border: 1px solid #cbd5e1 !important;
+      border-radius: 4.5mm !important;
+      overflow: hidden !important;
+      background: white !important;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+      position: relative !important;
+      box-sizing: border-box !important;
+      margin-bottom: 5px !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+
+    .id-print-card-landscape {
+      width: 86mm !important;
+      height: 54mm !important;
+    }
+
+    .id-print-banner {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+
+    @media print {
+      body {
+        background-color: white !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+      .no-print {
+        display: none !important;
+      }
+      #print-payload-wrapper {
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        max-width: none !important;
+        width: 100% !important;
+        height: auto !important;
+        background: white !important;
+      }
+      @page {
+        size: A4 portrait;
+        margin: 8mm 6mm !important;
+      }
+      * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Print Controls Banner -->
+  <div class="no-print bg-slate-900 text-white px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shadow-md sticky top-0 z-50">
+    <div class="flex items-center gap-3">
+      <div class="p-2 bg-indigo-600 rounded-lg text-white">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+        </svg>
+      </div>
+      <div>
+        <h1 class="text-sm font-extrabold tracking-tight">System Printed ID Page Generator</h1>
+        <p class="text-[10px] text-slate-300 font-bold uppercase tracking-wider">A4 Sheet Page Alignment Configured</p>
+      </div>
+    </div>
+    
+    <div class="flex items-center gap-3">
+      <span class="text-xs text-slate-300 font-semibold bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700">
+        Cards count: <strong class="text-white">${selectedIds.size}</strong>
+      </span>
+      <button 
+        onclick="window.print()" 
+        class="bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs uppercase px-5 py-2.5 rounded-lg transition-all shadow-lg flex items-center gap-1.5 active:scale-95"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+        </svg>
+        Trigger Printer
+      </button>
+      <button 
+        onclick="window.close()" 
+        class="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-black text-xs uppercase px-4 py-2.5 rounded-lg transition-all"
+      >
+        Dismiss
+      </button>
+    </div>
+  </div>
+
+  <!-- Sheets Wrapper -->
+  <div id="print-payload-wrapper">
+    ${contentHTML}
+  </div>
+
+  <!-- Guidelines Helper Overlay -->
+  <div class="no-print max-w-4xl mx-auto my-12 p-6 bg-indigo-50 border border-indigo-100 rounded-2xl shadow-sm text-center">
+    <h3 class="text-xs font-black text-indigo-900 uppercase tracking-widest mb-2">💡 Quick Printing Setup Tip</h3>
+    <p class="text-xs text-indigo-700 leading-relaxed font-semibold">
+      For perfect printing alignment and background graphics, open your print options, confirm that <strong>"Background graphics"</strong> (or "Background images") is enabled/selected, and set margins to <strong>"None"</strong> or <strong>"Default"</strong>.
+    </p>
+  </div>
+</body>
+</html>
+    `;
+
+    printWindow.document.write(pageHTML);
+    printWindow.document.close();
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[115] flex items-center justify-center p-0 md:p-6 bg-slate-900/70 backdrop-blur-sm overflow-hidden"
+    >
+      {/* Printable Sheet View - Hidden in standard UI, displayed exclusively on Print */}
+      <style dangerouslySetInnerHTML={{ __html: `
+        @media print {
+          body > * {
+            display: none !important;
+          }
+          #id-print-payload-area {
+            display: block !important;
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            height: auto !important;
+            background: white !important;
+            padding: 0 !important;
+            margin: 0 !important;
+          }
+          @page {
+            size: A4 portrait;
+            margin: 8mm 6mm;
+          }
+          .id-print-grid {
+            display: grid !important;
+            grid-template-columns: repeat(3, 54mm) !important;
+            justify-content: center !important;
+            gap: 12mm 8mm !important;
+            width: 100% !important;
+            box-sizing: border-box !important;
+            margin: 0 auto !important;
+          }
+          .id-print-card-box {
+            display: flex !important;
+            flex-direction: column !important;
+            width: 54mm !important;
+            height: 86mm !important;
+            border: 1px solid #cbd5e1 !important;
+            border-radius: 4.5mm !important;
+            overflow: hidden !important;
+            background: white !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            position: relative !important;
+            box-sizing: border-box !important;
+            margin-bottom: 5px !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          .id-print-card-box-vertical {
+            display: flex !important;
+            flex-direction: column !important;
+            width: 54mm !important;
+            height: 172mm !important;
+            border: 1px solid #cbd5e1 !important;
+            border-radius: 4.5mm !important;
+            overflow: hidden !important;
+            background: white !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            position: relative !important;
+            box-sizing: border-box !important;
+            margin-bottom: 5px !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          .id-print-card-landscape {
+            width: 86mm !important;
+            height: 54mm !important;
+          }
+          .id-print-banner {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+        }
+      `}} />
+
+      {/* Actual Hidden print document payload */}
+      <div id="id-print-payload-area" className="hidden">
+        <div className="id-print-grid">
+          {selectedStudentsToPrint.map((s) => {
+            const displayLrn = s.lrn || "---";
+            const displayName = formatStudentName(s) || "N/A";
+            const displayYear = section?.schoolYear || "SY 2025-2026";
+            const displayGradeSection = formatGradeSection(section?.gradeLevel, section?.name);
+            const displayPrincipal = schoolHead || "School Principal";
+            let displayGuardian = s.guardianName || s.fatherName || s.motherName || "Guardian Signature";
+            let displayRelationship = s.guardianRelationship || (s.fatherName ? "Father" : s.motherName ? "Mother" : "Guardian");
+            if (s.primaryContact === 'father' && s.fatherName) {
+              displayGuardian = s.fatherName;
+              displayRelationship = "Father";
+            } else if (s.primaryContact === 'mother' && s.motherName) {
+              displayGuardian = s.motherName;
+              displayRelationship = "Mother";
+            } else if (s.primaryContact === 'guardian' && s.guardianName) {
+              displayGuardian = s.guardianName;
+              displayRelationship = s.guardianRelationship || "Guardian";
+            }
+            const studentContactNum = s.contactNumber || contactNumber;
+            
+            return (
+              <React.Fragment key={s.id}>
+                {/* Brand-new Foldable ID layout (A4 top Front - bottom Back combined vertical container) */}
+                {layoutType === 'front-back-vertical' && (
+                  <div className="id-print-card-box-vertical" style={{ width: '54mm', height: '172mm', display: 'flex', flexDirection: 'column', position: 'relative', border: `1px solid ${theme.colorScheme.primaryHex}44` }}>
+                    
+                    {/* Fold marker indicator line */}
+                    <div className="absolute top-[86mm] left-0 right-0 border-t border-dashed border-slate-300 z-50 pointer-events-none" />
+
+                    {/* FRONT SIDE CARD COMPONENT (Top half of vertical block) */}
+                    <div style={{ width: '54mm', height: '86mm', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
+                      {/* Top Accent line banner */}
+                      <div className="h-1 bg-amber-500 w-full" />
+                      
+                      {/* School Heading block */}
+                      <div className="py-1.5 px-2 flex flex-col items-center justify-center gap-1 id-print-banner" style={{ background: theme.colorScheme.primaryHex, color: '#ffffff' }}>
+                        {schoolLogo && <img src={schoolLogo} className="w-[28px] h-[28px] object-contain shrink-0 rounded-full bg-white border border-white/20 shadow-sm" referrerPolicy="no-referrer" />}
+                        <div className="text-center w-full">
+                          <p className="text-[5px] uppercase tracking-widest leading-none font-bold opacity-85 mt-0.5">Republic of the Philippines</p>
+                          <p className="text-[5px] uppercase tracking-widest leading-none font-extrabold mt-0.5 opacity-95">Department of Education</p>
+                          <p className="text-[7.5px] uppercase tracking-tight font-black leading-tight mt-1 truncate max-w-full" style={{ color: cardTheme === 'presidential' ? '#fbbf24' : '#ffffff' }}>
+                            {section?.schoolName || "Matatag High School"}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Card contents with custom Watermark Backdrop */}
+                      <div className="flex-1 flex flex-col items-center justify-between p-2 relative overflow-hidden bg-white">
+                        {/* Selected theme Watermark */}
+                        <div className="absolute inset-0 flex items-center justify-center opacity-[0.06] pointer-events-none select-none">
+                          {getWatermarkIcon()}
+                        </div>
+
+                        {/* Student profile Photo (Proportionally scaled to fit Foldable Front) */}
+                        <div className="z-10 mt-0.5 flex flex-col items-center text-center">
+                          {s.photo ? (
+                            <div className="overflow-hidden bg-slate-100 rounded border border-slate-300 shadow-sm" style={{ width: '28mm', height: '36mm', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <img src={s.photo} alt={displayName} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                            </div>
+                          ) : includePhotoBox ? (
+                            <div className="border border-dashed rounded bg-slate-50/70 flex flex-col items-center justify-center" style={{ width: '28mm', height: '36mm', borderColor: `${theme.colorScheme.primaryHex}44` }}>
+                              <User size={16} className="text-slate-350 opacity-40" />
+                              <span className="text-[4px] uppercase tracking-tighter text-slate-400 font-extrabold mt-0.5">35mm x 45mm Photo</span>
+                              <span className="text-[3px] uppercase tracking-tighter text-slate-350 font-bold leading-none">Affix Photo Here</span>
+                            </div>
+                          ) : (
+                            <div className="w-8 h-8 rounded-full flex items-center justify-center bg-indigo-50 border border-slate-100 uppercase font-black text-xs" style={{ color: theme.colorScheme.primaryHex, background: `${theme.colorScheme.primaryHex}10` }}>
+                              {displayName.charAt(0)}
+                            </div>
+                          )}
+                          <span className="text-[6px] font-black tracking-[0.2em] uppercase mt-1 px-1.5 py-0.5 rounded" style={{ background: `${theme.colorScheme.primaryHex}10`, color: theme.colorScheme.primaryHex }}>STUDENT ID</span>
+                        </div>
+
+                        {/* Name and Grade indicators */}
+                        <div className="w-full text-center z-10 flex-1 flex flex-col justify-center mt-0.5">
+                          <h4 className="text-[8.5px] font-black text-slate-900 leading-tight uppercase tracking-tight line-clamp-2 px-1">
+                            {displayName}
+                          </h4>
+                          <div className="text-[5.5px] font-extrabold text-slate-500 uppercase tracking-wider mt-0.5">
+                            {displayGradeSection}
+                          </div>
+                          <div className="text-[5px] font-bold text-slate-400 uppercase mt-0.5">
+                            {displayYear}
+                          </div>
+                        </div>
+
+                        {/* LRN representation */}
+                        <div className="w-full text-center z-10 flex flex-col items-center px-1">
+                          <div className="w-full rounded bg-slate-100 py-1 text-[7px] font-mono font-black tracking-wider truncate text-slate-800" style={{ accentColor: theme.colorScheme.primaryHex }}>
+                            {displayLrn}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Accent base bottom bar */}
+                      <div className="h-0.5 w-full" style={{ background: theme.colorScheme.primaryHex }} />
+                    </div>
+
+                    {/* BACK SIDE CARD COMPONENT (Bottom half of vertical block) */}
+                    <div style={{ width: '54mm', height: '86mm', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
+                      <div className="h-0.5 w-full" style={{ background: theme.colorScheme.primaryHex }} />
+                      
+                      {/* Back Panel layout contents */}
+                      <div className="flex-1 flex flex-col items-center justify-between p-2 relative overflow-hidden bg-white text-center">
+                        <div className="absolute inset-0 flex items-center justify-center opacity-[0.06] pointer-events-none select-none">
+                          {getWatermarkIcon()}
+                        </div>
+
+                        {/* Top return instruction notes */}
+                        <div className="w-full z-10">
+                          <h5 className="text-[4.5px] font-black uppercase text-slate-400 tracking-widest leading-none">Return Policy & Directions</h5>
+                          <p className="text-[5px] text-slate-600 leading-tight font-bold mt-1 px-1 text-center">
+                            {emergencyNotes}
+                          </p>
+                        </div>
+
+                        {/* Emergency guardian setup */}
+                        <div className="w-full z-10 my-1 pt-1.5 border-t border-dashed border-slate-200">
+                          <h5 className="text-[5px] font-black uppercase tracking-wider text-rose-600 leading-none">IN CASE OF EMERGENCY</h5>
+                          <p className="text-[6.5px] font-extrabold text-slate-800 mt-0.5 uppercase max-w-full truncate">{displayGuardian}</p>
+                          <p className="text-[4.5px] text-slate-550 uppercase font-black tracking-tight leading-none font-bold">Relationship: {displayRelationship}</p>
+                          <p className="text-[6px] font-mono font-bold text-slate-700 bg-slate-50 py-0.5 px-1.5 rounded-full border border-slate-100 mt-1 tracking-wider inline-block">
+                            {studentContactNum}
+                          </p>
+                        </div>
+
+                        {/* Adviser confirmation panel */}
+                        <div className="w-full z-10 mt-auto flex flex-col items-center pt-1.5">
+                          {includeBarcode && (
+                            <div className="mb-0.5 p-0.5 bg-white shadow-sm border border-slate-200 translate-y-0.5">
+                              <QRCode value={displayLrn} size={40} level="M" />
+                            </div>
+                          )}
+                          <div className="w-20 border-b border-slate-350 mt-1" />
+                          <p className="text-[6.5px] font-bold text-slate-800 mt-0.5 uppercase max-w-full truncate">{displayPrincipal}</p>
+                          <p className="text-[4.5px] text-slate-400 uppercase font-bold tracking-widest leading-none">School Principal</p>
+                        </div>
+
+                        {/* Legal markers */}
+                        <div className="w-full z-10 mt-1 pt-1 border-t border-slate-100 flex items-center justify-between text-[4px] text-slate-450 uppercase font-bold tracking-wider leading-none">
+                          <span>SYS ID: {section?.schoolId || "DEPED-10902"}</span>
+                          <span>OFFICIAL VERIFIED</span>
+                        </div>
+                      </div>
+                      <div className="h-1 bg-amber-500 w-full" />
+                    </div>
+
+                  </div>
+                )}
+
+                {/* ID Front (Only if set to Front/Front-Back separate layout styles) */}
+                {(layoutType === 'front-back' || layoutType === 'front-only') && (
+                  <div className="id-print-card-box" style={{ width: '54mm', height: '86mm', display: 'flex', flexDirection: 'column', position: 'relative', border: `1px solid ${theme.colorScheme.primaryHex}44` }}>
+                    {/* Color Accent Bar */}
+                    <div className="h-1 bg-amber-500 w-full" />
+                    
+                    {/* Header Block */}
+                    <div className="py-1.5 px-2 flex flex-col items-center justify-center gap-1 id-print-banner" style={{ background: theme.colorScheme.primaryHex, color: '#ffffff' }}>
+                      {schoolLogo && <img src={schoolLogo} className="w-[28px] h-[28px] object-contain shrink-0 rounded-full bg-white border border-white/20 shadow-sm" referrerPolicy="no-referrer" />}
+                      <div className="text-center w-full">
+                        <p className="text-[5px] uppercase tracking-widest leading-none font-bold opacity-85 mt-0.5">Republic of the Philippines</p>
+                        <p className="text-[5px] uppercase tracking-widest leading-none font-extrabold mt-0.5 opacity-95">Department of Education</p>
+                        <p className="text-[7.5px] uppercase tracking-tight font-black leading-tight mt-1 truncate max-w-full" style={{ color: cardTheme === 'presidential' ? '#fbbf24' : '#ffffff' }}>
+                          {section?.schoolName || "Matatag High School"}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Body content with Watermark */}
+                    <div className="flex-1 flex flex-col items-center justify-between p-2 relative overflow-hidden bg-white">
+                      {/* Watermark Logo placement */}
+                      <div className="absolute inset-0 flex items-center justify-center opacity-[0.06] pointer-events-none select-none">
+                        {getWatermarkIcon()}
+                      </div>
+
+                      {/* Photo Container - Exact 35mm x 45mm User Photo or placeholder box */}
+                      <div className="z-10 mt-0.5 flex flex-col items-center text-center">
+                        {s.photo ? (
+                          <div className="overflow-hidden bg-slate-100 rounded border border-slate-300 shadow-sm" style={{ width: '35mm', height: '45mm', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <img src={s.photo} alt={displayName} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                          </div>
+                        ) : includePhotoBox ? (
+                          <div className="border border-dashed rounded bg-slate-50/70 flex flex-col items-center justify-center" style={{ width: '35mm', height: '45mm', borderColor: `${theme.colorScheme.primaryHex}44` }}>
+                            <User size={20} className="text-slate-350 opacity-40" />
+                            <span className="text-[5px] uppercase tracking-wide text-slate-400 font-extrabold mt-1">35mm x 45mm Photo</span>
+                            <span className="text-[4px] uppercase tracking-wide text-slate-350 font-bold leading-none">Affix Photo Here</span>
+                          </div>
+                        ) : (
+                          <div className="w-10 h-10 rounded-full flex items-center justify-center bg-indigo-50 border border-slate-100 uppercase font-black text-sm" style={{ color: theme.colorScheme.primaryHex, background: `${theme.colorScheme.primaryHex}10` }}>
+                            {displayName.charAt(0)}
+                          </div>
+                        )}
+                        <span className="text-[6.5px] font-black tracking-[0.2em] uppercase mt-1.5 px-2 py-0.5 rounded" style={{ background: `${theme.colorScheme.primaryHex}10`, color: theme.colorScheme.primaryHex }}>STUDENT ID</span>
+                      </div>
+
+                      {/* Student Specs */}
+                      <div className="w-full text-center z-10 flex-1 flex flex-col justify-center mt-1">
+                        <h4 className="text-[9.5px] font-black text-slate-900 leading-tight uppercase tracking-tight line-clamp-2 px-1">
+                          {displayName}
+                        </h4>
+                        <div className="text-[6.5px] font-extrabold text-slate-500 uppercase tracking-wider mt-0.5">
+                          {displayGradeSection}
+                        </div>
+                        <div className="text-[6px] font-bold text-slate-400 uppercase mt-0.5">
+                          {displayYear}
+                        </div>
+                      </div>
+
+                      {/* Bottom Segment / Barcode Block */}
+                      <div className="w-full text-center z-10 flex flex-col items-center px-1.5">
+                        <div className="w-full rounded bg-slate-100 py-1.5 text-[7.5px] font-mono font-black tracking-wider truncate text-slate-800" style={{ accentColor: theme.colorScheme.primaryHex }}>
+                          {displayLrn}
+                        </div>
+                      </div>
+                    </div>
+                    {/* Bottom Border Accent */}
+                    <div className="h-1 w-full" style={{ background: theme.colorScheme.primaryHex }} />
+                  </div>
+                )}
+
+                {/* ID Back (Only if set to Back/Front-Back separate layout styles) */}
+                {(layoutType === 'front-back' || layoutType === 'back-only') && (
+                  <div className="id-print-card-box" style={{ width: '54mm', height: '86mm', display: 'flex', flexDirection: 'column', position: 'relative', border: `1px solid ${theme.colorScheme.primaryHex}44` }}>
+                    <div className="h-1 w-full" style={{ background: theme.colorScheme.primaryHex }} />
+                    
+                    {/* Inner elements inside watermarked backing sheet */}
+                    <div className="flex-1 flex flex-col items-center justify-between p-3 relative overflow-hidden bg-white text-center">
+                      <div className="absolute inset-0 flex items-center justify-center opacity-[0.06] pointer-events-none select-none">
+                        {getWatermarkIcon()}
+                      </div>
+
+                      {/* Return Policy Block */}
+                      <div className="w-full z-10">
+                        <h5 className="text-[5px] font-black uppercase text-slate-400 tracking-widest">Return Policy & Directions</h5>
+                        <p className="text-[5.5px] text-slate-650 leading-relaxed font-bold mt-1 px-1 text-center">
+                          {emergencyNotes}
+                        </p>
+                      </div>
+
+                      {/* Emergency Contact Block */}
+                      <div className="w-full z-10 my-2 pt-2 border-t border-dashed border-slate-200">
+                        <h5 className="text-[5.5px] font-black uppercase tracking-wider text-rose-600">IN CASE OF EMERGENCY</h5>
+                        <p className="text-[7.5px] font-extrabold text-slate-800 mt-1 uppercase max-w-full truncate">{displayGuardian}</p>
+                        <p className="text-[5px] text-slate-550 uppercase font-black tracking-tight leading-none font-bold">Relationship: {displayRelationship}</p>
+                        <p className="text-[6.5px] font-mono font-bold text-slate-700 bg-slate-50 py-0.5 px-2 rounded-full border border-slate-100 mt-1 tracking-wider inline-block">
+                          {studentContactNum}
+                        </p>
+                      </div>
+
+                      {/* Adviser / Guardian Signature block */}
+                      <div className="w-full z-10 mt-auto flex flex-col items-center pt-2">
+                        {includeBarcode && (
+                          <div className="mb-0.5 p-1 bg-white shadow-sm border border-slate-200 translate-y-0.5">
+                            <QRCode value={displayLrn} size={46} level="M" />
+                          </div>
+                        )}
+                        <div className="w-24 border-b border-slate-350 mt-1" />
+                        <p className="text-[7.5px] font-bold text-slate-800 mt-1 uppercase max-w-full truncate">{displayPrincipal}</p>
+                        <p className="text-[5px] text-slate-400 uppercase font-bold tracking-widest">School Principal</p>
+                      </div>
+
+                      {/* Property watermark footer */}
+                      <div className="w-full z-10 mt-1.5 pt-1.5 border-t border-slate-100 flex items-center justify-between text-[4.5px] text-slate-450 uppercase font-bold tracking-wider">
+                        <span>SYS ID: {section?.schoolId || "DEPED-10902"}</span>
+                        <span>OFFICIAL VERIFIED</span>
+                      </div>
+                    </div>
+                    <div className="h-1 bg-amber-500 w-full" />
+                  </div>
+                )}
+              </React.Fragment>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Main Sandbox Interactive UI Frame */}
+      <motion.div
+        key="id-builder-sandbox"
+        initial={{ scale: 0.95, y: 15 }}
+        animate={{ scale: 1, y: 0 }}
+        exit={{ scale: 0.95, y: 15 }}
+        className="bg-white md:rounded-[2.5rem] border border-slate-200/50 shadow-2xl flex flex-col w-full h-full md:max-w-6xl md:max-h-[85vh] overflow-hidden"
+      >
+        {/* Header Block */}
+        <div className="p-6 md:p-8 bg-slate-50/60 border-b border-slate-150 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-slate-900 text-white rounded-2xl shadow-lg">
+              <IdCard size={20} />
+            </div>
+            <div>
+              <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">Print Learner ID Cards</h2>
+              <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-0.5">
+                {section?.schoolName || "Matatag High School"} &bull; {formatGradeSection(section?.gradeLevel, section?.name)}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 text-slate-400 hover:text-slate-600 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl transition-all"
+            title="Cancel and Exit"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Content Portal Splits */}
+        <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+          {/* Controls Panel (Left Column) */}
+          <div className="w-full lg:w-96 border-r border-slate-150 p-6 overflow-y-auto space-y-6 bg-slate-50/20">
+            {/* Cards Layout Configuration */}
+            <div className="space-y-4">
+              <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2">
+                <span>1. Card Configurations</span>
+              </h3>
+              
+              {/* Theme selection */}
+              <div className="space-y-2">
+                <label htmlFor="theme-select" className="text-[10px] font-black uppercase text-slate-540 tracking-wider">Select Card Theme Tint</label>
+                <select
+                  id="theme-select"
+                  value={cardTheme}
+                  onChange={(e) => setCardTheme(e.target.value as any)}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-500 transition-colors shadow-sm cursor-pointer"
+                >
+                  <option value="presidential">🏛️ Indigo Gold (Presidential)</option>
+                  <option value="metro">🏙️ City Metallic (Metro)</option>
+                  <option value="forest">🌲 Ecology Green (Forest)</option>
+                  <option value="amethyst">💎 Royal Amethyst</option>
+                  <option value="crimson">🌹 Burgundy Velvet (Crimson)</option>
+                  <option value="noir">🖤 Noir Prestige</option>
+                  <option value="gold">✨ Luxury Gold</option>
+                  <option value="ocean">🌊 Deep Marine (Ocean)</option>
+                  <option value="sunset">🌅 Sunset Glow</option>
+                  <option value="cyber">⚡ Neon Emerald (Cyber)</option>
+                  <option value="vintage">🪵 Classic Academy (Sepia)</option>
+                  <option value="sky">🌤️ Classic Sky Blue</option>
+                  <option value="sakura">🌸 Cherry Blossom (Sakura)</option>
+                  <option value="monochrome">🩶 Slate Minimalist (Monochrome)</option>
+                </select>
+              </div>
+
+              {/* Layout Content configuration */}
+              <div className="space-y-2">
+                <label htmlFor="layout-select" className="text-[10px] font-black uppercase text-slate-540 tracking-wider">Layout Output Style</label>
+                <select
+                  id="layout-select"
+                  value={layoutType}
+                  onChange={(e) => setLayoutType(e.target.value as any)}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-500 transition-colors shadow-sm cursor-pointer"
+                >
+                  <option value="front-back-vertical">🖨️ Foldable (A4 - Top: Front, Bottom: Back)</option>
+                  <option value="front-back">📄 Front & Back Separate Pages</option>
+                  <option value="front-only">🖼️ Front Side Only</option>
+                  <option value="back-only">📝 Back Side Only</option>
+                </select>
+              </div>
+
+              {/* Watermark Selector */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase text-slate-540 tracking-wider">Background Watermark Logo</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: 'shield', label: 'Heritage Shield' },
+                    { id: 'star', label: 'Academic Star' },
+                    { id: 'book', label: 'Knowledge Book' }
+                  ].map(w => (
+                    <button
+                      key={w.id}
+                      type="button"
+                      onClick={() => setWatermarkLogo(w.id as any)}
+                      className={`p-2 border rounded-xl text-[9.5px] font-bold text-center transition-all ${
+                        watermarkLogo === w.id 
+                          ? 'border-indigo-600 bg-indigo-50/40 text-indigo-950 font-black' 
+                          : 'border-slate-200 bg-white hover:border-slate-350 text-slate-650'
+                      }`}
+                    >
+                      {w.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Component Toggles */}
+              <div className="space-y-2 bg-white p-3.5 rounded-2xl border border-slate-150 space-y-3 shadow-inner">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-slate-800 tracking-wider">Include LRN Barcode</label>
+                    <p className="text-[8px] text-slate-400">Generates unique physical scanner codes</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIncludeBarcode(!includeBarcode)}
+                    className={`w-9 h-5 rounded-full p-0.5 transition-all outline-none ${
+                      includeBarcode ? 'bg-emerald-600' : 'bg-slate-300'
+                    }`}
+                  >
+                    <div className={`w-4 h-4 bg-white rounded-full shadow transition-all ${includeBarcode ? 'translate-x-4' : 'translate-x-0'}`} />
+                  </button>
+                </div>
+
+                <div className="w-full h-px bg-slate-100" />
+
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-slate-800 tracking-wider">Affix Photo Placeholder</label>
+                    <p className="text-[8px] text-slate-400">Adds dashed borders for physical photo</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIncludePhotoBox(!includePhotoBox)}
+                    className={`w-9 h-5 rounded-full p-0.5 transition-all outline-none ${
+                      includePhotoBox ? 'bg-emerald-600' : 'bg-slate-300'
+                    }`}
+                  >
+                    <div className={`w-4 h-4 bg-white rounded-full shadow transition-all ${includePhotoBox ? 'translate-x-4' : 'translate-x-0'}`} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Customizable back-card details */}
+              {layoutType !== 'front-only' && (
+                <div className="space-y-2.5">
+                  <label className="text-[10px] font-black uppercase text-slate-540 tracking-wider">Custom ID Back Card Text</label>
+                  <div className="space-y-2 bg-white p-3.5 rounded-2xl border border-slate-150 shadow-inner">
+                    <div className="space-y-1">
+                      <span className="text-[8.5px] font-bold text-slate-500 uppercase tracking-widest">Emergency Warning Code</span>
+                      <textarea
+                        value={emergencyNotes}
+                        onChange={(e) => setEmergencyNotes(e.target.value)}
+                        className="w-full text-[9px] p-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-indigo-400 h-14 font-semibold text-slate-705"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[8.5px] font-bold text-slate-500 uppercase tracking-widest">Office Support Number</span>
+                      <input
+                        type="text"
+                        value={contactNumber}
+                        onChange={(e) => setContactNumber(e.target.value)}
+                        className="w-full text-[9.5px] p-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-indigo-400 font-bold text-slate-700"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Student Selector & Live Preview Area (Middle & Right Column combo) */}
+          <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
+            {/* Student Search & List Checklists (Middle Column) */}
+            <div className="w-full md:w-64 border-r border-slate-150 p-6 flex flex-col overflow-hidden bg-slate-50/10 shrink-0">
+              <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3 block">
+                2. Select Students ({selectedIds.size})
+              </h3>
+              
+              {/* Select Actions */}
+              <div className="flex items-center gap-2 mb-3">
+                <button
+                  type="button"
+                  onClick={selectAllStudents}
+                  className="flex-1 py-1.5 bg-slate-200/60 hover:bg-slate-200 border border-slate-300 rounded-xl text-[9px] font-black uppercase tracking-wider text-slate-700 transition-all select-none active:scale-95"
+                >
+                  Select All
+                </button>
+                <button
+                  type="button"
+                  onClick={deselectAllStudents}
+                  className="flex-1 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-[9px] font-black uppercase tracking-wider text-slate-550 transition-all select-none active:scale-95"
+                >
+                  Clear All
+                </button>
+              </div>
+
+              {/* Small Search Bar */}
+              <div className="relative mb-3">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
+                <input
+                  type="text"
+                  placeholder="Quick Search..."
+                  value={searchStudentTerm}
+                  onChange={(e) => setSearchStudentTerm(e.target.value)}
+                  className="w-full bg-white border border-slate-200 rounded-xl pl-8 pr-3 py-1.5 text-[10px] font-bold outline-none focus:border-indigo-500 transition-colors shadow-sm"
+                />
+              </div>
+
+              {/* Scrollable Learner List */}
+              <div className="flex-1 border border-slate-150 rounded-2xl overflow-y-auto bg-white/70 p-2 space-y-1 custom-scrollbar">
+                {searchedStudents.length === 0 ? (
+                  <div className="text-center py-6 text-slate-400 text-[10px] font-bold italic">
+                    No matching student.
+                  </div>
+                ) : (
+                  searchedStudents.map((s) => {
+                    const isSelected = selectedIds.has(s.id);
+                    return (
+                      <div
+                        key={s.id}
+                        onClick={() => toggleStudentSelection(s.id)}
+                        className={`flex items-center gap-2.5 p-2 rounded-xl border transition-all cursor-pointer select-none ${
+                          isSelected 
+                            ? 'bg-indigo-50/50 border-indigo-200/50 shadow-sm' 
+                            : 'border-slate-50 hover:border-slate-150/60 bg-white hover:bg-slate-50'
+                        }`}
+                      >
+                        <div className={`w-4 h-4 rounded-md flex items-center justify-center transition-colors ${
+                          isSelected ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-300 border border-slate-200'
+                        }`}>
+                          {isSelected && <Check size={11} strokeWidth={4} />}
+                        </div>
+                        <div className="flex-1 overflow-hidden">
+                          <p className={`text-[10px] font-bold truncate ${isSelected ? 'text-indigo-950' : 'text-slate-600'}`}>{s.name || `${s.lastName}, ${s.firstName}`}</p>
+                          <p className="text-[8px] font-mono text-slate-400 mt-0.5 leading-none">{s.lrn || "NO LRN ID"}</p>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+            {/* Sandbox Live Simulated Interactive Preview Zone (Right Column) */}
+            <div className="flex-1 p-6 md:p-8 flex flex-col justify-between overflow-y-auto bg-slate-100/50">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 block">
+                  3. Dynamic Layout Preview
+                </h3>
+                {selectedStudentsToPrint.length > 1 && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={previewIndex === 0}
+                      onClick={() => setPreviewIndex(prev => Math.max(0, prev - 1))}
+                      className="p-1.5 bg-white border border-slate-200 text-slate-600 hover:text-slate-800 rounded-lg active:scale-90 transition-all disabled:opacity-40"
+                    >
+                      <ChevronLeft size={14} />
+                    </button>
+                    <span className="text-[10px] font-extrabold text-slate-600 uppercase tracking-wider">
+                      Learner {previewIndex + 1} of {selectedStudentsToPrint.length}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={previewIndex >= selectedStudentsToPrint.length - 1}
+                      onClick={() => setPreviewIndex(prev => Math.min(selectedStudentsToPrint.length - 1, prev + 1))}
+                      className="p-1.5 bg-white border border-slate-200 text-slate-600 hover:text-slate-800 rounded-lg active:scale-90 transition-all disabled:opacity-40"
+                    >
+                      <ChevronRight size={14} />
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Rendering of Simulated Preview ID cards */}
+              <div className="flex-1 flex flex-wrap items-center justify-center gap-8 py-4">
+                {activePreviewStudent ? (
+                  <>
+                    {/* Brand-new Foldable Interactive Double Side Combined vertical preview */}
+                    {layoutType === 'front-back-vertical' && (
+                      <div className={`w-[240px] h-[764px] bg-white rounded-3xl overflow-hidden shadow-2xl border ${theme.cardBorder} flex flex-col relative transition-all`}>
+                        {/* Fold separator marker line with tooltip */}
+                        <div className="absolute top-[382px] left-0 right-0 border-t-2 border-dashed border-slate-300 z-50 pointer-events-none flex items-center justify-center">
+                          <span className="text-[7px] font-black uppercase text-slate-400 bg-white px-2 py-0.5 border border-slate-200 rounded-full shadow-sm -mt-[6.5px]">Fold Marker Line</span>
+                        </div>
+
+                        {/* Interactive combined front card component (top half) */}
+                        <div className="w-[240px] h-[382px] flex flex-col relative overflow-hidden">
+                          {/* Top accent */}
+                          <div className="h-1.5 w-full bg-amber-500" />
+                          
+                          {/* Header Block */}
+                          <div className={`py-3 px-3 flex flex-col items-center justify-center gap-1.5 transition-all ${theme.bannerBg}`}>
+                            {schoolLogo && <img src={schoolLogo} className="w-[38px] h-[38px] object-contain shrink-0 rounded-full bg-white border border-white/20 shadow-sm" referrerPolicy="no-referrer" />}
+                            <div className="text-center w-full">
+                              <p className="text-[6.5px] uppercase tracking-widest leading-none font-bold opacity-80 mt-0.5">Republic of the Philippines</p>
+                              <p className="text-[6.5px] uppercase tracking-widest leading-none font-black mt-0.5 opacity-90">Department of Education</p>
+                              <p className="text-[10px] uppercase tracking-tight font-black leading-tight mt-1 truncate max-w-full">
+                                {section?.schoolName || "Matatag High School"}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Body elements with watermark */}
+                          <div className="flex-1 flex flex-col items-center justify-between p-4 relative overflow-hidden bg-white">
+                            <div className="absolute inset-0 flex items-center justify-center opacity-[0.06] pointer-events-none select-none">
+                              {getWatermarkIcon()}
+                            </div>
+
+                            {/* Photo (Proportionally scaled to match layout preview) */}
+                            <div className="mt-1 flex flex-col items-center text-center z-10 w-full animate-fade-in">
+                              {activePreviewStudent.photo ? (
+                                <div className="overflow-hidden bg-slate-100 rounded-xl border border-slate-200 shadow-sm flex items-center justify-center mx-auto" style={{ width: '90px', height: '115px' }}>
+                                  <img src={activePreviewStudent.photo} alt={activePreviewStudent.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                </div>
+                              ) : includePhotoBox ? (
+                                <div className="border border-dashed rounded-xl flex flex-col items-center justify-center bg-slate-50/85 mx-auto" style={{ width: '90px', height: '115px', borderColor: theme.colorScheme.primaryHex + "44" }}>
+                                  <User size={24} className="text-slate-350 pointer-events-none opacity-40" />
+                                  <span className="text-[7px] uppercase tracking-wider text-slate-400 font-extrabold mt-1">35mm x 45mm Photo</span>
+                                  <span className="text-[5.5px] uppercase tracking-wider text-slate-350 font-bold leading-none">SF10 Source</span>
+                                </div>
+                              ) : (
+                                <div className="w-14 h-14 rounded-full flex items-center justify-center bg-indigo-50 border border-slate-100 uppercase font-black text-xl mx-auto" style={{ color: theme.colorScheme.primaryHex, background: `${theme.colorScheme.primaryHex}10` }}>
+                                  {(formatStudentName(activePreviewStudent) || activePreviewStudent.name)?.charAt(0) || "-"}
+                                </div>
+                              )}
+                              <span className="text-[8px] font-black tracking-[0.25em] uppercase mt-2 px-2 py-0.5 rounded-full select-none inline-block mx-auto" style={{ background: `${theme.colorScheme.primaryHex}10`, color: theme.colorScheme.primaryHex }}>STUDENT ID</span>
+                            </div>
+
+                            {/* Name details */}
+                            <div className="w-full text-center z-10 flex-grow flex flex-col justify-center min-h-[44px]">
+                              <h4 className="text-[13px] font-black text-slate-900 leading-tight uppercase tracking-tight line-clamp-2 px-1">
+                                {formatStudentName(activePreviewStudent) || activePreviewStudent.name}
+                              </h4>
+                              <div className="text-[8px] font-extrabold text-slate-500 uppercase tracking-wider mt-0.5">
+                                {formatGradeSection(section?.gradeLevel, section?.name)}
+                              </div>
+                              <div className="text-[7.5px] font-bold text-slate-400 uppercase mt-0.5">
+                                {section?.schoolYear || "SY 2025-2026"}
+                              </div>
+                            </div>
+
+                            {/* Barcode section removed from front */}
+                            <div className="w-full text-center z-10 flex flex-col items-center mt-2">
+                              <div className={`w-full rounded-xl py-1 text-[10px] font-mono font-black tracking-widest bg-slate-50 border border-slate-150`}>
+                                {activePreviewStudent.lrn || "---"}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Base accent */}
+                          <div className="h-1.5 w-full" style={{ background: theme.colorScheme.primaryHex }} />
+                        </div>
+
+                        {/* Interactive combined back card component (bottom half) */}
+                        <div className="w-[240px] h-[382px] flex flex-col relative overflow-hidden">
+                          {/* Accent header */}
+                          <div className="h-1.5 w-full" style={{ background: theme.colorScheme.primaryHex }} />
+
+                          {/* Render interior backing card contents */}
+                          <div className="flex-grow flex flex-col items-center justify-between p-5 relative overflow-hidden bg-white text-center">
+                            <div className="absolute inset-0 flex items-center justify-center opacity-[0.06] pointer-events-none select-none">
+                              {getWatermarkIcon()}
+                            </div>
+
+                            {/* Instructions Header */}
+                            <div className="w-full z-10">
+                              <h5 className="text-[7px] font-black uppercase text-slate-400 tracking-widest leading-none">Return Policy & Directions</h5>
+                              <p className="text-[8px] text-slate-550 leading-relaxed font-semibold mt-2 px-1.5">
+                                {emergencyNotes || "If found, please return to the school administration office immediately."}
+                              </p>
+                            </div>
+
+                            {/* Emergency Contacts Block */}
+                            <div className="w-full z-10 border-t border-dashed border-slate-200 pt-3 my-1">
+                              <h5 className="text-[8px] font-black uppercase tracking-wider text-rose-600 leading-none">IN CASE OF EMERGENCY</h5>
+                              <p className="text-[10px] font-bold text-slate-800 mt-1 uppercase max-w-full truncate">
+                                {previewGuardian}
+                              </p>
+                              <p className="text-[7px] text-slate-500 uppercase font-black tracking-tight leading-none mt-0.5">
+                                Relationship: {previewRelationship}
+                              </p>
+                              <p className="text-[9.5px] font-mono font-bold text-slate-700 bg-slate-50 border border-slate-150 py-1 px-3 mt-1.5 rounded-full inline-block tracking-wider">
+                                {previewContactNumber}
+                              </p>
+                            </div>
+
+                            {/* Signature line space */}
+                            <div className="w-full z-10 mt-auto flex flex-col items-center pt-2">
+                              {includeBarcode && (
+                                <div className="mb-1 p-1 bg-white shadow-sm border border-slate-200 translate-y-1">
+                                  <QRCode value={activePreviewStudent.lrn || "0000"} size={60} level="M" />
+                                </div>
+                              )}
+                              <div className="w-28 border-b border-slate-300 mt-1.5" />
+                              <p className="text-[10px] font-bold text-slate-800 mt-1 uppercase max-w-full truncate">{schoolHead}</p>
+                              <p className="text-[7px] text-slate-400 uppercase font-black tracking-wider leading-none font-bold">School Principal</p>
+                            </div>
+
+                            {/* Fine-print school identifiers */}
+                            <div className="w-full z-10 border-t border-slate-100 pt-3 flex items-center justify-between text-[7px] text-slate-450 uppercase font-bold tracking-wider leading-none">
+                              <span>School ID: {section?.schoolId || "DEPED-10902"}</span>
+                              <span>OFFICIAL ACCESS</span>
+                            </div>
+                          </div>
+
+                          {/* Base accent yellow block */}
+                          <div className="h-1.5 bg-amber-500 w-full" />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Simulated Front Preview (Separate layouts) */}
+                    {(layoutType === 'front-back' || layoutType === 'front-only') && (
+                      <div className={`w-[240px] h-[382px] bg-white rounded-3xl overflow-hidden shadow-2xl border ${theme.cardBorder} flex flex-col relative transition-all`}>
+                        {/* Top Accent Strip */}
+                        <div className="h-1.5 w-full bg-amber-500" />
+                        
+                        {/* Header Panel */}
+                        <div className={`py-3 px-3 flex flex-col items-center justify-center gap-1.5 transition-all ${theme.bannerBg}`}>
+                          {schoolLogo && <img src={schoolLogo} className="w-[38px] h-[38px] object-contain shrink-0 rounded-full bg-white border border-white/20 shadow-sm" referrerPolicy="no-referrer" />}
+                          <div className="text-center w-full">
+                            <p className="text-[6.5px] uppercase tracking-widest leading-none font-bold opacity-80 mt-0.5">Republic of the Philippines</p>
+                            <p className="text-[6.5px] uppercase tracking-widest leading-none font-black mt-0.5 opacity-90">Department of Education</p>
+                            <p className="text-[10px] uppercase tracking-tight font-black leading-tight mt-1 truncate max-w-full">
+                              {section?.schoolName || "Matatag High School"}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Card Interior */}
+                        <div className="flex-1 flex flex-col items-center justify-between p-4 relative overflow-hidden bg-white">
+                          {/* Faint Watermark placement */}
+                          <div className="absolute inset-0 flex items-center justify-center opacity-[0.06] pointer-events-none select-none">
+                            {getWatermarkIcon()}
+                          </div>
+
+                          {/* Avatar Segment - Perfect 35mm x 45mm ratio representing 105px x 135px aspect */}
+                          <div className="mt-1 flex flex-col items-center text-center z-10 w-full">
+                            {activePreviewStudent.photo ? (
+                              <div className="overflow-hidden bg-slate-100 rounded-xl border border-slate-200 shadow-sm flex items-center justify-center mx-auto transition-transform hover:scale-105" style={{ width: '105px', height: '135px' }}>
+                                <img src={activePreviewStudent.photo} alt={activePreviewStudent.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                              </div>
+                            ) : includePhotoBox ? (
+                              <div className="border-2 border-dashed rounded-xl flex flex-col items-center justify-center bg-slate-50/80 transition-transform hover:scale-105 mx-auto" style={{ width: '105px', height: '135px', borderColor: theme.colorScheme.primaryHex + "44" }}>
+                                <User size={24} className="text-slate-300 pointer-events-none" />
+                                <span className="text-[7.5px] uppercase tracking-wider text-slate-400 font-extrabold mt-1">35mm x 45mm Photo</span>
+                                <span className="text-[6.5px] uppercase tracking-wider text-slate-350 font-bold leading-none">SF10 Image</span>
+                              </div>
+                            ) : (
+                              <div className="w-14 h-14 rounded-full flex items-center justify-center bg-indigo-50 border border-slate-100 uppercase font-black text-xl mx-auto" style={{ color: theme.colorScheme.primaryHex, background: `${theme.colorScheme.primaryHex}10` }}>
+                                {formatStudentName(activePreviewStudent).charAt(0) || activePreviewStudent.name?.charAt(0) || "-"}
+                              </div>
+                            )}
+                            <span className="text-[8px] font-black tracking-[0.25em] uppercase mt-2 px-2 py-0.5 rounded-full select-none inline-block mx-auto" style={{ background: `${theme.colorScheme.primaryHex}10`, color: theme.colorScheme.primaryHex }}>STUDENT ID</span>
+                          </div>
+
+                          {/* Name Block */}
+                          <div className="w-full text-center z-10 flex-1 flex flex-col justify-center min-h-[44px]">
+                            <h4 className="text-[14px] font-black text-slate-900 leading-tight uppercase tracking-tight line-clamp-2 px-1">
+                              {formatStudentName(activePreviewStudent) || activePreviewStudent.name}
+                            </h4>
+                            <div className="text-[8px] font-extrabold text-slate-500 uppercase tracking-wider mt-0.5">
+                              {formatGradeSection(section?.gradeLevel, section?.name)}
+                            </div>
+                            <div className="text-[7.5px] font-bold text-slate-400 uppercase mt-0.5 font-semibold">
+                              {section?.schoolYear || "SY 2025-2026"}
+                            </div>
+                          </div>
+
+                          {/* Barcode Mock removed from front */}
+                          <div className="w-full text-center z-10 flex flex-col items-center mt-2">
+                            <div className={`w-full rounded-xl py-1 text-[11px] font-mono font-black tracking-widest bg-slate-50 border border-slate-150`}>
+                              {activePreviewStudent.lrn || "---"}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Bottom Accent */}
+                        <div className="h-1.5 w-full" style={{ background: theme.colorScheme.primaryHex }} />
+                      </div>
+                    )}
+
+                    {/* Simulated Back Preview (Separate layouts) */}
+                    {(layoutType === 'front-back' || layoutType === 'back-only') && (
+                      <div className={`w-[240px] h-[382px] bg-white rounded-3xl overflow-hidden shadow-2xl border ${theme.cardBorder} flex flex-col relative transition-all`}>
+                        {/* Solid Header Accent Color */}
+                        <div className="h-1.5 w-full" style={{ background: theme.colorScheme.primaryHex }} />
+                        
+                        {/* ID Back Card Interior */}
+                        <div className="flex-1 flex flex-col items-center justify-between p-5 relative overflow-hidden bg-white text-center">
+                          {/* Faint Watermark backdrop */}
+                          <div className="absolute inset-0 flex items-center justify-center opacity-[0.06] pointer-events-none select-none">
+                            {getWatermarkIcon()}
+                          </div>
+
+                          {/* Instructions Header */}
+                          <div className="w-full z-10">
+                            <h5 className="text-[7px] font-black uppercase text-slate-400 tracking-widest">Return Policy & Directions</h5>
+                            <p className="text-[8.5px] text-slate-550 leading-relaxed font-semibold mt-2 px-1.5">
+                              {emergencyNotes || "If found, please return to the school administration office immediately."}
+                            </p>
+                          </div>
+
+                          {/* Emergency Contacts Block */}
+                          <div className="w-full z-10 border-t border-dashed border-slate-200 pt-3 my-1">
+                            <h5 className="text-[8px] font-black uppercase tracking-wider text-rose-600">IN CASE OF EMERGENCY</h5>
+                            <p className="text-[10px] font-bold text-slate-800 mt-1 uppercase max-w-full truncate">
+                              {previewGuardian}
+                            </p>
+                            <p className="text-[7px] text-slate-500 uppercase font-black tracking-tight leading-none mt-0.5">
+                              Relationship: {previewRelationship}
+                            </p>
+                            <p className="text-[9.5px] font-mono font-bold text-slate-700 bg-slate-50 border border-slate-150 py-1 px-3 mt-1.5 rounded-full inline-block tracking-wider">
+                              {previewContactNumber}
+                            </p>
+                          </div>
+
+                          {/* Signature line space */}
+                          <div className="w-full z-10 mt-auto flex flex-col items-center pt-2">
+                            {includeBarcode && (
+                              <div className="mb-1 p-1 bg-white shadow-sm border border-slate-200 translate-y-1">
+                                <QRCode value={activePreviewStudent.lrn || "0000"} size={64} level="M" />
+                              </div>
+                            )}
+                            <div className="w-28 border-b border-slate-300 mt-1.5" />
+                            <p className="text-[10px] font-bold text-slate-800 mt-1 uppercase max-w-full truncate">{schoolHead}</p>
+                            <p className="text-[7px] text-slate-400 uppercase font-black tracking-wider leading-none">School Principal</p>
+                          </div>
+
+                          {/* Fine-print school identifiers */}
+                          <div className="w-full z-10 border-t border-slate-100 pt-3 flex items-center justify-between text-[7px] text-slate-450 uppercase font-bold tracking-wider leading-none">
+                            <span>School ID: {section?.schoolId || "DEPED-10902"}</span>
+                            <span>OFFICIAL ACCESS</span>
+                          </div>
+                        </div>
+
+                        {/* Bottom yellow stripe accent */}
+                        <div className="h-1.5 bg-amber-500 w-full" />
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="flex flex-col items-center justify-center p-12 bg-white/40 border border-dashed border-slate-200 rounded-3xl text-center max-w-md mx-auto">
+                    <UserX size={32} className="text-slate-350 mb-3" />
+                    <h4 className="text-sm font-bold text-slate-850">No Learner Selected</h4>
+                    <p className="text-xs text-slate-400 mt-1">Please check at least one student checkbox inside the middle list panel to inspect and output printable ID cards.</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Interactive Footer & Printer Triggers */}
+              <div className="p-4 bg-white/85 border border-slate-150/70 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 z-10">
+                <div className="flex flex-col text-left">
+                  <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest leading-none">Total Output Batch</span>
+                  <span className="text-lg font-black text-indigo-950 mt-1 leading-none">{selectedIds.size} Identifications selected</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-750 transition-colors select-none"
+                  >
+                    Close Center
+                  </button>
+                  <button
+                    type="button"
+                    disabled={selectedIds.size === 0}
+                    onClick={handleGeneratePrintPage}
+                    className="px-6 py-3 bg-emerald-600 rounded-xl hover:bg-emerald-700 disabled:bg-slate-300 disabled:opacity-50 text-white font-black uppercase text-[10px] tracking-widest shadow-xl shadow-emerald-650/15 active:scale-95 transition-all flex items-center gap-2 select-none"
+                    title="Open a pixel-perfect dedicated page to print/save as PDF cleanly"
+                  >
+                    <ExternalLink size={15} />
+                    Generate Printed Page
+                  </button>
+                  <button
+                    type="button"
+                    disabled={selectedIds.size === 0}
+                    onClick={handlePrint}
+                    className="px-6 py-3 bg-indigo-650 rounded-xl hover:bg-indigo-700 disabled:bg-slate-300 disabled:opacity-50 text-white font-black uppercase text-[10px] tracking-widest shadow-xl shadow-indigo-650/15 active:scale-95 transition-all flex items-center gap-2 select-none"
+                    title="Directly trigger standard local browser print on the current window frame"
+                  >
+                    <Printer size={15} />
+                    Direct Frame Print
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
   );
 }
 
@@ -8598,7 +10189,7 @@ function EditLearnerModal({
                 <input 
                   type="text"
                   placeholder="e.g. Dela Cruz"
-                  value={form.lastName}
+                  value={form.lastName || ''}
                   onChange={e => setForm({...form, lastName: capitalizeName(e.target.value)})}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none text-sm font-medium"
                 />
@@ -8609,7 +10200,7 @@ function EditLearnerModal({
                 <input 
                   type="text"
                   placeholder="e.g. Juan"
-                  value={form.firstName}
+                  value={form.firstName || ''}
                   onChange={e => setForm({...form, firstName: capitalizeName(e.target.value)})}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none text-sm font-medium"
                 />
@@ -8620,7 +10211,7 @@ function EditLearnerModal({
                 <input 
                   type="text"
                   placeholder="e.g. Proto"
-                  value={form.middleName}
+                  value={form.middleName || ''}
                   onChange={e => setForm({...form, middleName: capitalizeName(e.target.value)})}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none text-sm font-medium"
                 />
@@ -8631,7 +10222,7 @@ function EditLearnerModal({
                 <input 
                   type="text"
                   placeholder="e.g. Jr, III"
-                  value={form.extension}
+                  value={form.extension || ''}
                   onChange={e => setForm({...form, extension: capitalizeName(e.target.value)})}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none text-sm font-medium"
                 />
@@ -8645,7 +10236,7 @@ function EditLearnerModal({
                   type="text"
                   inputMode="numeric"
                   required
-                  value={form.lrn}
+                  value={form.lrn || ''}
                   onChange={e => setForm({...form, lrn: e.target.value})}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none text-sm font-medium"
                 />
@@ -8656,7 +10247,7 @@ function EditLearnerModal({
                 <input 
                   type="text"
                   placeholder="e.g. Manila"
-                  value={form.birthplace}
+                  value={form.birthplace || ''}
                   onChange={e => setForm({...form, birthplace: capitalizeName(e.target.value)})}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none text-sm font-medium"
                 />
@@ -8667,40 +10258,58 @@ function EditLearnerModal({
                 <input 
                   type="text"
                   placeholder="Complete Address"
-                  value={form.address}
+                  value={form.address || ''}
                   onChange={e => setForm({...form, address: e.target.value})}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none text-sm font-medium"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-600 uppercase tracking-widest">Father's Full Name</label>
+                <label className="text-xs font-bold text-slate-600 uppercase tracking-widest flex justify-between">
+                  <span>Father's Full Name</span>
+                  <label className="flex items-center gap-1.5 cursor-pointer text-[10px]">
+                    <input type="radio" name="primaryEdit" checked={form.primaryContact === 'father'} onChange={() => setForm({...form, primaryContact: 'father'})} className="rounded text-blue-600 cursor-pointer" />
+                    <span>Set Primary</span>
+                  </label>
+                </label>
                 <input 
                   type="text"
                   placeholder="Last, First, Middle"
-                  value={form.fatherName}
+                  value={form.fatherName || ''}
                   onChange={e => setForm({...form, fatherName: capitalizeName(e.target.value)})}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none text-sm font-medium"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-600 uppercase tracking-widest">Mother's Full Name</label>
+                <label className="text-xs font-bold text-slate-600 uppercase tracking-widest flex justify-between">
+                  <span>Mother's Full Name</span>
+                  <label className="flex items-center gap-1.5 cursor-pointer text-[10px]">
+                    <input type="radio" name="primaryEdit" checked={form.primaryContact === 'mother'} onChange={() => setForm({...form, primaryContact: 'mother'})} className="rounded text-blue-600 cursor-pointer" />
+                    <span>Set Primary</span>
+                  </label>
+                </label>
                 <input 
                   type="text"
                   placeholder="Last, First, Middle"
-                  value={form.motherName}
+                  value={form.motherName || ''}
                   onChange={e => setForm({...form, motherName: capitalizeName(e.target.value)})}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none text-sm font-medium"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-600 uppercase tracking-widest">Guardian's Full Name</label>
+                <label className="text-xs font-bold text-slate-600 uppercase tracking-widest flex justify-between">
+                  <span>Guardian's Full Name</span>
+                  <label className="flex items-center gap-1.5 cursor-pointer text-[10px]">
+                    <input type="radio" name="primaryEdit" checked={form.primaryContact === 'guardian'} onChange={() => setForm({...form, primaryContact: 'guardian'})} className="rounded text-blue-600 cursor-pointer" />
+                    <span>Set Primary</span>
+                  </label>
+                </label>
                 <input 
                   type="text"
                   placeholder="If not parents"
-                  value={form.guardianName}
+                  value={form.guardianName || ''}
                   onChange={e => setForm({...form, guardianName: capitalizeName(e.target.value)})}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none text-sm font-medium"
                 />
@@ -8711,17 +10320,28 @@ function EditLearnerModal({
                 <input 
                   type="text"
                   placeholder="e.g. Auntie"
-                  value={form.guardianRelationship}
+                  value={form.guardianRelationship || ''}
                   onChange={e => setForm({...form, guardianRelationship: capitalizeFirst(e.target.value)})}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none text-sm font-medium"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-colors bg-white hover:border-slate-300 rounded-xl outline-none text-sm font-medium"
                 />
               </div>
+            </div>
+
+            <div className="space-y-1.5 mt-5">
+              <label className="text-xs font-bold text-slate-600 uppercase tracking-widest">Primary CP / Contact Number</label>
+              <input 
+                type="text"
+                placeholder="e.g. 09123456789"
+                value={form.contactNumber || ''}
+                onChange={e => setForm({...form, contactNumber: e.target.value})}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none text-sm font-medium"
+              />
 
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-600 uppercase tracking-widest">Birthdate</label>
                 <input 
                   type="date"
-                  value={form.birthdate}
+                  value={form.birthdate || ''}
                   onChange={e => {
                     const dt = e.target.value;
                     let ageStr = form.age;
@@ -8747,7 +10367,7 @@ function EditLearnerModal({
               <input 
                 type="email"
                 placeholder="Student email for portal access"
-                value={form.email}
+                value={form.email || ''}
                 onChange={e => setForm({...form, email: e.target.value})}
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none text-sm font-medium"
               />
@@ -8762,7 +10382,7 @@ function EditLearnerModal({
                   required
                   readOnly
                   placeholder="Computed from Birthdate"
-                  value={form.age}
+                  value={form.age || ''}
                   onChange={e => setForm({...form, age: e.target.value})}
                   className="w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 outline-none text-sm font-medium cursor-not-allowed"
                 />
@@ -8771,7 +10391,7 @@ function EditLearnerModal({
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-600 uppercase tracking-widest">Sex</label>
                 <select 
-                  value={form.sex}
+                  value={form.sex || 'Male'}
                   onChange={e => setForm({...form, sex: e.target.value})}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none appearance-none text-sm font-medium"
                 >
@@ -8787,7 +10407,7 @@ function EditLearnerModal({
                   <input 
                     type="number"
                     step="0.1"
-                    value={form.weight}
+                    value={form.weight || ''}
                     onChange={e => setForm({...form, weight: e.target.value})}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none text-sm font-medium"
                   />
@@ -8797,7 +10417,7 @@ function EditLearnerModal({
                   <input 
                     type="number"
                     step="0.1"
-                    value={form.height}
+                    value={form.height || ''}
                     onChange={e => setForm({...form, height: e.target.value})}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none text-sm font-medium"
                   />
@@ -8818,7 +10438,7 @@ function EditLearnerModal({
               <label className="text-xs font-bold text-slate-600 uppercase tracking-widest">First of Attendance</label>
               <input 
                 type="date"
-                value={form.dateOfFirstAttendance}
+                value={form.dateOfFirstAttendance || ''}
                 onChange={e => setForm({...form, dateOfFirstAttendance: e.target.value})}
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none text-sm font-medium"
               />
@@ -11349,9 +12969,12 @@ function SubjectsView({
   const [presetSelectedSubjects, setPresetSelectedSubjects] = useState<string[]>([]);
   const [presetSubjectGroup, setPresetSubjectGroup] = useState<Subject['group']>('Revised K-10 Curriculum');
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const isActiveSY = !!globalSettings?.activeSchoolYear && 
+  const isMainAdmin = currentUser?.email === 'jessiemangabo@gmail.com';
+  const isActiveSY = isMainAdmin || (
+    !!globalSettings?.activeSchoolYear && 
     !globalSettings?.finalizedSchoolYears?.includes(globalSettings?.activeSchoolYear) && 
-    !selectedSection?.isFinalized;
+    !selectedSection?.isFinalized
+  );
   const [form, setForm] = useState<Omit<Subject, 'id'>>({
     group: 'SHS Core Subjects, Other SHS Academic Electives',
     name: '',
@@ -14085,7 +15708,7 @@ function MATATAGReportCardModal({
         <div className="flex flex-col">
           <h2 className="text-sm font-black uppercase tracking-widest text-indigo-400">SF9 MATATAG Progress Report Card</h2>
           <p className="text-xs text-slate-400 font-bold mt-0.5">
-            Learner: <span className="text-white uppercase font-black">{formatStudentName(student)}</span> • Grade & Section: <span className="text-white uppercase font-black">Grade {section.gradeLevel} - {section.name}</span>
+            Learner: <span className="text-white uppercase font-black">{formatStudentName(student)}</span> • Grade & Section: <span className="text-white uppercase font-black">{formatGradeSection(section.gradeLevel, section.name)}</span>
           </p>
         </div>
         
@@ -15467,14 +17090,14 @@ function SummarySheetView({
       </div>
       
       <div className="p-6 md:p-12">
-        <div ref={summaryReportRef} className="bg-white border-black p-8 min-w-[1100px] print:p-0 print:border-none print:shadow-none">
+        <div ref={summaryReportRef} className="bg-white border border-slate-200 shadow-xl rounded-3xl p-8 min-w-[1100px] print:p-0 print:border-none print:shadow-none print:rounded-none">
           <style dangerouslySetInnerHTML={{ __html: `
             @media print {
               @page { size: A4 landscape; margin: 10mm; }
               * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-              table { border-collapse: collapse !important; width: 100% !important; table-layout: auto !important; border: 1.5px solid #475569 !important; }
-              th { border: 1.5px solid #475569 !important; padding: 5px 3px !important; font-weight: 900 !important; font-size: 8px !important; }
-              td { border: 1px solid #cbd5e1 !important; padding: 4px 3px !important; font-size: 8.5px !important; }
+              table { border-collapse: collapse !important; width: 100% !important; table-layout: auto !important; border: 1px solid #e2e8f0 !important; }
+              th { border: 1px solid #e2e8f0 !important; padding: 5px 3px !important; font-weight: bold !important; font-size: 8px !important; }
+              td { border: 1px solid #f1f5f9 !important; padding: 4px 3px !important; font-size: 8.5px !important; }
               thead { display: table-header-group !important; }
               tr { page-break-inside: avoid !important; }
               .no-print { display: none !important; }
@@ -15483,71 +17106,71 @@ function SummarySheetView({
           
           {/* Official Header */}
           <div className="mb-8 text-center">
-            <h1 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Consolidated Grades Summary Sheet</h1>
-            <p className="text-[10px] md:text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">Official Learner Performance Academic Report</p>
+            <h1 className="text-xl font-bold text-slate-800 uppercase tracking-tight">Consolidated Grades Summary Sheet</h1>
+            <p className="text-[10px] md:text-xs text-slate-500 font-semibold uppercase tracking-wider mt-1">Official Learner Performance Academic Report</p>
           </div>
 
-          <div className="flex flex-wrap gap-x-6 gap-y-3 text-xs font-bold mb-8 uppercase text-slate-700">
-            <div className="flex gap-2 min-w-[200px]"><span>School ID:</span> <span className="border-b border-slate-300 flex-1 text-center font-black">{selectedSection.schoolId || '---'}</span></div>
-            <div className="flex gap-2 min-w-[100px]"><span>Region:</span> <span className="border-b border-slate-300 flex-1 text-center font-black">{selectedSection.region || '---'}</span></div>
-            <div className="flex gap-2 min-w-[150px]"><span>Division:</span> <span className="border-b border-slate-300 flex-1 text-center font-black">{selectedSection.division || '---'}</span></div>
-            <div className="flex gap-2 min-w-[150px]"><span>District:</span> <span className="border-b border-slate-300 flex-1 text-center font-black">{selectedSection.district || '---'}</span></div>
+          <div className="flex flex-wrap gap-x-6 gap-y-3 text-xs font-semibold mb-8 uppercase text-slate-600">
+            <div className="flex gap-2 min-w-[200px]"><span className="text-slate-400">School ID:</span> <span className="border-b border-slate-200 flex-1 text-center font-bold text-slate-800">{selectedSection.schoolId || '---'}</span></div>
+            <div className="flex gap-2 min-w-[100px]"><span className="text-slate-400">Region:</span> <span className="border-b border-slate-200 flex-1 text-center font-bold text-slate-800">{selectedSection.region || '---'}</span></div>
+            <div className="flex gap-2 min-w-[150px]"><span className="text-slate-400">Division:</span> <span className="border-b border-slate-200 flex-1 text-center font-bold text-slate-800">{selectedSection.division || '---'}</span></div>
+            <div className="flex gap-2 min-w-[150px]"><span className="text-slate-400">District:</span> <span className="border-b border-slate-200 flex-1 text-center font-bold text-slate-800">{selectedSection.district || '---'}</span></div>
             <div className="w-full h-0"></div>
-            <div className="flex gap-2 flex-grow min-w-[300px]"><span>School Name:</span> <span className="border-b border-slate-300 flex-1 text-center font-black">{selectedSection.schoolName || '---'}</span></div>
-            <div className="flex gap-2 min-w-[200px]"><span>Adviser Name:</span> <span className="border-b border-slate-300 flex-1 text-center font-black">{selectedSection.adviserName || '---'}</span></div>
-            <div className="flex gap-2 min-w-[120px]"><span>School Year:</span> <span className="border-b border-slate-300 flex-1 text-center font-black">{selectedSection.schoolYear || '---'}</span></div>
-            <div className="flex gap-2 min-w-[200px]"><span>Grade & Section:</span> <span className="border-b border-slate-300 flex-1 text-center font-black">{selectedSection.gradeLevel} - {selectedSection.name}</span></div>
+            <div className="flex gap-2 flex-grow min-w-[300px]"><span className="text-slate-400">School Name:</span> <span className="border-b border-slate-200 flex-1 text-center font-bold text-slate-800">{selectedSection.schoolName || '---'}</span></div>
+            <div className="flex gap-2 min-w-[200px]"><span className="text-slate-400">Adviser Name:</span> <span className="border-b border-slate-200 flex-1 text-center font-bold text-slate-800">{selectedSection.adviserName || '---'}</span></div>
+            <div className="flex gap-2 min-w-[120px]"><span className="text-slate-400">School Year:</span> <span className="border-b border-slate-200 flex-1 text-center font-bold text-slate-800">{selectedSection.schoolYear || '---'}</span></div>
+            <div className="flex gap-2 min-w-[200px]"><span className="text-slate-400">Grade & Section:</span> <span className="border-b border-slate-200 flex-1 text-center font-bold text-slate-800">{selectedSection.gradeLevel} - {selectedSection.name}</span></div>
           </div>
 
-          <div className="overflow-x-auto relative border border-slate-300 rounded-xl shadow-sm">
+          <div className="overflow-x-auto relative border border-slate-200 rounded-xl shadow-sm">
             <table className="w-full border-collapse text-[9px] bg-white">
               <thead className="sticky top-0 z-30">
-                <tr className="bg-[#1E293B] text-white">
-                  <th rowSpan={2} className="sticky left-0 z-30 p-2.5 border border-slate-600 min-w-[170px] text-left uppercase font-black text-[9px] bg-[#1E293B]" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>Learner Name</th>
+                <tr className="bg-slate-50 text-slate-700">
+                  <th rowSpan={2} className="sticky left-0 z-30 p-2.5 border-b border-r border-slate-200 min-w-[170px] text-left uppercase font-black text-[9px] bg-slate-50" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>Learner Name</th>
                   {summaryColumns.map(c => (
-                    <th key={c.id} colSpan={termsToShow.length + 1} className="p-2 border border-slate-600 text-center font-black uppercase text-[9px] bg-[#1E293B] text-white leading-tight" style={{ borderRightWidth: '2.5px', borderRightColor: '#475569', WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>
+                    <th key={c.id} colSpan={termsToShow.length + 1} className="p-2 border-b border-r border-slate-200 text-center font-bold uppercase text-[9px] bg-slate-50 text-slate-700 leading-tight" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>
                       {abbreviateSubject(c.name)}
                     </th>
                   ))}
-                  <th colSpan={termsToShow.length + 1} className="p-2 bg-[#4F46E5] text-white font-black text-center border-t border-b border-l border-slate-600 uppercase text-[9px]" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>Gen. Avg.</th>
-                  <th rowSpan={2} className="p-2 bg-[#047857] text-white font-black text-center border border-slate-600 uppercase text-[9px]" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>Remarks</th>
+                  <th colSpan={termsToShow.length + 1} className="p-2 bg-slate-100 text-slate-800 font-bold text-center border-b border-r border-slate-200 uppercase text-[9px]" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>Gen. Avg.</th>
+                  <th rowSpan={2} className="p-2 bg-slate-50 text-slate-700 font-bold text-center border-b border-slate-200 uppercase text-[9px]" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>Remarks</th>
                 </tr>
-                <tr className="bg-[#334155] text-white text-[7.5px] font-black uppercase tracking-wider">
+                <tr className="bg-slate-50 text-slate-500 text-[7.5px] font-bold uppercase tracking-wider">
                   {summaryColumns.map(c => (
                     <React.Fragment key={c.id}>
                       {termsToShow.map((q) => (
-                        <th key={q} className="px-1.5 py-1.5 border border-slate-600 w-8 text-center bg-[#334155] text-white" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>T{q}</th>
+                        <th key={q} className="px-1.5 py-1.5 border-b border-r border-slate-200 w-8 text-center bg-slate-50 text-slate-500" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>T{q}</th>
                       ))}
-                      <th className="px-1.5 py-1.5 border border-slate-600 bg-[#475569] text-white w-10 text-center font-extrabold" style={{ borderRightWidth: '2.5px', borderRightColor: '#475569', WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>FIN</th>
+                      <th className="px-1.5 py-1.5 border-b border-r border-slate-200 bg-slate-100 text-slate-700 w-10 text-center font-bold" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>FIN</th>
                     </React.Fragment>
                   ))}
                   {termsToShow.map((q) => (
-                    <th key={q} className="px-1.5 py-1.5 w-8 bg-[#4338CA] text-white text-center border border-slate-600" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>T{q}</th>
+                    <th key={q} className="px-1.5 py-1.5 w-8 bg-slate-100/50 text-slate-600 text-center border-b border-r border-slate-200" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>T{q}</th>
                   ))}
-                  <th className="px-1.5 py-1.5 w-10 bg-[#1E1B4B] text-white text-center border border-slate-600 italic" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>{semView === 'all' ? 'YEARLY' : 'SEM FIN'}</th>
+                  <th className="px-1.5 py-1.5 w-10 bg-slate-200 text-slate-800 text-center border-b border-r border-slate-200 italic font-bold" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>{semView === 'all' ? 'YEARLY' : 'SEM FIN'}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200">
+              <tbody className="divide-y divide-slate-100">
                 {maleStudents.length > 0 && (
-                  <tr className="bg-[#EFF6FF]">
-                    <td colSpan={summaryColumns.length * (termsToShow.length + 1) + termsToShow.length + 2} className="p-2 px-4 text-[10px] font-black text-blue-800 uppercase tracking-[0.15em] border border-blue-200 bg-[#EFF6FF]" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>
+                  <tr className="bg-slate-50/50">
+                    <td colSpan={summaryColumns.length * (termsToShow.length + 1) + termsToShow.length + 2} className="p-2 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-200 bg-slate-50/50" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>
                       Male Students
                     </td>
                   </tr>
                 )}
                 {maleStudents.map((student, sIdx) => {
-                  const rBg = sIdx % 2 === 0 ? "bg-white" : "bg-slate-50/60";
+                  const rBg = sIdx % 2 === 0 ? "bg-white" : "bg-slate-50/30";
                   return (
-                    <tr key={student.id} className={`hover:bg-slate-50/80 transition-colors group ${rBg}`}>
-                      <td className="sticky left-0 bg-white group-hover:bg-slate-50 z-10 p-2 font-bold text-[9.5px] text-slate-800 border border-slate-200 min-w-[170px]" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>
+                    <tr key={student.id} className={`hover:bg-slate-50 transition-colors group ${rBg}`}>
+                      <td className="sticky left-0 bg-white group-hover:bg-slate-50 z-10 p-2 font-semibold text-[9.5px] text-slate-800 border-b border-r border-slate-100 min-w-[170px]" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>
                         <div className="flex items-center justify-between gap-1">
                           <div className="flex flex-col gap-0.5">
                             <span className={(student.status === 'Transferred Out' || student.status === 'Dropped Out') ? 'line-through text-slate-400' : ''}>{formatStudentName(student)}</span>
                             {student.status === 'Transferred Out' && (
-                              <span className="text-[7px] bg-rose-100 text-rose-600 px-1 py-0.5 rounded-full w-fit font-black uppercase tracking-tighter">TRANSFERRED</span>
+                              <span className="text-[7px] bg-rose-50 text-rose-500 border border-rose-100 px-1 py-0.5 rounded-md w-fit font-bold uppercase tracking-tighter shadow-sm">TRANSFERRED</span>
                             )}
                             {student.status === 'Dropped Out' && (
-                              <span className="text-[7px] bg-orange-100 text-orange-600 px-1 py-0.5 rounded-full w-fit font-black uppercase tracking-tighter">DROPPED</span>
+                              <span className="text-[7px] bg-orange-50 text-orange-500 border border-orange-100 px-1 py-0.5 rounded-md w-fit font-bold uppercase tracking-tighter shadow-sm">DROPPED</span>
                             )}
                           </div>
                         </div>
@@ -15562,12 +17185,12 @@ function SummarySheetView({
                               const isNotOffered = c.type === 'subject' && c.subject?.offeredTerms && !c.subject.offeredTerms.includes(q);
                               const isFailing = g > 0 && g < 75;
                               return (
-                                <td key={q} className={`p-1.5 text-center text-[10px] border border-slate-200 ${isNotOffered ? 'bg-slate-100/50 text-slate-300 font-medium' : isFailing ? 'bg-[#FFE4E6] text-rose-700 font-bold' : g === -1 ? 'text-slate-300' : 'text-slate-700 font-medium'}`} style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>
-                                  {isNotOffered ? '-' : (g === -1 ? '-' : (useDescriptiveGrading && isGrade1To3 && g > 0 ? (<span className="text-indigo-600 font-bold">{getDescriptiveGrade(g)}</span>) : g || ''))}
+                                <td key={q} className={`p-1.5 text-center text-[10px] border-b border-r border-slate-100 ${isNotOffered ? 'bg-slate-50/50 text-slate-300' : isFailing ? 'bg-red-50 text-red-600 font-semibold' : g === -1 ? 'text-slate-300' : 'text-slate-700'}`} style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>
+                                  {isNotOffered ? '-' : (g === -1 ? '-' : (useDescriptiveGrading && isGrade1To3 && g > 0 ? (<span className="text-slate-700 font-semibold">{getDescriptiveGrade(g)}</span>) : g || ''))}
                                 </td>
                               );
                             })}
-                            <td className={`p-1.5 text-center text-[10px] font-bold border border-slate-200 bg-slate-50/15 ${fin >= 90 ? 'bg-[#ECFDF5] text-[#047857] font-extrabold' : fin > 0 && fin < 75 ? 'bg-[#FFE4E6] text-rose-700 font-extrabold' : fin > 0 ? 'text-slate-900' : 'text-slate-400 font-medium'}`} style={{ borderRightWidth: '2.5px', borderRightColor: '#94A3B8', WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>
+                            <td className={`p-1.5 text-center text-[10px] font-bold border-b border-r border-slate-100 bg-slate-50/30 ${fin >= 90 ? 'bg-emerald-50 text-emerald-700' : fin > 0 && fin < 75 ? 'bg-red-50 text-red-600' : fin > 0 ? 'text-slate-800' : 'text-slate-400'}`} style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>
                               {useDescriptiveGrading && isGrade1To3 && fin ? getDescriptiveGrade(fin) : fin || '-'}
                             </td>
                           </React.Fragment>
@@ -15577,21 +17200,21 @@ function SummarySheetView({
                         const avg = getStudentGeneralAverage(student, q);
                         const isFailing = avg > 0 && avg < 75;
                         return (
-                          <td key={q} className={`p-1.5 text-center text-[10px] font-bold border border-slate-200 ${isFailing ? 'bg-[#FFE4E6] text-rose-700' : 'text-[#3730A3] bg-[#EEF2FF]'}`} style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>
+                          <td key={q} className={`p-1.5 text-center text-[10px] font-semibold border-b border-r border-slate-100 ${isFailing ? 'bg-red-50 text-red-600' : 'text-slate-700 bg-slate-50/50'}`} style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>
                             {useDescriptiveGrading && isGrade1To3 && avg ? getDescriptiveGrade(avg) : avg > 0 ? avg.toFixed(2) : '-'}
                           </td>
                         );
                       })}
-                      <td className="p-1.5 text-center text-[10px] font-extrabold text-[#1E1B4B] bg-[#C7D2FE] border border-slate-200" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>
+                      <td className="p-1.5 text-center text-[10px] font-bold text-slate-900 bg-slate-100 border-b border-r border-slate-200" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>
                         {useDescriptiveGrading && isGrade1To3 && getStudentGeneralAverage(student, 'final') ? getDescriptiveGrade(getStudentGeneralAverage(student, 'final')) : getStudentGeneralAverage(student, 'final') > 0 ? getStudentGeneralAverage(student, 'final').toFixed(2) : '-'}
                       </td>
-                      <td className="p-1.5 text-center text-[10px] font-extrabold text-slate-800 border border-slate-200 uppercase">
+                      <td className="p-1.5 text-center text-[9px] font-bold text-slate-700 border-b border-slate-100 uppercase bg-white">
                         {(() => {
                           const avg = getStudentGeneralAverage(student, 'final');
                           if (useDescriptiveGrading && isGrade1To3 && avg > 0) {
-                            return <span className="text-indigo-600 font-black">{getDescriptiveRemark(avg)}</span>;
+                            return <span className="text-slate-700">{getDescriptiveRemark(avg)}</span>;
                           }
-                          return avg >= 75 ? (<span className="text-[#047857] font-black">PASSED</span>) : avg > 0 ? (<span className="text-rose-700 font-black">FAILED</span>) : '-';
+                          return avg >= 75 ? (<span className="text-emerald-600">PASSED</span>) : avg > 0 ? (<span className="text-red-600">FAILED</span>) : '-';
                         })()}
                       </td>
                     </tr>
@@ -15600,25 +17223,25 @@ function SummarySheetView({
   
                 {/* Female Students */}
                 {femaleStudents.length > 0 && (
-                  <tr className="bg-[#FFF1F2]">
-                    <td colSpan={summaryColumns.length * (termsToShow.length + 1) + termsToShow.length + 2} className="p-2 px-4 text-[10px] font-black text-rose-800 uppercase tracking-[0.15em] border border-rose-200 bg-[#FFF1F2]" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>
+                  <tr className="bg-slate-50/50">
+                    <td colSpan={summaryColumns.length * (termsToShow.length + 1) + termsToShow.length + 2} className="p-2 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-200 bg-slate-50/50" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>
                       Female Students
                     </td>
                   </tr>
                 )}
                 {femaleStudents.map((student, sIdx) => {
-                  const rBg = sIdx % 2 === 0 ? "bg-white" : "bg-slate-50/60";
+                  const rBg = sIdx % 2 === 0 ? "bg-white" : "bg-slate-50/30";
                   return (
-                    <tr key={student.id} className={`hover:bg-slate-50/80 transition-colors group ${rBg}`}>
-                      <td className="sticky left-0 bg-white group-hover:bg-slate-50 z-10 p-2 font-bold text-[9.5px] text-slate-800 border border-slate-200 min-w-[170px]" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>
+                    <tr key={student.id} className={`hover:bg-slate-50 transition-colors group ${rBg}`}>
+                      <td className="sticky left-0 bg-white group-hover:bg-slate-50 z-10 p-2 font-semibold text-[9.5px] text-slate-800 border-b border-r border-slate-100 min-w-[170px]" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>
                         <div className="flex items-center justify-between gap-1">
                           <div className="flex flex-col gap-0.5">
                             <span className={(student.status === 'Transferred Out' || student.status === 'Dropped Out') ? 'line-through text-slate-400' : ''}>{formatStudentName(student)}</span>
                             {student.status === 'Transferred Out' && (
-                              <span className="text-[7px] bg-rose-100 text-rose-600 px-1 py-0.5 rounded-full w-fit font-black uppercase tracking-tighter">TRANSFERRED</span>
+                              <span className="text-[7px] bg-rose-50 text-rose-500 border border-rose-100 px-1 py-0.5 rounded-md w-fit font-bold uppercase tracking-tighter shadow-sm">TRANSFERRED</span>
                             )}
                             {student.status === 'Dropped Out' && (
-                              <span className="text-[7px] bg-orange-100 text-orange-600 px-1 py-0.5 rounded-full w-fit font-black uppercase tracking-tighter">DROPPED</span>
+                              <span className="text-[7px] bg-orange-50 text-orange-500 border border-orange-100 px-1 py-0.5 rounded-md w-fit font-bold uppercase tracking-tighter shadow-sm">DROPPED</span>
                             )}
                           </div>
                         </div>
@@ -15633,12 +17256,12 @@ function SummarySheetView({
                               const isNotOffered = c.type === 'subject' && c.subject?.offeredTerms && !c.subject.offeredTerms.includes(q);
                               const isFailing = g > 0 && g < 75;
                               return (
-                                <td key={q} className={`p-1.5 text-center text-[10px] border border-slate-200 ${isNotOffered ? 'bg-slate-100/50 text-slate-300 font-medium' : isFailing ? 'bg-[#FFE4E6] text-rose-700 font-bold' : g === -1 ? 'text-slate-300' : 'text-slate-700 font-medium'}`} style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>
-                                  {isNotOffered ? '-' : (g === -1 ? '-' : (useDescriptiveGrading && isGrade1To3 && g > 0 ? (<span className="text-indigo-600 font-bold">{getDescriptiveGrade(g)}</span>) : g || ''))}
+                                <td key={q} className={`p-1.5 text-center text-[10px] border-b border-r border-slate-100 ${isNotOffered ? 'bg-slate-50/50 text-slate-300' : isFailing ? 'bg-red-50 text-red-600 font-semibold' : g === -1 ? 'text-slate-300' : 'text-slate-700'}`} style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>
+                                  {isNotOffered ? '-' : (g === -1 ? '-' : (useDescriptiveGrading && isGrade1To3 && g > 0 ? (<span className="text-slate-700 font-semibold">{getDescriptiveGrade(g)}</span>) : g || ''))}
                                 </td>
                               );
                             })}
-                            <td className={`p-1.5 text-center text-[10px] font-bold border border-slate-200 bg-slate-50/15 ${fin >= 90 ? 'bg-[#ECFDF5] text-[#047857] font-extrabold' : fin > 0 && fin < 75 ? 'bg-[#FFE4E6] text-rose-700 font-extrabold' : fin > 0 ? 'text-slate-900' : 'text-slate-400 font-medium'}`} style={{ borderRightWidth: '2.5px', borderRightColor: '#94A3B8', WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>
+                            <td className={`p-1.5 text-center text-[10px] font-bold border-b border-r border-slate-100 bg-slate-50/30 ${fin >= 90 ? 'bg-emerald-50 text-emerald-700' : fin > 0 && fin < 75 ? 'bg-red-50 text-red-600' : fin > 0 ? 'text-slate-800' : 'text-slate-400'}`} style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>
                               {useDescriptiveGrading && isGrade1To3 && fin ? getDescriptiveGrade(fin) : fin || '-'}
                             </td>
                           </React.Fragment>
@@ -15648,21 +17271,21 @@ function SummarySheetView({
                         const avg = getStudentGeneralAverage(student, q);
                         const isFailing = avg > 0 && avg < 75;
                         return (
-                          <td key={q} className={`p-1.5 text-center text-[10px] font-bold border border-slate-200 ${isFailing ? 'bg-[#FFE4E6] text-rose-700' : 'text-[#3730A3] bg-[#EEF2FF]'}`} style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>
+                          <td key={q} className={`p-1.5 text-center text-[10px] font-semibold border-b border-r border-slate-100 ${isFailing ? 'bg-red-50 text-red-600' : 'text-slate-700 bg-slate-50/50'}`} style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>
                             {useDescriptiveGrading && isGrade1To3 && avg ? getDescriptiveGrade(avg) : avg > 0 ? avg.toFixed(2) : '-'}
                           </td>
                         );
                       })}
-                      <td className="p-1.5 text-center text-[10px] font-extrabold text-[#1E1B4B] bg-[#C7D2FE] border border-slate-200" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>
+                      <td className="p-1.5 text-center text-[10px] font-bold text-slate-900 bg-slate-100 border-b border-r border-slate-200" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>
                         {useDescriptiveGrading && isGrade1To3 && getStudentGeneralAverage(student, 'final') ? getDescriptiveGrade(getStudentGeneralAverage(student, 'final')) : getStudentGeneralAverage(student, 'final') > 0 ? getStudentGeneralAverage(student, 'final').toFixed(2) : '-'}
                       </td>
-                      <td className="p-1.5 text-center text-[10px] font-extrabold text-slate-800 border border-slate-200 uppercase">
+                      <td className="p-1.5 text-center text-[9px] font-bold text-slate-700 border-b border-slate-100 uppercase bg-white">
                         {(() => {
                           const avg = getStudentGeneralAverage(student, 'final');
                           if (useDescriptiveGrading && isGrade1To3 && avg > 0) {
-                            return <span className="text-indigo-600 font-black">{getDescriptiveRemark(avg)}</span>;
+                            return <span className="text-slate-700">{getDescriptiveRemark(avg)}</span>;
                           }
-                          return avg >= 75 ? (<span className="text-[#047857] font-black">PASSED</span>) : avg > 0 ? (<span className="text-rose-700 font-black">FAILED</span>) : '-';
+                          return avg >= 75 ? (<span className="text-emerald-600">PASSED</span>) : avg > 0 ? (<span className="text-red-600">FAILED</span>) : '-';
                         })()}
                       </td>
                     </tr>
@@ -15671,24 +17294,24 @@ function SummarySheetView({
   
                 {/* Other/Unassigned Students */}
                 {otherStudents.length > 0 && (
-                  <tr className="bg-slate-100">
-                    <td colSpan={summaryColumns.length * (termsToShow.length + 1) + termsToShow.length + 2} className="p-2 px-4 text-[10px] font-black text-slate-700 uppercase tracking-widest border border-slate-200 bg-slate-100" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>
+                  <tr className="bg-slate-50/50">
+                    <td colSpan={summaryColumns.length * (termsToShow.length + 1) + termsToShow.length + 2} className="p-2 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-200 bg-slate-50/50" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>
                       Unassigned Students
                     </td>
                   </tr>
                 )}
                 {otherStudents.map((student, sIdx) => {
-                  const rBg = sIdx % 2 === 0 ? "bg-white" : "bg-slate-50/60";
+                  const rBg = sIdx % 2 === 0 ? "bg-white" : "bg-slate-50/30";
                   return (
-                    <tr key={student.id} className={`hover:bg-slate-50/80 transition-colors group ${rBg}`}>
-                      <td className="sticky left-0 bg-white group-hover:bg-slate-50 z-10 p-2 font-bold text-[9.5px] text-slate-800 border border-slate-200 min-w-[170px]" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>
+                    <tr key={student.id} className={`hover:bg-slate-50 transition-colors group ${rBg}`}>
+                      <td className="sticky left-0 bg-white group-hover:bg-slate-50 z-10 p-2 font-semibold text-[9.5px] text-slate-800 border-b border-r border-slate-100 min-w-[170px]" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>
                         <div className="flex flex-col gap-0.5">
                           <span className={(student.status === 'Transferred Out' || student.status === 'Dropped Out') ? 'line-through text-slate-400' : ''}>{formatStudentName(student)}</span>
                           {student.status === 'Transferred Out' && (
-                            <span className="text-[7px] bg-rose-100 text-rose-600 px-1 py-0.5 rounded-full w-fit font-black uppercase tracking-tighter">TRANSFERRED</span>
+                            <span className="text-[7px] bg-rose-50 text-rose-500 border border-rose-100 px-1 py-0.5 rounded-md w-fit font-bold uppercase tracking-tighter shadow-sm">TRANSFERRED</span>
                           )}
                           {student.status === 'Dropped Out' && (
-                            <span className="text-[7px] bg-orange-100 text-orange-600 px-1 py-0.5 rounded-full w-fit font-black uppercase tracking-tighter">DROPPED</span>
+                            <span className="text-[7px] bg-orange-50 text-orange-500 border border-orange-100 px-1 py-0.5 rounded-md w-fit font-bold uppercase tracking-tighter shadow-sm">DROPPED</span>
                           )}
                         </div>
                       </td>
@@ -15702,12 +17325,12 @@ function SummarySheetView({
                               const isNotOffered = c.type === 'subject' && c.subject?.offeredTerms && !c.subject.offeredTerms.includes(q);
                               const isFailing = g > 0 && g < 75;
                               return (
-                                <td key={q} className={`p-1.5 text-center text-[10px] border border-slate-200 ${isNotOffered ? 'bg-slate-100/50 text-slate-300 font-medium' : isFailing ? 'bg-[#FFE4E6] text-rose-700 font-bold' : g === -1 ? 'text-slate-300' : 'text-slate-700 font-medium'}`} style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>
-                                  {isNotOffered ? '-' : (g === -1 ? '-' : (useDescriptiveGrading && isGrade1To3 && g > 0 ? (<span className="text-indigo-600 font-bold">{getDescriptiveGrade(g)}</span>) : g || ''))}
+                                <td key={q} className={`p-1.5 text-center text-[10px] border-b border-r border-slate-100 ${isNotOffered ? 'bg-slate-50/50 text-slate-300' : isFailing ? 'bg-red-50 text-red-600 font-semibold' : g === -1 ? 'text-slate-300' : 'text-slate-700'}`} style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>
+                                  {isNotOffered ? '-' : (g === -1 ? '-' : (useDescriptiveGrading && isGrade1To3 && g > 0 ? (<span className="text-slate-700 font-semibold">{getDescriptiveGrade(g)}</span>) : g || ''))}
                                 </td>
                               );
                             })}
-                            <td className={`p-1.5 text-center text-[10px] font-bold border border-slate-200 bg-slate-50/15 ${fin >= 90 ? 'bg-[#ECFDF5] text-[#047857] font-extrabold' : fin > 0 && fin < 75 ? 'bg-[#FFE4E6] text-rose-700 font-extrabold' : fin > 0 ? 'text-slate-900' : 'text-slate-400 font-medium'}`} style={{ borderRightWidth: '2.5px', borderRightColor: '#94A3B8', WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>
+                            <td className={`p-1.5 text-center text-[10px] font-bold border-b border-r border-slate-100 bg-slate-50/30 ${fin >= 90 ? 'bg-emerald-50 text-emerald-700' : fin > 0 && fin < 75 ? 'bg-red-50 text-red-600' : fin > 0 ? 'text-slate-800' : 'text-slate-400'}`} style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>
                               {useDescriptiveGrading && isGrade1To3 && fin ? getDescriptiveGrade(fin) : fin || '-'}
                             </td>
                           </React.Fragment>
@@ -15717,21 +17340,21 @@ function SummarySheetView({
                         const avg = getStudentGeneralAverage(student, q);
                         const isFailing = avg > 0 && avg < 75;
                         return (
-                          <td key={q} className={`p-1.5 text-center text-[10px] font-bold border border-slate-200 ${isFailing ? 'bg-[#FFE4E6] text-rose-700' : 'text-[#3730A3] bg-[#EEF2FF]'}`} style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>
+                          <td key={q} className={`p-1.5 text-center text-[10px] font-semibold border-b border-r border-slate-100 ${isFailing ? 'bg-red-50 text-red-600' : 'text-slate-700 bg-slate-50/50'}`} style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>
                             {useDescriptiveGrading && isGrade1To3 && avg ? getDescriptiveGrade(avg) : avg > 0 ? avg.toFixed(2) : '-'}
                           </td>
                         );
                       })}
-                      <td className="p-1.5 text-center text-[10px] font-extrabold text-[#1E1B4B] bg-[#C7D2FE] border border-slate-200" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>
+                      <td className="p-1.5 text-center text-[10px] font-bold text-slate-900 bg-slate-100 border-b border-r border-slate-200" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>
                         {useDescriptiveGrading && isGrade1To3 && getStudentGeneralAverage(student, 'final') ? getDescriptiveGrade(getStudentGeneralAverage(student, 'final')) : getStudentGeneralAverage(student, 'final') > 0 ? getStudentGeneralAverage(student, 'final').toFixed(2) : '-'}
                       </td>
-                      <td className="p-1.5 text-center text-[10px] font-extrabold text-slate-800 border border-slate-200 uppercase">
+                      <td className="p-1.5 text-center text-[9px] font-bold text-slate-700 border-b border-slate-100 uppercase bg-white">
                         {(() => {
                           const avg = getStudentGeneralAverage(student, 'final');
                           if (useDescriptiveGrading && isGrade1To3 && avg > 0) {
-                            return <span className="text-indigo-600 font-black">{getDescriptiveRemark(avg)}</span>;
+                            return <span className="text-slate-700">{getDescriptiveRemark(avg)}</span>;
                           }
-                          return avg >= 75 ? (<span className="text-[#047857] font-black">PASSED</span>) : avg > 0 ? (<span className="text-rose-700 font-black">FAILED</span>) : '-';
+                          return avg >= 75 ? (<span className="text-emerald-600">PASSED</span>) : avg > 0 ? (<span className="text-red-600">FAILED</span>) : '-';
                         })()}
                       </td>
                     </tr>

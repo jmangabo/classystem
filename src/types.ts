@@ -76,6 +76,8 @@ export interface Student {
   motherName?: string;
   guardianName?: string;
   guardianRelationship?: string;
+  primaryContact?: 'father' | 'mother' | 'guardian';
+  contactNumber?: string;
   photo?: string;
   attendance?: {
     [month: string]: MonthlyAttendance;
