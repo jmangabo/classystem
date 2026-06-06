@@ -79,7 +79,8 @@ import {
   Receipt,
   Tag,
   FileSpreadsheet,
-  ExternalLink
+  ExternalLink,
+  Camera
 } from "lucide-react";
 
 import { SystemDocumentationView } from "./components/SystemDocumentationView";
@@ -770,6 +771,7 @@ export default function App() {
     name: "",
     lrn: "",
     email: "",
+    photo: "",
     age: "",
     birthdate: "",
     birthplace: "",
@@ -1724,13 +1726,14 @@ export default function App() {
           isTransferredIn: learnerForm.isTransferredIn || false,
           attendance: learnerForm.attendance || {},
           eligibility: learnerForm.eligibility || {},
+          photo: learnerForm.photo || "",
           grades: {}
         };
         await addDoc(collection(db, `sections/${selectedSection.id}/students`), newLearner);
       }
       setLearnerForm({ 
         lastName: "", firstName: "", middleName: "", extension: "", name: "", 
-        lrn: "", email: "", age: "", birthdate: "", sex: "Male", weight: "", height: "", attendance: {}, 
+        lrn: "", email: "", photo: "", age: "", birthdate: "", sex: "Male", weight: "", height: "", attendance: {}, 
         birthplace: "", address: "", fatherName: "", motherName: "", guardianName: "", guardianRelationship: "", primaryContact: "guardian", contactNumber: "",
         nutritionalStatus: {}, isTransferredIn: false, eligibility: { type: 'Elementary School Completer' } as Eligibility 
       });
@@ -1928,6 +1931,7 @@ export default function App() {
       name: formatStudentName(student),
       lrn: student.lrn || "",
       email: student.email || "",
+      photo: student.photo || "",
       age: student.age?.toString() || "",
       birthdate: student.birthdate || "",
       sex: student.sex || "Male",
@@ -3028,7 +3032,7 @@ export default function App() {
                     setEditingId(null);
                     setLearnerForm({ 
                       lastName: "", firstName: "", middleName: "", extension: "", name: "", 
-                      lrn: "", email: "", age: "", birthdate: "", sex: "Male", weight: "", height: "", attendance: {}, 
+                      lrn: "", email: "", photo: "", age: "", birthdate: "", sex: "Male", weight: "", height: "", attendance: {}, 
                       birthplace: "", address: "", fatherName: "", motherName: "", guardianName: "", guardianRelationship: "", primaryContact: "guardian", contactNumber: "",
                       nutritionalStatus: {}, isTransferredIn: false, eligibility: { type: 'Elementary School Completer' } as any
                     });
@@ -7083,6 +7087,52 @@ function AddLearnerModal({
   const [isSearching, setIsSearching] = useState(false);
   const [searchMsg, setSearchMsg] = useState({ type: '', text: '' });
 
+  const photoInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || !e.target.files[0]) return;
+    const file = e.target.files[0];
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const MAX_WIDTH = 150;
+        const MAX_HEIGHT = 192;
+        
+        let width = img.width;
+        let height = img.height;
+        
+        const targetRatio = 35 / 45;
+        let sourceX = 0;
+        let sourceY = 0;
+        let sourceWidth = img.width;
+        let sourceHeight = img.height;
+        
+        if (width / height > targetRatio) {
+          sourceWidth = height * targetRatio;
+          sourceX = (width - sourceWidth) / 2;
+        } else {
+          sourceHeight = width / targetRatio;
+          sourceY = (height - sourceHeight) / 2;
+        }
+        
+        canvas.width = MAX_WIDTH;
+        canvas.height = MAX_HEIGHT;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(img, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, MAX_WIDTH, MAX_HEIGHT);
+          const compressedBase64 = canvas.toDataURL("image/jpeg", 0.85);
+          setForm((prev: any) => ({ ...prev, photo: compressedBase64 }));
+        }
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleSearch = async () => {
     if (!searchLrn || searchLrn.trim() === '') {
       setSearchMsg({ type: 'error', text: 'Please enter an LRN to search' });
@@ -7118,6 +7168,7 @@ function AddLearnerModal({
           lrn: studentData.lrn || '',
           birthdate: studentData.birthdate || '',
           email: studentData.email || '',
+          photo: studentData.photo || '',
           dateOfFirstAttendance: studentData.dateOfFirstAttendance || '',
           status: studentData.status || 'Regular',
           weight_kg: studentData.weight_kg || '',
@@ -7201,86 +7252,130 @@ function AddLearnerModal({
           </div>
 
           <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-600 uppercase tracking-widest">Last Name</label>
+            <div className="flex flex-col md:flex-row gap-6 items-start">
+              {/* Photo Upload Zone */}
+              <div className="flex flex-col items-center gap-2 w-full md:w-auto shrink-0 border-r-0 md:border-r border-slate-100 pr-0 md:pr-6 pb-4 md:pb-0">
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Student Profile Photo</span>
+                <div 
+                  onClick={() => photoInputRef.current?.click()}
+                  className="group relative cursor-pointer overflow-hidden rounded-2xl border-2 border-dashed border-slate-200 hover:border-indigo-500 bg-slate-50 transition-all flex flex-col items-center justify-center text-center shadow-inner"
+                  style={{ width: '110px', height: '141px' }}
+                >
+                  {form.photo ? (
+                    <>
+                      <img src={form.photo} alt="Student Preview" className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-[10px] font-bold uppercase tracking-wider gap-1 pt-1">
+                        <Camera size={16} className="text-white" />
+                        <span>Change</span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex flex-col items-center p-3">
+                      <Camera size={24} className="text-slate-350 group-hover:text-indigo-500 transition-colors mb-2" />
+                      <span className="text-[9px] font-bold text-slate-400 group-hover:text-indigo-500 transition-colors uppercase tracking-widest leading-none">Choose Photo</span>
+                      <span className="text-[7px] text-slate-350 mt-1 uppercase tracking-tighter">Passport Size</span>
+                    </div>
+                  )}
+                </div>
                 <input 
-                  type="text"
-                  placeholder="e.g. Dela Cruz"
-                  value={form.lastName || ''}
-                  onChange={e => setForm({...form, lastName: capitalizeName(e.target.value)})}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none font-medium"
+                  type="file" 
+                  ref={photoInputRef}
+                  onChange={handleImageFileChange}
+                  accept="image/*"
+                  className="hidden" 
                 />
+                {form.photo && (
+                  <button 
+                    type="button" 
+                    onClick={() => setForm((prev: any) => ({ ...prev, photo: "" }))}
+                    className="text-[9px] font-black text-rose-500 uppercase tracking-wider hover:text-rose-600 transition-all border border-rose-100 bg-rose-50/50 hover:bg-rose-50 px-2 py-1 rounded-md"
+                  >
+                    Remove Photo
+                  </button>
+                )}
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-600 uppercase tracking-widest">First Name</label>
-                <input 
-                  type="text"
-                  placeholder="e.g. Juan"
-                  value={form.firstName || ''}
-                  onChange={e => setForm({...form, firstName: capitalizeName(e.target.value)})}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none font-medium"
-                />
-              </div>
+              <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-600 uppercase tracking-widest">Last Name</label>
+                  <input 
+                    type="text"
+                    placeholder="e.g. Dela Cruz"
+                    value={form.lastName || ''}
+                    onChange={e => setForm({...form, lastName: capitalizeName(e.target.value)})}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none font-medium"
+                  />
+                </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-600 uppercase tracking-widest">Middle Name</label>
-                <input 
-                  type="text"
-                  placeholder="e.g. Proto"
-                  value={form.middleName || ''}
-                  onChange={e => setForm({...form, middleName: capitalizeName(e.target.value)})}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none font-medium"
-                />
-              </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-600 uppercase tracking-widest">First Name</label>
+                  <input 
+                    type="text"
+                    placeholder="e.g. Juan"
+                    value={form.firstName || ''}
+                    onChange={e => setForm({...form, firstName: capitalizeName(e.target.value)})}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none font-medium"
+                  />
+                </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-600 uppercase tracking-widest">Name Ext.</label>
-                <input 
-                  type="text"
-                  placeholder="e.g. Jr, III"
-                  value={form.extension || ''}
-                  onChange={e => setForm({...form, extension: capitalizeName(e.target.value)})}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none font-medium"
-                />
-              </div>
-              
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-600 uppercase tracking-widest">LRN</label>
-                <input 
-                  type="text"
-                  inputMode="numeric"
-                  required
-                  placeholder="12-digit number"
-                  value={form.lrn || ''}
-                  onChange={e => setForm({...form, lrn: e.target.value})}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none font-medium"
-                />
-              </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-600 uppercase tracking-widest">Middle Name</label>
+                  <input 
+                    type="text"
+                    placeholder="e.g. Proto"
+                    value={form.middleName || ''}
+                    onChange={e => setForm({...form, middleName: capitalizeName(e.target.value)})}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none font-medium"
+                  />
+                </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-600 uppercase tracking-widest">Birthdate</label>
-                <input 
-                  type="date"
-                  value={form.birthdate}
-                  onChange={e => {
-                    const dt = e.target.value;
-                    let ageStr = form.age;
-                    if (dt) {
-                      const bdate = new Date(dt);
-                      const today = new Date();
-                      let age = today.getFullYear() - bdate.getFullYear();
-                      const m = today.getMonth() - bdate.getMonth();
-                      if (m < 0 || (m === 0 && today.getDate() < bdate.getDate())) {
-                        age--;
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-600 uppercase tracking-widest">Name Ext.</label>
+                  <input 
+                    type="text"
+                    placeholder="e.g. Jr, III"
+                    value={form.extension || ''}
+                    onChange={e => setForm({...form, extension: capitalizeName(e.target.value)})}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none font-medium"
+                  />
+                </div>
+                
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-600 uppercase tracking-widest">LRN</label>
+                  <input 
+                    type="text"
+                    inputMode="numeric"
+                    required
+                    placeholder="12-digit number"
+                    value={form.lrn || ''}
+                    onChange={e => setForm({...form, lrn: e.target.value})}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none font-medium"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-600 uppercase tracking-widest">Birthdate</label>
+                  <input 
+                    type="date"
+                    value={form.birthdate}
+                    onChange={e => {
+                      const dt = e.target.value;
+                      let ageStr = form.age;
+                      if (dt) {
+                        const bdate = new Date(dt);
+                        const today = new Date();
+                        let age = today.getFullYear() - bdate.getFullYear();
+                        const m = today.getMonth() - bdate.getMonth();
+                        if (m < 0 || (m === 0 && today.getDate() < bdate.getDate())) {
+                          age--;
+                        }
+                        ageStr = age.toString();
                       }
-                      ageStr = age.toString();
-                    }
-                    setForm({...form, birthdate: dt, age: ageStr});
-                  }}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none font-medium"
-                />
+                      setForm({...form, birthdate: dt, age: ageStr});
+                    }}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none font-medium"
+                  />
+                </div>
               </div>
             </div>
             
@@ -7777,46 +7872,55 @@ function AddLearnerView({
     
     return (
       <div className={`flex flex-col md:flex-row items-center justify-between p-3 bg-${variant}-50/50 rounded-xl border border-${variant}-100/50 group/item transition-all hover:bg-white hover:border-${variant}-200 gap-4`}>
-        <div className="text-left w-full md:w-auto">
-          <div className="flex items-center gap-2">
-            <span className={`text-sm font-medium text-${variant}-900 ${s.status === 'Dropped Out' || s.status === 'Transferred Out' ? 'line-through text-slate-400' : ''}`}>{s.name}</span>
-            {s.status === 'Dropped Out' && (
-              <span className="text-[9px] font-black text-orange-600 bg-orange-100 px-1.5 py-0.5 rounded uppercase">Dropped Out</span>
-            )}
-            {s.status === 'Transferred Out' && (
-              <span className="text-[9px] font-black text-rose-600 bg-rose-100 px-1.5 py-0.5 rounded uppercase">Transferred Out</span>
-            )}
-            {s.isTransferredIn && (
-              <span className="text-[9px] font-black text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded uppercase">Transferred In</span>
+        <div className="text-left w-full md:w-auto flex items-center gap-3">
+          <div className={`w-8 h-8 rounded-full border border-${variant}-100 flex items-center justify-center overflow-hidden bg-white shrink-0`}>
+            {s.photo ? (
+              <img src={s.photo} alt={s.name} className="w-full h-full object-cover" />
+            ) : (
+              <User size={14} className={`text-${variant}-450`} />
             )}
           </div>
-          <div className="flex flex-wrap items-center gap-2 mt-1">
-            <span className={`text-[10px] font-mono text-${variant}-400 uppercase tracking-tighter`}>{s.lrn}</span>
-            {s.dateOfFirstAttendance && (
-              <span className={`text-[10px] text-${variant}-500 font-bold flex items-center gap-1 border-l border-${variant}-100 pl-2`}>
-                <Calendar size={10} />
-                {s.dateOfFirstAttendance}
-              </span>
-            )}
-            {s.email && <span className={`text-[10px] text-${variant}-300 font-medium lowercase`}>({s.email})</span>}
-            {(s.status === 'Dropped Out' || s.status === 'Transferred Out') && s.dropoutDate && (
-              <span className={`text-[10px] text-rose-600 font-bold flex items-center gap-1 border-l border-${variant}-100 pl-2 italic uppercase tracking-tighter`}>
-                <Calendar size={10} />
-                {s.status === 'Dropped Out' ? 'Dropped' : 'Transferred'}: {s.dropoutDate}{s.dropoutReason ? ` - ${s.dropoutReason}` : ''}
-              </span>
-            )}
-            <div className={`flex items-center gap-2 ml-2 border-l border-${variant}-100 pl-2`}>
-              <span className="text-[9px] font-black text-emerald-600 uppercase">P: {totalPresent}</span>
-              <span className="text-[9px] font-black text-rose-600 uppercase">A: {totalAbsent}</span>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className={`text-sm font-medium text-${variant}-900 ${s.status === 'Dropped Out' || s.status === 'Transferred Out' ? 'line-through text-slate-400' : ''}`}>{s.name}</span>
+              {s.status === 'Dropped Out' && (
+                <span className="text-[9px] font-black text-orange-600 bg-orange-100 px-1.5 py-0.5 rounded uppercase">Dropped Out</span>
+              )}
+              {s.status === 'Transferred Out' && (
+                <span className="text-[9px] font-black text-rose-600 bg-rose-100 px-1.5 py-0.5 rounded uppercase">Transferred Out</span>
+              )}
+              {s.isTransferredIn && (
+                <span className="text-[9px] font-black text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded uppercase">Transferred In</span>
+              )}
             </div>
-            {s.weight && s.height ? (
-              <div className={`flex items-center gap-2 ml-2 border-l border-${variant}-100 pl-2`}>
-                <Activity size={10} className={`text-${variant}-400`} />
-                <span className={`text-[9px] font-black text-indigo-600 uppercase italic`}>
-                  BMI: {computeBMI(s.weight, s.height).bmi} ({computeBMI(s.weight, s.height).category})
+            <div className="flex flex-wrap items-center gap-2 mt-1">
+              <span className={`text-[10px] font-mono text-${variant}-400 uppercase tracking-tighter`}>{s.lrn}</span>
+              {s.dateOfFirstAttendance && (
+                <span className={`text-[10px] text-${variant}-500 font-bold flex items-center gap-1 border-l border-${variant}-100 pl-2`}>
+                  <Calendar size={10} />
+                  {s.dateOfFirstAttendance}
                 </span>
+              )}
+              {s.email && <span className={`text-[10px] text-${variant}-300 font-medium lowercase`}>({s.email})</span>}
+              {(s.status === 'Dropped Out' || s.status === 'Transferred Out') && s.dropoutDate && (
+                <span className={`text-[10px] text-rose-600 font-bold flex items-center gap-1 border-l border-${variant}-100 pl-2 italic uppercase tracking-tighter`}>
+                  <Calendar size={10} />
+                  {s.status === 'Dropped Out' ? 'Dropped' : 'Transferred'}: {s.dropoutDate}{s.dropoutReason ? ` - ${s.dropoutReason}` : ''}
+                </span>
+              )}
+              <div className={`flex items-center gap-2 ml-2 border-l border-${variant}-100 pl-2`}>
+                <span className="text-[9px] font-black text-emerald-600 uppercase">P: {totalPresent}</span>
+                <span className="text-[9px] font-black text-rose-600 uppercase">A: {totalAbsent}</span>
               </div>
-            ) : null}
+              {s.weight && s.height ? (
+                <div className={`flex items-center gap-2 ml-2 border-l border-${variant}-100 pl-2`}>
+                  <Activity size={10} className={`text-${variant}-400`} />
+                  <span className={`text-[9px] font-black text-indigo-600 uppercase italic`}>
+                    BMI: {computeBMI(s.weight, s.height).bmi} ({computeBMI(s.weight, s.height).category})
+                  </span>
+                </div>
+              ) : null}
+            </div>
           </div>
         </div>
         
@@ -9269,7 +9373,7 @@ function IDPrintingCenterModal({
                               {displayName.charAt(0)}
                             </div>
                           )}
-                          <span className="text-[6px] font-black tracking-[0.2em] uppercase mt-1 px-1.5 py-0.5 rounded" style={{ background: `${theme.colorScheme.primaryHex}10`, color: theme.colorScheme.primaryHex }}>STUDENT ID</span>
+                          <span className="text-[6px] font-black tracking-[0.05em] uppercase mt-1 px-1.5 py-0.5 rounded" style={{ background: `${theme.colorScheme.primaryHex}10`, color: theme.colorScheme.primaryHex }}>LRN: {displayLrn}</span>
                         </div>
 
                         {/* Name and Grade indicators */}
@@ -9279,16 +9383,6 @@ function IDPrintingCenterModal({
                           </h4>
                           <div className="text-[5.5px] font-extrabold text-slate-500 uppercase tracking-wider mt-0.5">
                             {displayGradeSection}
-                          </div>
-                          <div className="text-[5px] font-bold text-slate-400 uppercase mt-0.5">
-                            {displayYear}
-                          </div>
-                        </div>
-
-                        {/* LRN representation */}
-                        <div className="w-full text-center z-10 flex flex-col items-center px-1">
-                          <div className="w-full rounded bg-slate-100 py-1 text-[7px] font-mono font-black tracking-wider truncate text-slate-800" style={{ accentColor: theme.colorScheme.primaryHex }}>
-                            {displayLrn}
                           </div>
                         </div>
                       </div>
@@ -9307,12 +9401,20 @@ function IDPrintingCenterModal({
                           {getWatermarkIcon()}
                         </div>
 
-                        {/* Top return instruction notes */}
-                        <div className="w-full z-10">
-                          <h5 className="text-[4.5px] font-black uppercase text-slate-400 tracking-widest leading-none">Return Policy & Directions</h5>
-                          <p className="text-[5px] text-slate-600 leading-tight font-bold mt-1 px-1 text-center">
-                            {emergencyNotes}
-                          </p>
+                        {/* Top aligned QR-code and Return policy grouped together */}
+                        <div className="w-full flex flex-col items-center gap-1 z-10 shrink-0">
+                          {includeBarcode && (
+                            <div className="p-0.5 bg-white shadow-sm border border-slate-200 shrink-0">
+                              <QRCode value={displayLrn} size={32} level="M" />
+                            </div>
+                          )}
+
+                          <div className="w-full">
+                            <h5 className="text-[4.5px] font-black uppercase text-slate-400 tracking-widest leading-none mt-1">Return Policy & Directions</h5>
+                            <p className="text-[4.5px] text-slate-600 leading-tight font-bold mt-0.5 px-1 text-center">
+                              {emergencyNotes}
+                            </p>
+                          </div>
                         </div>
 
                         {/* Emergency guardian setup */}
@@ -9327,11 +9429,6 @@ function IDPrintingCenterModal({
 
                         {/* Adviser confirmation panel */}
                         <div className="w-full z-10 mt-auto flex flex-col items-center pt-1.5">
-                          {includeBarcode && (
-                            <div className="mb-0.5 p-0.5 bg-white shadow-sm border border-slate-200 translate-y-0.5">
-                              <QRCode value={displayLrn} size={40} level="M" />
-                            </div>
-                          )}
                           <div className="w-20 border-b border-slate-350 mt-1" />
                           <p className="text-[6.5px] font-bold text-slate-800 mt-0.5 uppercase max-w-full truncate">{displayPrincipal}</p>
                           <p className="text-[4.5px] text-slate-400 uppercase font-bold tracking-widest leading-none">School Principal</p>
@@ -9391,7 +9488,7 @@ function IDPrintingCenterModal({
                             {displayName.charAt(0)}
                           </div>
                         )}
-                        <span className="text-[6.5px] font-black tracking-[0.2em] uppercase mt-1.5 px-2 py-0.5 rounded" style={{ background: `${theme.colorScheme.primaryHex}10`, color: theme.colorScheme.primaryHex }}>STUDENT ID</span>
+                        <span className="text-[6.5px] font-black tracking-[0.05em] uppercase mt-1.5 px-2 py-0.5 rounded" style={{ background: `${theme.colorScheme.primaryHex}10`, color: theme.colorScheme.primaryHex }}>LRN: {displayLrn}</span>
                       </div>
 
                       {/* Student Specs */}
@@ -9401,16 +9498,6 @@ function IDPrintingCenterModal({
                         </h4>
                         <div className="text-[6.5px] font-extrabold text-slate-500 uppercase tracking-wider mt-0.5">
                           {displayGradeSection}
-                        </div>
-                        <div className="text-[6px] font-bold text-slate-400 uppercase mt-0.5">
-                          {displayYear}
-                        </div>
-                      </div>
-
-                      {/* Bottom Segment / Barcode Block */}
-                      <div className="w-full text-center z-10 flex flex-col items-center px-1.5">
-                        <div className="w-full rounded bg-slate-100 py-1.5 text-[7.5px] font-mono font-black tracking-wider truncate text-slate-800" style={{ accentColor: theme.colorScheme.primaryHex }}>
-                          {displayLrn}
                         </div>
                       </div>
                     </div>
@@ -9430,12 +9517,20 @@ function IDPrintingCenterModal({
                         {getWatermarkIcon()}
                       </div>
 
-                      {/* Return Policy Block */}
-                      <div className="w-full z-10">
-                        <h5 className="text-[5px] font-black uppercase text-slate-400 tracking-widest">Return Policy & Directions</h5>
-                        <p className="text-[5.5px] text-slate-650 leading-relaxed font-bold mt-1 px-1 text-center">
-                          {emergencyNotes}
-                        </p>
+                      {/* Group QR Code and Return Policy together */}
+                      <div className="w-full flex flex-col items-center gap-1.5 z-10 shrink-0">
+                        {includeBarcode && (
+                          <div className="p-0.5 bg-white shadow-sm border border-slate-200 shrink-0">
+                            <QRCode value={displayLrn} size={36} level="M" />
+                          </div>
+                        )}
+
+                        <div className="w-full">
+                          <h5 className="text-[4.5px] font-black uppercase text-slate-400 tracking-widest leading-none mt-1">Return Policy & Directions</h5>
+                          <p className="text-[4.5px] text-slate-650 leading-tight font-bold mt-0.5 px-1 text-center">
+                            {emergencyNotes}
+                          </p>
+                        </div>
                       </div>
 
                       {/* Emergency Contact Block */}
@@ -9450,11 +9545,6 @@ function IDPrintingCenterModal({
 
                       {/* Adviser / Guardian Signature block */}
                       <div className="w-full z-10 mt-auto flex flex-col items-center pt-2">
-                        {includeBarcode && (
-                          <div className="mb-0.5 p-1 bg-white shadow-sm border border-slate-200 translate-y-0.5">
-                            <QRCode value={displayLrn} size={46} level="M" />
-                          </div>
-                        )}
                         <div className="w-24 border-b border-slate-350 mt-1" />
                         <p className="text-[7.5px] font-bold text-slate-800 mt-1 uppercase max-w-full truncate">{displayPrincipal}</p>
                         <p className="text-[5px] text-slate-400 uppercase font-bold tracking-widest">School Principal</p>
@@ -9803,7 +9893,7 @@ function IDPrintingCenterModal({
                                   {(formatStudentName(activePreviewStudent) || activePreviewStudent.name)?.charAt(0) || "-"}
                                 </div>
                               )}
-                              <span className="text-[8px] font-black tracking-[0.25em] uppercase mt-2 px-2 py-0.5 rounded-full select-none inline-block mx-auto" style={{ background: `${theme.colorScheme.primaryHex}10`, color: theme.colorScheme.primaryHex }}>STUDENT ID</span>
+                              <span className="text-[8px] font-black tracking-[0.1em] uppercase mt-2 px-2 py-0.5 rounded-full select-none inline-block mx-auto" style={{ background: `${theme.colorScheme.primaryHex}10`, color: theme.colorScheme.primaryHex }}>LRN: {activePreviewStudent.lrn || "---"}</span>
                             </div>
 
                             {/* Name details */}
@@ -9813,16 +9903,6 @@ function IDPrintingCenterModal({
                               </h4>
                               <div className="text-[8px] font-extrabold text-slate-500 uppercase tracking-wider mt-0.5">
                                 {formatGradeSection(section?.gradeLevel, section?.name)}
-                              </div>
-                              <div className="text-[7.5px] font-bold text-slate-400 uppercase mt-0.5">
-                                {section?.schoolYear || "SY 2025-2026"}
-                              </div>
-                            </div>
-
-                            {/* Barcode section removed from front */}
-                            <div className="w-full text-center z-10 flex flex-col items-center mt-2">
-                              <div className={`w-full rounded-xl py-1 text-[10px] font-mono font-black tracking-widest bg-slate-50 border border-slate-150`}>
-                                {activePreviewStudent.lrn || "---"}
                               </div>
                             </div>
                           </div>
@@ -9842,12 +9922,20 @@ function IDPrintingCenterModal({
                               {getWatermarkIcon()}
                             </div>
 
-                            {/* Instructions Header */}
-                            <div className="w-full z-10">
-                              <h5 className="text-[7px] font-black uppercase text-slate-400 tracking-widest leading-none">Return Policy & Directions</h5>
-                              <p className="text-[8px] text-slate-550 leading-relaxed font-semibold mt-2 px-1.5">
-                                {emergencyNotes || "If found, please return to the school administration office immediately."}
-                              </p>
+                            {/* Group QR Code and Return Policy together */}
+                            <div className="w-full flex flex-col items-center gap-1.5 z-10 shrink-0">
+                              {includeBarcode && (
+                                <div className="p-0.5 bg-white shadow-sm border border-slate-200 shrink-0">
+                                  <QRCode value={activePreviewStudent.lrn || "0000"} size={48} level="M" />
+                                </div>
+                              )}
+
+                              <div className="w-full">
+                                <h5 className="text-[7px] font-black uppercase text-slate-400 tracking-widest leading-none mt-1">Return Policy & Directions</h5>
+                                <p className="text-[7.5px] text-slate-550 leading-relaxed font-semibold mt-1 px-1.5">
+                                  {emergencyNotes || "If found, please return to the school administration office immediately."}
+                                </p>
+                              </div>
                             </div>
 
                             {/* Emergency Contacts Block */}
@@ -9866,11 +9954,6 @@ function IDPrintingCenterModal({
 
                             {/* Signature line space */}
                             <div className="w-full z-10 mt-auto flex flex-col items-center pt-2">
-                              {includeBarcode && (
-                                <div className="mb-1 p-1 bg-white shadow-sm border border-slate-200 translate-y-1">
-                                  <QRCode value={activePreviewStudent.lrn || "0000"} size={60} level="M" />
-                                </div>
-                              )}
                               <div className="w-28 border-b border-slate-300 mt-1.5" />
                               <p className="text-[10px] font-bold text-slate-800 mt-1 uppercase max-w-full truncate">{schoolHead}</p>
                               <p className="text-[7px] text-slate-400 uppercase font-black tracking-wider leading-none font-bold">School Principal</p>
@@ -9931,7 +10014,7 @@ function IDPrintingCenterModal({
                                 {formatStudentName(activePreviewStudent).charAt(0) || activePreviewStudent.name?.charAt(0) || "-"}
                               </div>
                             )}
-                            <span className="text-[8px] font-black tracking-[0.25em] uppercase mt-2 px-2 py-0.5 rounded-full select-none inline-block mx-auto" style={{ background: `${theme.colorScheme.primaryHex}10`, color: theme.colorScheme.primaryHex }}>STUDENT ID</span>
+                            <span className="text-[8px] font-black tracking-[0.1em] uppercase mt-2 px-2 py-0.5 rounded-full select-none inline-block mx-auto" style={{ background: `${theme.colorScheme.primaryHex}10`, color: theme.colorScheme.primaryHex }}>LRN: {activePreviewStudent.lrn || "---"}</span>
                           </div>
 
                           {/* Name Block */}
@@ -9941,16 +10024,6 @@ function IDPrintingCenterModal({
                             </h4>
                             <div className="text-[8px] font-extrabold text-slate-500 uppercase tracking-wider mt-0.5">
                               {formatGradeSection(section?.gradeLevel, section?.name)}
-                            </div>
-                            <div className="text-[7.5px] font-bold text-slate-400 uppercase mt-0.5 font-semibold">
-                              {section?.schoolYear || "SY 2025-2026"}
-                            </div>
-                          </div>
-
-                          {/* Barcode Mock removed from front */}
-                          <div className="w-full text-center z-10 flex flex-col items-center mt-2">
-                            <div className={`w-full rounded-xl py-1 text-[11px] font-mono font-black tracking-widest bg-slate-50 border border-slate-150`}>
-                              {activePreviewStudent.lrn || "---"}
                             </div>
                           </div>
                         </div>
@@ -9973,12 +10046,20 @@ function IDPrintingCenterModal({
                             {getWatermarkIcon()}
                           </div>
 
-                          {/* Instructions Header */}
-                          <div className="w-full z-10">
-                            <h5 className="text-[7px] font-black uppercase text-slate-400 tracking-widest">Return Policy & Directions</h5>
-                            <p className="text-[8.5px] text-slate-550 leading-relaxed font-semibold mt-2 px-1.5">
-                              {emergencyNotes || "If found, please return to the school administration office immediately."}
-                            </p>
+                          {/* Group QR Code and Return Policy together */}
+                          <div className="w-full flex flex-col items-center gap-1.5 z-10 shrink-0">
+                            {includeBarcode && (
+                              <div className="p-0.5 bg-white shadow-sm border border-slate-200 shrink-0">
+                                <QRCode value={activePreviewStudent.lrn || "0000"} size={52} level="M" />
+                              </div>
+                            )}
+
+                            <div className="w-full">
+                              <h5 className="text-[7px] font-black uppercase text-slate-400 tracking-widest leading-none mt-1">Return Policy & Directions</h5>
+                              <p className="text-[7.5px] text-slate-550 leading-relaxed font-semibold mt-1 px-1.5">
+                                {emergencyNotes || "If found, please return to the school administration office immediately."}
+                              </p>
+                            </div>
                           </div>
 
                           {/* Emergency Contacts Block */}
@@ -9997,11 +10078,6 @@ function IDPrintingCenterModal({
 
                           {/* Signature line space */}
                           <div className="w-full z-10 mt-auto flex flex-col items-center pt-2">
-                            {includeBarcode && (
-                              <div className="mb-1 p-1 bg-white shadow-sm border border-slate-200 translate-y-1">
-                                <QRCode value={activePreviewStudent.lrn || "0000"} size={64} level="M" />
-                              </div>
-                            )}
                             <div className="w-28 border-b border-slate-300 mt-1.5" />
                             <p className="text-[10px] font-bold text-slate-800 mt-1 uppercase max-w-full truncate">{schoolHead}</p>
                             <p className="text-[7px] text-slate-400 uppercase font-black tracking-wider leading-none">School Principal</p>
@@ -10147,6 +10223,52 @@ function EditLearnerModal({
   isActiveSY?: boolean
 }) {
   const [activeTab, setActiveTab] = useState<'basic' | 'attendance'>('basic');
+
+  const photoInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || !e.target.files[0]) return;
+    const file = e.target.files[0];
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const MAX_WIDTH = 150;
+        const MAX_HEIGHT = 192;
+        
+        let width = img.width;
+        let height = img.height;
+        
+        const targetRatio = 35 / 45;
+        let sourceX = 0;
+        let sourceY = 0;
+        let sourceWidth = img.width;
+        let sourceHeight = img.height;
+        
+        if (width / height > targetRatio) {
+          sourceWidth = height * targetRatio;
+          sourceX = (width - sourceWidth) / 2;
+        } else {
+          sourceHeight = width / targetRatio;
+          sourceY = (height - sourceHeight) / 2;
+        }
+        
+        canvas.width = MAX_WIDTH;
+        canvas.height = MAX_HEIGHT;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(img, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, MAX_WIDTH, MAX_HEIGHT);
+          const compressedBase64 = canvas.toDataURL("image/jpeg", 0.85);
+          setForm((prev: any) => ({ ...prev, photo: compressedBase64 }));
+        }
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  };
   
   return (
     <motion.div 
@@ -10183,49 +10305,93 @@ function EditLearnerModal({
             {activeTab === 'basic' ? (
           <form onSubmit={onSave} className="space-y-6">
           <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-600 uppercase tracking-widest">Last Name</label>
+            <div className="flex flex-col md:flex-row gap-6 items-start">
+              {/* Photo Upload Zone */}
+              <div className="flex flex-col items-center gap-2 w-full md:w-auto shrink-0 border-r-0 md:border-r border-slate-100 pr-0 md:pr-6 pb-4 md:pb-0">
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Student Profile Photo</span>
+                <div 
+                  onClick={() => photoInputRef.current?.click()}
+                  className="group relative cursor-pointer overflow-hidden rounded-2xl border-2 border-dashed border-slate-200 hover:border-blue-500 bg-slate-50 transition-all flex flex-col items-center justify-center text-center shadow-inner"
+                  style={{ width: '110px', height: '141px' }}
+                >
+                  {form.photo ? (
+                    <>
+                      <img src={form.photo} alt="Student Preview" className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-[10px] font-bold uppercase tracking-wider gap-1 pt-1">
+                        <Camera size={16} className="text-white" />
+                        <span>Change</span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex flex-col items-center p-3">
+                      <Camera size={24} className="text-slate-350 group-hover:text-blue-500 transition-colors mb-2" />
+                      <span className="text-[9px] font-bold text-slate-400 group-hover:text-blue-500 transition-colors uppercase tracking-widest leading-none">Choose Photo</span>
+                      <span className="text-[7px] text-slate-350 mt-1 uppercase tracking-tighter">Passport Size</span>
+                    </div>
+                  )}
+                </div>
                 <input 
-                  type="text"
-                  placeholder="e.g. Dela Cruz"
-                  value={form.lastName || ''}
-                  onChange={e => setForm({...form, lastName: capitalizeName(e.target.value)})}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none text-sm font-medium"
+                  type="file" 
+                  ref={photoInputRef}
+                  onChange={handleImageFileChange}
+                  accept="image/*"
+                  className="hidden" 
                 />
+                {form.photo && (
+                  <button 
+                    type="button" 
+                    onClick={() => setForm((prev: any) => ({ ...prev, photo: "" }))}
+                    className="text-[9px] font-black text-rose-500 uppercase tracking-wider hover:text-rose-600 transition-all border border-rose-100 bg-rose-50/50 hover:bg-rose-50 px-2 py-1 rounded-md"
+                  >
+                    Remove Photo
+                  </button>
+                )}
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-600 uppercase tracking-widest">First Name</label>
-                <input 
-                  type="text"
-                  placeholder="e.g. Juan"
-                  value={form.firstName || ''}
-                  onChange={e => setForm({...form, firstName: capitalizeName(e.target.value)})}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none text-sm font-medium"
-                />
-              </div>
+              <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-600 uppercase tracking-widest">Last Name</label>
+                  <input 
+                    type="text"
+                    placeholder="e.g. Dela Cruz"
+                    value={form.lastName || ''}
+                    onChange={e => setForm({...form, lastName: capitalizeName(e.target.value)})}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none text-sm font-medium"
+                  />
+                </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-600 uppercase tracking-widest">Middle Name</label>
-                <input 
-                  type="text"
-                  placeholder="e.g. Proto"
-                  value={form.middleName || ''}
-                  onChange={e => setForm({...form, middleName: capitalizeName(e.target.value)})}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none text-sm font-medium"
-                />
-              </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-600 uppercase tracking-widest">First Name</label>
+                  <input 
+                    type="text"
+                    placeholder="e.g. Juan"
+                    value={form.firstName || ''}
+                    onChange={e => setForm({...form, firstName: capitalizeName(e.target.value)})}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none text-sm font-medium"
+                  />
+                </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-600 uppercase tracking-widest">Name Ext.</label>
-                <input 
-                  type="text"
-                  placeholder="e.g. Jr, III"
-                  value={form.extension || ''}
-                  onChange={e => setForm({...form, extension: capitalizeName(e.target.value)})}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none text-sm font-medium"
-                />
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-600 uppercase tracking-widest">Middle Name</label>
+                  <input 
+                    type="text"
+                    placeholder="e.g. Proto"
+                    value={form.middleName || ''}
+                    onChange={e => setForm({...form, middleName: capitalizeName(e.target.value)})}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none text-sm font-medium"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-600 uppercase tracking-widest">Name Ext.</label>
+                  <input 
+                    type="text"
+                    placeholder="e.g. Jr, III"
+                    value={form.extension || ''}
+                    onChange={e => setForm({...form, extension: capitalizeName(e.target.value)})}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none text-sm font-medium"
+                  />
+                </div>
               </div>
             </div>
             
