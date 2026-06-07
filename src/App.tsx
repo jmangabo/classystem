@@ -4,6 +4,8 @@
  */
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
+import { createPortal } from "react-dom";
+import { motion } from "framer-motion";
 import QRCode from "react-qr-code";
 import * as XLSX from "xlsx-js-style";
 import jsPDF from "jspdf";
@@ -80,7 +82,9 @@ import {
   Tag,
   FileSpreadsheet,
   ExternalLink,
-  Camera
+  Camera,
+  Save,
+  Info
 } from "lucide-react";
 
 import { SystemDocumentationView } from "./components/SystemDocumentationView";
@@ -464,7 +468,7 @@ function SectionStatsDisplay({ sectionId, schoolYear, schoolCalendar }: { sectio
     </div>
   );
 }
-import { motion, AnimatePresence } from "motion/react";
+import { AnimatePresence } from "framer-motion";
 import { 
   LineChart, 
   Line, 
@@ -502,7 +506,7 @@ import {
 } from "firebase/firestore";
 import { auth, db, handleFirestoreError, safeGetDoc as getDoc, safeGetDocs as getDocs } from "./firebase";
 import { Subject, Student, Course, TermNumber, RatedValue, Section, UserProfile, School, Eligibility, AnecdotalRecord } from "./types";
-import { formatStudentName, capitalizeName, capitalizeFirst, getSubjectSortScore } from "./utils";
+import { formatStudentName, capitalizeName, capitalizeFirst, getSubjectSortScore, printHTMLContent } from "./utils";
 import { INITIAL_STUDENTS, DEFAULT_TERM_DATA } from "./constants";
 import { AttendanceCard } from "./components/AttendanceCard";
 import { DailyAttendanceTracker } from "./components/DailyAttendanceTracker";
@@ -8031,7 +8035,7 @@ function AddLearnerView({
             >
               <HistoryIcon size={14} />
             </button>
-            {isSectionAdviser && (
+            {(isSectionAdviser || isSystemAdmin) && (
               <button 
                 onClick={(e) => { 
                   e.stopPropagation(); 
@@ -8517,7 +8521,7 @@ function AddLearnerView({
                 <Download size={16} />
                 Download CSV Template
               </button>
-              {isSectionAdviser && students.length > 0 && (
+              {(isSectionAdviser || isSystemAdmin) && students.length > 0 && (
                 <button
                   type="button"
                   onClick={() => {
@@ -8702,11 +8706,12 @@ function AddLearnerView({
       )}
 
       {/* ID Printing Center Modal */}
-      {showIDPrintModal && isSectionAdviser && (
+      {showIDPrintModal && (isSectionAdviser || isSystemAdmin) && (
         <IDPrintingCenterModal 
           students={students} 
           preselectedStudent={idPrintPreselectedStudent}
           section={section}
+          globalSettings={globalSettings}
           onClose={() => {
             setShowIDPrintModal(false);
             setIdPrintPreselectedStudent(null);
@@ -8718,10 +8723,49 @@ function AddLearnerView({
 }
 
 
+const DraggableField = ({ id, children, offsets, setOffsets, isEditMode, className = "", style = {} }: any) => {
+  const offset = offsets[id] || { x: 0, y: 0 };
+  
+  const handleDragEnd = (event: any, info: any) => {
+    setOffsets((prev: any) => ({
+      ...prev,
+      [id]: {
+        x: (prev[id]?.x || 0) + info.offset.x,
+        y: (prev[id]?.y || 0) + info.offset.y
+      }
+    }));
+  };
+
+  return isEditMode ? (
+    <motion.div
+      drag
+      dragMomentum={false}
+      onDragEnd={handleDragEnd}
+      style={{ ...style, cursor: 'move', zIndex: 50, touchAction: 'none' }} 
+      animate={{ x: offset.x, y: offset.y }}
+      transition={{ type: 'spring', bounce: 0, duration: 0.1 }}
+      className={`${className} outline-2 outline-dashed outline-indigo-500 bg-indigo-50/10 transition-all relative select-none rounded`}
+    >
+      <div className="absolute -top-3.5 -left-1 bg-indigo-600 text-[6px] text-white px-1.5 py-0.5 rounded shadow-sm font-black tracking-widest uppercase pointer-events-none z-50 select-none scale-90 whitespace-nowrap">
+        🎯 {id.replace('-', ' ')}
+      </div>
+      {children}
+    </motion.div>
+  ) : (
+    <div
+      style={{ ...style, transform: `translate(${offset.x}px, ${offset.y}px)` }}
+      className={className}
+    >
+      {children}
+    </div>
+  );
+};
+
 interface IDPrintingCenterModalProps {
   students: Student[];
   preselectedStudent: Student | null;
   section: Section | null | undefined;
+  globalSettings?: any;
   onClose: () => void;
 }
 
@@ -8729,6 +8773,7 @@ function IDPrintingCenterModal({
   students,
   preselectedStudent,
   section,
+  globalSettings,
   onClose
 }: IDPrintingCenterModalProps) {
   // Select all by default or preselect the single student
@@ -8745,7 +8790,7 @@ function IDPrintingCenterModal({
   const [layoutType, setLayoutType] = useState<'front-back-vertical' | 'front-back' | 'front-only' | 'back-only'>('front-back-vertical');
   const [includePhotoBox, setIncludePhotoBox] = useState(true);
   const [includeBarcode, setIncludeBarcode] = useState(true);
-  const [watermarkLogo, setWatermarkLogo] = useState<'shield' | 'star' | 'book'>('shield');
+  const [watermarkLogo, setWatermarkLogo] = useState<'shield' | 'star' | 'book' | 'school'>('school');
   
   const [emergencyNotes, setEmergencyNotes] = useState(
     "This card is non-transferable and must be worn inside the school premises at all times. If recovered, please return to the school administration."
@@ -8759,6 +8804,11 @@ function IDPrintingCenterModal({
   const [schoolHead, setSchoolHead] = useState<string>("School Principal");
   const [schoolLogo, setSchoolLogo] = useState<string | null>(null);
 
+  // New customizable fields for drag-and-drop template
+  const [fontFamily, setFontFamily] = useState<string>('Inter');
+  const [isDragMode, setIsDragMode] = useState<boolean>(false);
+  const [elementOffsets, setElementOffsets] = useState<Record<string, {x: number, y: number}>>({});
+
   useEffect(() => {
     const fetchSchoolData = async () => {
       if (!section?.schoolId) return;
@@ -8771,6 +8821,20 @@ function IDPrintingCenterModal({
           const schoolData = docSnap.data();
           if (schoolData.headOfSchool) setSchoolHead(schoolData.headOfSchool);
           if (schoolData.schoolLogo) setSchoolLogo(schoolData.schoolLogo);
+          
+          if (schoolData.idTemplate) {
+            const template = schoolData.idTemplate;
+            if (template.cardTheme) setCardTheme(template.cardTheme);
+            if (template.orientation) setOrientation(template.orientation);
+            if (template.layoutType) setLayoutType(template.layoutType);
+            if (template.includePhotoBox !== undefined) setIncludePhotoBox(template.includePhotoBox);
+            if (template.includeBarcode !== undefined) setIncludeBarcode(template.includeBarcode);
+            if (template.watermarkLogo) setWatermarkLogo(template.watermarkLogo);
+            if (template.emergencyNotes) setEmergencyNotes(template.emergencyNotes);
+            if (template.contactNumber) setContactNumber(template.contactNumber);
+            if (template.fontFamily) setFontFamily(template.fontFamily);
+            if (template.elementOffsets) setElementOffsets(template.elementOffsets);
+          }
         }
       } catch (err) {
         console.error("Error fetching school data:", err);
@@ -8778,6 +8842,39 @@ function IDPrintingCenterModal({
     };
     fetchSchoolData();
   }, [section?.schoolId]);
+
+  const handleSaveTemplate = async () => {
+    if (!section?.schoolId) {
+      alert("No School ID found to save template");
+      return;
+    }
+    try {
+      const schoolsRef = collection(db, "schools");
+      const q = query(schoolsRef, where("schoolId", "==", section.schoolId));
+      const querySnapshot = await getDocs(q);
+      if (!querySnapshot.empty) {
+        const docRef = querySnapshot.docs[0].ref;
+        await updateDoc(docRef, {
+          idTemplate: {
+            cardTheme,
+            orientation,
+            layoutType,
+            includePhotoBox,
+            includeBarcode,
+            watermarkLogo,
+            emergencyNotes,
+            contactNumber,
+            fontFamily,
+            elementOffsets
+          }
+        });
+        alert("ID Template saved to school successfully!");
+      }
+    } catch (e) {
+      console.error("Error saving template", e);
+      alert("Failed to save template");
+    }
+  };
 
   // Filter students based on search term
   const searchedStudents = useMemo(() => {
@@ -8839,16 +8936,29 @@ function IDPrintingCenterModal({
   // Get SVG watermark icon
   const getWatermarkIcon = () => {
     switch (watermarkLogo) {
+      case 'school':
+        if (schoolLogo || (globalSettings as any)?.schoolLogo) {
+          const logoToUse = schoolLogo || (globalSettings as any)?.schoolLogo;
+          return (
+             <img src={logoToUse} alt="" className="w-[60%] h-[60%] object-contain" referrerPolicy="no-referrer" />
+          );
+        }
+        // Fallback to shield if no school logo
+        return (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-[60%] h-[60%]">
+            <path strokeWidth={1} d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+          </svg>
+        );
       case 'star':
         return (
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-24 h-24 text-slate-450 opacity-[0.06] select-none pointer-events-none">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-[60%] h-[60%]">
             <circle cx={12} cy={12} r={10} strokeWidth={1} />
             <path strokeWidth={1} d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
           </svg>
         );
       case 'book':
         return (
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-24 h-24 text-slate-450 opacity-[0.06] select-none pointer-events-none">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-[60%] h-[60%]">
             <path strokeWidth={1} d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
             <path strokeWidth={1} d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
           </svg>
@@ -8856,7 +8966,7 @@ function IDPrintingCenterModal({
       case 'shield':
       default:
         return (
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-24 h-24 text-slate-450 opacity-[0.06] select-none pointer-events-none">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-[60%] h-[60%]">
             <path strokeWidth={1} d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
           </svg>
         );
@@ -9023,12 +9133,6 @@ function IDPrintingCenterModal({
       return;
     }
 
-    const printWindow = window.open("", "_blank");
-    if (!printWindow) {
-      alert("Could not open print window. Please disable your browser's pop-up blocker and try again.");
-      return;
-    }
-
     const contentHTML = payloadEl.innerHTML;
 
     const pageHTML = `
@@ -9126,6 +9230,26 @@ function IDPrintingCenterModal({
       height: 54mm !important;
     }
 
+    .id-print-watermark {
+      position: absolute !important;
+      inset: 0 !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      pointer-events: none !important;
+      user-select: none !important;
+      z-index: 0 !important;
+      opacity: 0.1 !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      color: #94a3b8 !important;
+    }
+    .id-print-watermark img, .id-print-watermark svg {
+      filter: grayscale(100%) !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+
     .id-print-banner {
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
@@ -9152,18 +9276,23 @@ function IDPrintingCenterModal({
       }
       @page {
         size: A4 portrait;
-        margin: 8mm 6mm !important;
+        margin: 5mm 5mm !important;
       }
       * {
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
       }
     }
+    @media print {
+      .print-banner {
+        display: none !important;
+      }
+    }
   </style>
 </head>
 <body>
   <!-- Print Controls Banner -->
-  <div class="no-print bg-slate-900 text-white px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shadow-md sticky top-0 z-50">
+  <div class="print-banner no-print bg-slate-900 text-white px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shadow-md sticky top-0 z-50">
     <div class="flex items-center gap-3">
       <div class="p-2 bg-indigo-600 rounded-lg text-white">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -9172,7 +9301,7 @@ function IDPrintingCenterModal({
       </div>
       <div>
         <h1 class="text-sm font-extrabold tracking-tight">System Printed ID Page Generator</h1>
-        <p class="text-[10px] text-slate-300 font-bold uppercase tracking-wider">A4 Sheet Page Alignment Configured</p>
+        <p class="text-[10px] text-slate-300 font-bold uppercase tracking-wider">Printing automatically... (Popups enabled)</p>
       </div>
     </div>
     
@@ -9180,15 +9309,6 @@ function IDPrintingCenterModal({
       <span class="text-xs text-slate-300 font-semibold bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700">
         Cards count: <strong class="text-white">${selectedIds.size}</strong>
       </span>
-      <button 
-        onclick="window.print()" 
-        class="bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs uppercase px-5 py-2.5 rounded-lg transition-all shadow-lg flex items-center gap-1.5 active:scale-95"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-        </svg>
-        Trigger Printer
-      </button>
       <button 
         onclick="window.close()" 
         class="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-black text-xs uppercase px-4 py-2.5 rounded-lg transition-all"
@@ -9203,19 +9323,18 @@ function IDPrintingCenterModal({
     ${contentHTML}
   </div>
 
-  <!-- Guidelines Helper Overlay -->
-  <div class="no-print max-w-4xl mx-auto my-12 p-6 bg-indigo-50 border border-indigo-100 rounded-2xl shadow-sm text-center">
-    <h3 class="text-xs font-black text-indigo-900 uppercase tracking-widest mb-2">💡 Quick Printing Setup Tip</h3>
-    <p class="text-xs text-indigo-700 leading-relaxed font-semibold">
-      For perfect printing alignment and background graphics, open your print options, confirm that <strong>"Background graphics"</strong> (or "Background images") is enabled/selected, and set margins to <strong>"None"</strong> or <strong>"Default"</strong>.
-    </p>
-  </div>
+  <script>
+    window.onload = function() {
+      window.onafterprint = function() { window.close(); };
+      window.onfocus = function() { setTimeout(function() { window.close(); }, 800); };
+      setTimeout(function() { window.print(); }, 500);
+    };
+  </script>
 </body>
 </html>
     `;
 
-    printWindow.document.write(pageHTML);
-    printWindow.document.close();
+    printHTMLContent(pageHTML);
   };
 
   return (
@@ -9227,20 +9346,24 @@ function IDPrintingCenterModal({
     >
       {/* Printable Sheet View - Hidden in standard UI, displayed exclusively on Print */}
       <style dangerouslySetInnerHTML={{ __html: `
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Space+Grotesk:wght@400;500;700&family=Cinzel:wght@400;700;900&family=Caveat:wght@400;700&display=swap');
+
+        .id-font-family-container, 
+        .id-font-family-container *, 
+        .id-font-family-container span, 
+        .id-font-family-container p, 
+        .id-font-family-container div, 
+        .id-font-family-container h4, 
+        .id-font-family-container h5 {
+          font-family: inherit !important;
+        }
+
         @media print {
           body > * {
             display: none !important;
           }
           #id-print-payload-area {
             display: block !important;
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
-            width: 100% !important;
-            height: auto !important;
-            background: white !important;
-            padding: 0 !important;
-            margin: 0 !important;
           }
           @page {
             size: A4 portrait;
@@ -9255,37 +9378,59 @@ function IDPrintingCenterModal({
             box-sizing: border-box !important;
             margin: 0 auto !important;
           }
-          .id-print-card-box {
-            display: flex !important;
-            flex-direction: column !important;
+          .id-print-card-cell {
             width: 54mm !important;
             height: 86mm !important;
-            border: 1px solid #cbd5e1 !important;
-            border-radius: 4.5mm !important;
+            position: relative !important;
             overflow: hidden !important;
-            background: white !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
-            position: relative !important;
             box-sizing: border-box !important;
+            border: 1px solid #cbd5e1 !important;
+            border-radius: 4.5mm !important;
+            background: white !important;
             margin-bottom: 5px !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
-          .id-print-card-box-vertical {
-            display: flex !important;
-            flex-direction: column !important;
+          .id-print-card-cell-vertical {
             width: 54mm !important;
             height: 172mm !important;
-            border: 1px solid #cbd5e1 !important;
-            border-radius: 4.5mm !important;
+            position: relative !important;
             overflow: hidden !important;
-            background: white !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
-            position: relative !important;
             box-sizing: border-box !important;
+            border: 1px solid #cbd5e1 !important;
+            border-radius: 4.5mm !important;
+            background: white !important;
             margin-bottom: 5px !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          .id-print-card-scalable {
+            width: 240px !important;
+            height: 382px !important;
+            transform: scale(0.85) !important;
+            transform-origin: top left !important;
+            position: absolute !important;
+            top: 0 !important;
+            left: 0 !important;
+            background: white !important;
+            box-sizing: border-box !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          .id-print-card-scalable-vertical {
+            width: 240px !important;
+            height: 764px !important;
+            transform: scale(0.85) !important;
+            transform-origin: top left !important;
+            position: absolute !important;
+            top: 0 !important;
+            left: 0 !important;
+            background: white !important;
+            box-sizing: border-box !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
@@ -9293,6 +9438,27 @@ function IDPrintingCenterModal({
             width: 86mm !important;
             height: 54mm !important;
           }
+
+          .id-print-watermark {
+            position: absolute !important;
+            inset: 0 !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            pointer-events: none !important;
+            user-select: none !important;
+            z-index: 0 !important;
+            opacity: 0.1 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            color: #94a3b8 !important;
+          }
+          .id-print-watermark img, .id-print-watermark svg {
+            filter: grayscale(100%) !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+
           .id-print-banner {
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
@@ -9300,272 +9466,297 @@ function IDPrintingCenterModal({
         }
       `}} />
 
-      {/* Actual Hidden print document payload */}
-      <div id="id-print-payload-area" className="hidden">
-        <div className="id-print-grid">
-          {selectedStudentsToPrint.map((s) => {
-            const displayLrn = s.lrn || "---";
-            const displayName = formatStudentName(s) || "N/A";
-            const displayYear = section?.schoolYear || "SY 2025-2026";
-            const displayGradeSection = formatGradeSection(section?.gradeLevel, section?.name);
-            const displayPrincipal = schoolHead || "School Principal";
-            let displayGuardian = s.guardianName || s.fatherName || s.motherName || "Guardian Signature";
-            let displayRelationship = s.guardianRelationship || (s.fatherName ? "Father" : s.motherName ? "Mother" : "Guardian");
-            if (s.primaryContact === 'father' && s.fatherName) {
-              displayGuardian = s.fatherName;
-              displayRelationship = "Father";
-            } else if (s.primaryContact === 'mother' && s.motherName) {
-              displayGuardian = s.motherName;
-              displayRelationship = "Mother";
-            } else if (s.primaryContact === 'guardian' && s.guardianName) {
-              displayGuardian = s.guardianName;
-              displayRelationship = s.guardianRelationship || "Guardian";
-            }
-            const studentContactNum = s.contactNumber || contactNumber;
-            
-            return (
-              <React.Fragment key={s.id}>
-                {/* Brand-new Foldable ID layout (A4 top Front - bottom Back combined vertical container) */}
-                {layoutType === 'front-back-vertical' && (
-                  <div className="id-print-card-box-vertical" style={{ width: '54mm', height: '172mm', display: 'flex', flexDirection: 'column', position: 'relative', border: `1px solid ${theme.colorScheme.primaryHex}44` }}>
-                    
-                    {/* Fold marker indicator line */}
-                    <div className="absolute top-[86mm] left-0 right-0 border-t border-dashed border-slate-300 z-50 pointer-events-none" />
-
-                    {/* FRONT SIDE CARD COMPONENT (Top half of vertical block) */}
-                    <div style={{ width: '54mm', height: '86mm', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
-                      {/* Top Accent line banner */}
-                      <div className="h-1 bg-amber-500 w-full" />
-                      
-                      {/* School Heading block */}
-                      <div className="py-1.5 px-2 flex flex-col items-center justify-center gap-1 id-print-banner" style={{ background: theme.colorScheme.primaryHex, color: '#ffffff' }}>
-                        {schoolLogo && <img src={schoolLogo} className="w-[28px] h-[28px] object-contain shrink-0 rounded-full bg-white border border-white/20 shadow-sm" referrerPolicy="no-referrer" />}
-                        <div className="text-center w-full">
-                          <p className="text-[5px] uppercase tracking-widest leading-none font-bold opacity-85 mt-0.5">Republic of the Philippines</p>
-                          <p className="text-[5px] uppercase tracking-widest leading-none font-extrabold mt-0.5 opacity-95">Department of Education</p>
-                          <p className="text-[7.5px] uppercase tracking-tight font-black leading-tight mt-1 truncate max-w-full" style={{ color: cardTheme === 'presidential' ? '#fbbf24' : '#ffffff' }}>
-                            {section?.schoolName || "Matatag High School"}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Card contents with custom Watermark Backdrop */}
-                      <div className="flex-1 flex flex-col items-center justify-between p-2 relative overflow-hidden bg-white">
-                        {/* Selected theme Watermark */}
-                        <div className="absolute inset-0 flex items-center justify-center opacity-[0.06] pointer-events-none select-none">
-                          {getWatermarkIcon()}
+      {/* Actual Hidden print document payload portaled to document.body to not affect normal flow */}
+      {createPortal(
+      <div id="id-print-payload-area" className="hidden print:block">
+        {Array.from({ length: Math.ceil(selectedStudentsToPrint.length / 3) }).map((_, pageIndex) => {
+          return (
+          <div key={pageIndex} style={{ pageBreakAfter: 'always' }}>
+            <div className="id-print-grid">
+            {selectedStudentsToPrint.slice(pageIndex * 3, pageIndex * 3 + 3).map((s) => {
+              const displayLrn = s.lrn || "---";
+              const displayName = formatStudentName(s) || "N/A";
+              const displayYear = section?.schoolYear || "SY 2025-2026";
+              const displayGradeSection = formatGradeSection(section?.gradeLevel, section?.name);
+              const displayPrincipal = schoolHead || "School Principal";
+              let displayGuardian = s.guardianName || s.fatherName || s.motherName || "Guardian Signature";
+              let displayRelationship = s.guardianRelationship || (s.fatherName ? "Father" : s.motherName ? "Mother" : "Guardian");
+              if (s.primaryContact === 'father' && s.fatherName) {
+                displayGuardian = s.fatherName;
+                displayRelationship = "Father";
+              } else if (s.primaryContact === 'mother' && s.motherName) {
+                displayGuardian = s.motherName;
+                displayRelationship = "Mother";
+              } else if (s.primaryContact === 'guardian' && s.guardianName) {
+                displayGuardian = s.guardianName;
+                displayRelationship = s.guardianRelationship || "Guardian";
+              }
+              const studentContactNum = s.contactNumber || contactNumber;
+              
+              return (
+                <React.Fragment key={s.id}>
+                  {/* Brand-new Foldable ID layout (A4 top Front - bottom Back combined vertical container) */}
+                  {layoutType === 'front-back-vertical' && (
+                    <div className="id-print-card-cell-vertical">
+                      <div className={`id-print-card-scalable-vertical rounded-3xl overflow-hidden border ${theme.cardBorder} flex flex-col relative`} style={{ fontFamily }}>
+                        {/* Fold separator marker line with tooltip */}
+                        <div className="absolute top-[382px] left-0 right-0 border-t-2 border-dashed border-slate-300 z-50 pointer-events-none flex items-center justify-center">
+                          <span className="text-[7px] font-black uppercase text-slate-400 bg-white px-2 py-0.5 border border-slate-200 rounded-full shadow-sm -mt-[6.5px]">Fold Marker Line</span>
                         </div>
 
-                        {/* Student profile Photo (Proportionally scaled to fit Foldable Front) */}
-                        <div className="z-10 mt-0.5 flex flex-col items-center text-center">
-                          {s.photo ? (
-                            <div className="overflow-hidden bg-slate-100 rounded border border-slate-300 shadow-sm" style={{ width: '28mm', height: '36mm', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                              <img src={s.photo} alt={displayName} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                        {/* Interactive combined front card component (top half) */}
+                        <div className="w-[240px] h-[382px] flex flex-col relative overflow-hidden">
+                          {/* Top accent */}
+                          <div className="h-1.5 w-full bg-amber-500" />
+                          
+                          {/* Header Block */}
+                          <DraggableField id="school-header" className={`py-3 px-3 flex flex-col items-center justify-center gap-1.5 transition-all ${theme.bannerBg}`} offsets={elementOffsets} setOffsets={() => {}} isEditMode={false}>
+                            {schoolLogo && <img src={schoolLogo} className="w-[38px] h-[38px] object-contain shrink-0 rounded-full bg-white border border-white/20 shadow-sm" referrerPolicy="no-referrer" />}
+                            <div className="text-center w-full">
+                              <p className="text-[6.5px] uppercase tracking-widest leading-none font-bold opacity-80 mt-0.5">Republic of the Philippines</p>
+                              <p className="text-[6.5px] uppercase tracking-widest leading-none font-black mt-0.5 opacity-90">Department of Education</p>
+                              <p className="text-[10px] uppercase tracking-tight font-black leading-tight mt-1 truncate max-w-full">
+                                {section?.schoolName || "Matatag High School"}
+                              </p>
                             </div>
-                          ) : includePhotoBox ? (
-                            <div className="border border-dashed rounded bg-slate-50/70 flex flex-col items-center justify-center" style={{ width: '28mm', height: '36mm', borderColor: `${theme.colorScheme.primaryHex}44` }}>
-                              <User size={16} className="text-slate-350 opacity-40" />
-                              <span className="text-[4px] uppercase tracking-tighter text-slate-400 font-extrabold mt-0.5">35mm x 45mm Photo</span>
-                              <span className="text-[3px] uppercase tracking-tighter text-slate-350 font-bold leading-none">Affix Photo Here</span>
+                          </DraggableField>
+
+                          {/* Body elements with watermark */}
+                          <div className="flex-1 flex flex-col items-center justify-between p-4 relative overflow-hidden bg-white" style={{ fontFamily }}>
+                            <div className="id-print-watermark absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none select-none z-0 overflow-hidden grayscale">
+                              {getWatermarkIcon()}
                             </div>
-                          ) : (
-                            <div className="w-8 h-8 rounded-full flex items-center justify-center bg-indigo-50 border border-slate-100 uppercase font-black text-xs" style={{ color: theme.colorScheme.primaryHex, background: `${theme.colorScheme.primaryHex}10` }}>
-                              {displayName.charAt(0)}
-                            </div>
-                          )}
-                          <span className="text-[6px] font-black tracking-[0.05em] uppercase mt-1 px-1.5 py-0.5 rounded" style={{ background: `${theme.colorScheme.primaryHex}10`, color: theme.colorScheme.primaryHex }}>LRN: {displayLrn}</span>
+
+                            {/* Photo (Proportionally scaled to match layout preview) */}
+                            <DraggableField id="student-photo" className="mt-1 flex flex-col items-center text-center z-10 w-full animate-fade-in" offsets={elementOffsets} setOffsets={() => {}} isEditMode={false}>
+                              {s.photo ? (
+                                <div className="overflow-hidden bg-slate-100 rounded-xl border border-slate-200 shadow-sm flex items-center justify-center mx-auto" style={{ width: '90px', height: '115px' }}>
+                                  <img src={s.photo} alt={displayName} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                </div>
+                              ) : includePhotoBox ? (
+                                <div className="border border-dashed rounded-xl flex flex-col items-center justify-center bg-slate-50/85 mx-auto" style={{ width: '90px', height: '115px', borderColor: theme.colorScheme.primaryHex + "44" }}>
+                                  <User size={24} className="text-slate-350 pointer-events-none opacity-40" />
+                                  <span className="text-[7px] uppercase tracking-wider text-slate-400 font-extrabold mt-1">35mm x 45mm Photo</span>
+                                  <span className="text-[5.5px] uppercase tracking-wider text-slate-350 font-bold leading-none">SF10 Source</span>
+                                </div>
+                              ) : (
+                                <div className="w-14 h-14 rounded-full flex items-center justify-center bg-indigo-50 border border-slate-100 uppercase font-black text-xl mx-auto" style={{ color: theme.colorScheme.primaryHex, background: `${theme.colorScheme.primaryHex}10` }}>
+                                  {displayName?.charAt(0) || "-"}
+                                </div>
+                              )}
+                              <span className="text-[8px] font-black tracking-[0.1em] uppercase mt-2 px-2 py-0.5 rounded-full select-none inline-block mx-auto" style={{ background: `${theme.colorScheme.primaryHex}10`, color: theme.colorScheme.primaryHex }}>LRN: {displayLrn}</span>
+                            </DraggableField>
+
+                            {/* Name details */}
+                            <DraggableField id="student-name" className="w-full text-center z-10 flex-grow flex flex-col justify-center min-h-[44px]" offsets={elementOffsets} setOffsets={() => {}} isEditMode={false}>
+                              <h4 className="text-[13px] font-black text-slate-900 leading-tight uppercase tracking-tight line-clamp-2 px-1">
+                                {displayName}
+                              </h4>
+                              <div className="text-[8px] font-extrabold text-slate-500 uppercase tracking-wider mt-0.5">
+                                {displayGradeSection}
+                              </div>
+                            </DraggableField>
+                          </div>
+
+                          {/* Base accent */}
+                          <div className="h-1.5 w-full" style={{ background: theme.colorScheme.primaryHex }} />
                         </div>
 
-                        {/* Name and Grade indicators */}
-                        <div className="w-full text-center z-10 flex-1 flex flex-col justify-center mt-0.5">
-                          <h4 className="text-[8.5px] font-black text-slate-900 leading-tight uppercase tracking-tight line-clamp-2 px-1">
-                            {displayName}
-                          </h4>
-                          <div className="text-[5.5px] font-extrabold text-slate-500 uppercase tracking-wider mt-0.5">
-                            {displayGradeSection}
+                        {/* Interactive combined back card component (bottom half) */}
+                        <div className="w-[240px] h-[382px] flex flex-col relative overflow-hidden">
+                          {/* Accent header */}
+                          <div className="h-1.5 w-full" style={{ background: theme.colorScheme.primaryHex }} />
+
+                          {/* Render interior backing card contents */}
+                          <div className="flex-grow flex flex-col items-center justify-between p-5 relative overflow-hidden bg-white text-center" style={{ fontFamily }}>
+                            <div className="id-print-watermark absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none select-none z-0 overflow-hidden grayscale">
+                              {getWatermarkIcon()}
+                            </div>
+
+                            {/* Group QR Code and Return Policy together */}
+                            <DraggableField id="qr-return" className="w-full flex flex-col items-center gap-1.5 z-10 shrink-0" offsets={elementOffsets} setOffsets={() => {}} isEditMode={false}>
+                              {includeBarcode && (
+                                <div className="p-0.5 bg-white shadow-sm border border-slate-200 shrink-0">
+                                  <QRCode value={displayLrn} size={48} level="M" />
+                                </div>
+                              )}
+
+                              <div className="w-full">
+                                <h5 className="text-[8px] font-black uppercase text-slate-400 tracking-widest leading-none mt-1">Return Policy & Directions</h5>
+                                <p className="text-[8px] text-slate-550 leading-relaxed font-semibold mt-1 px-2">
+                                  {emergencyNotes || "If found, please return to the school administration office immediately."}
+                                </p>
+                              </div>
+                            </DraggableField>
+
+                            {/* Emergency Contacts Block */}
+                            <DraggableField id="emergency-contact" className="w-full z-10 border-t border-dashed border-slate-200 pt-3 my-1" offsets={elementOffsets} setOffsets={() => {}} isEditMode={false}>
+                              <h5 className="text-[9px] font-black uppercase tracking-wider text-rose-600 leading-none">IN CASE OF EMERGENCY</h5>
+                              <p className="text-[11px] font-bold text-slate-800 mt-1 uppercase max-w-full truncate">
+                                {displayGuardian}
+                              </p>
+                              <p className="text-[8px] text-slate-550 uppercase font-black tracking-tight leading-none mt-0.5">
+                                Relationship: {displayRelationship}
+                              </p>
+                              <p className="text-[10px] font-mono font-bold text-slate-700 bg-slate-50 border border-slate-150 py-1 px-3 mt-1.5 rounded-full inline-block tracking-wider">
+                                {studentContactNum}
+                              </p>
+                            </DraggableField>
+
+                            {/* Signature line space */}
+                            <DraggableField id="signature" className="w-full z-10 mt-auto flex flex-col items-center pt-2" offsets={elementOffsets} setOffsets={() => {}} isEditMode={false}>
+                              <div className="w-28 border-b border-slate-300 mt-1.5" />
+                              <p className="text-[10px] font-bold text-slate-800 mt-1 uppercase max-w-full truncate">{schoolHead}</p>
+                              <p className="text-[7px] text-slate-450 uppercase font-black tracking-wider leading-none font-bold">School Principal</p>
+                            </DraggableField>
+
+                            {/* Fine-print school identifiers */}
+                            <div className="w-full z-10 border-t border-slate-100 pt-3 flex items-center justify-between text-[7px] text-slate-450 uppercase font-bold tracking-wider leading-none">
+                              <span>School ID: {section?.schoolId || "DEPED-10902"}</span>
+                              <span>OFFICIAL ACCESS</span>
+                            </div>
                           </div>
                         </div>
                       </div>
-                      
-                      {/* Accent base bottom bar */}
-                      <div className="h-0.5 w-full" style={{ background: theme.colorScheme.primaryHex }} />
                     </div>
+                  )}
 
-                    {/* BACK SIDE CARD COMPONENT (Bottom half of vertical block) */}
-                    <div style={{ width: '54mm', height: '86mm', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
-                      <div className="h-0.5 w-full" style={{ background: theme.colorScheme.primaryHex }} />
-                      
-                      {/* Back Panel layout contents */}
-                      <div className="flex-1 flex flex-col items-center justify-between p-2 relative overflow-hidden bg-white text-center">
-                        <div className="absolute inset-0 flex items-center justify-center opacity-[0.06] pointer-events-none select-none">
-                          {getWatermarkIcon()}
-                        </div>
-
-                        {/* Top aligned QR-code and Return policy grouped together */}
-                        <div className="w-full flex flex-col items-center gap-1 z-10 shrink-0">
-                          {includeBarcode && (
-                            <div className="p-0.5 bg-white shadow-sm border border-slate-200 shrink-0">
-                              <QRCode value={displayLrn} size={32} level="M" />
-                            </div>
-                          )}
-
-                          <div className="w-full">
-                            <h5 className="text-[4.5px] font-black uppercase text-slate-400 tracking-widest leading-none mt-1">Return Policy & Directions</h5>
-                            <p className="text-[4.5px] text-slate-600 leading-tight font-bold mt-0.5 px-1 text-center">
-                              {emergencyNotes}
+                  {/* ID Front (Only if set to Front/Front-Back separate layout styles) */}
+                  {(layoutType === 'front-back' || layoutType === 'front-only') && (
+                    <div className="id-print-card-cell">
+                      <div className={`id-print-card-scalable rounded-3xl overflow-hidden border ${theme.cardBorder} flex flex-col relative`} style={{ fontFamily }}>
+                        {/* Top Accent Strip */}
+                        <div className="h-1.5 w-full bg-amber-500" />
+                        
+                        {/* Header Panel */}
+                        <DraggableField id="school-header" className={`py-3 px-3 flex flex-col items-center justify-center gap-1.5 transition-all id-font-family-container ${theme.bannerBg}`} style={{ fontFamily }} offsets={elementOffsets} setOffsets={() => {}} isEditMode={false}>
+                          {schoolLogo && <img src={schoolLogo} className="w-[38px] h-[38px] object-contain shrink-0 rounded-full bg-white border border-white/20 shadow-sm" referrerPolicy="no-referrer" />}
+                          <div className="text-center w-full">
+                            <p className="text-[6.5px] uppercase tracking-widest leading-none font-bold opacity-80 mt-0.5">Republic of the Philippines</p>
+                            <p className="text-[6.5px] uppercase tracking-widest leading-none font-black mt-0.5 opacity-90">Department of Education</p>
+                            <p className="text-[10px] uppercase tracking-tight font-black leading-tight mt-1 truncate max-w-full">
+                              {section?.schoolName || "Matatag High School"}
                             </p>
                           </div>
+                        </DraggableField>
+
+                        {/* Card Interior */}
+                        <div className="flex-1 flex flex-col items-center justify-between p-4 relative overflow-hidden bg-white id-font-family-container" style={{ fontFamily }}>
+                          {/* Faint Watermark placement */}
+                          <div className="id-print-watermark absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none select-none z-0 overflow-hidden grayscale">
+                            {getWatermarkIcon()}
+                          </div>
+
+                          {/* Avatar Segment */}
+                          <DraggableField id="student-photo" className="mt-1 flex flex-col items-center text-center z-10 w-full animate-fade-in" offsets={elementOffsets} setOffsets={() => {}} isEditMode={false}>
+                            {s.photo ? (
+                              <div className="overflow-hidden bg-slate-100 rounded-xl border border-slate-200 shadow-sm flex items-center justify-center mx-auto transition-transform hover:scale-105" style={{ width: '105px', height: '135px' }}>
+                                <img src={s.photo} alt={displayName} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                              </div>
+                            ) : includePhotoBox ? (
+                              <div className="border-2 border-dashed rounded-xl flex flex-col items-center justify-center bg-slate-50/80 transition-transform hover:scale-105 mx-auto" style={{ width: '105px', height: '135px', borderColor: theme.colorScheme.primaryHex + "44" }}>
+                                <User size={24} className="text-slate-350 pointer-events-none" />
+                                <span className="text-[7.5px] uppercase tracking-wider text-slate-400 font-extrabold mt-1">35mm x 45mm Photo</span>
+                                <span className="text-[6.5px] uppercase tracking-wider text-slate-350 font-bold leading-none">SF10 Image</span>
+                              </div>
+                            ) : (
+                              <div className="w-14 h-14 rounded-full flex items-center justify-center bg-indigo-50 border border-slate-100 uppercase font-black text-xl mx-auto" style={{ color: theme.colorScheme.primaryHex, background: `${theme.colorScheme.primaryHex}10` }}>
+                                {displayName?.charAt(0) || "-"}
+                              </div>
+                            )}
+                            <span className="text-[8px] font-black tracking-[0.1em] uppercase mt-2 px-2 py-0.5 rounded-full select-none inline-block mx-auto" style={{ background: `${theme.colorScheme.primaryHex}10`, color: theme.colorScheme.primaryHex }}>LRN: {displayLrn}</span>
+                          </DraggableField>
+
+                          {/* Name Block */}
+                          <DraggableField id="student-name" className="w-full text-center z-10 flex-grow flex flex-col justify-center min-h-[44px]" offsets={elementOffsets} setOffsets={() => {}} isEditMode={false}>
+                            <h4 className="text-[14px] font-black text-slate-900 leading-tight uppercase tracking-tight line-clamp-2 px-1">
+                              {displayName}
+                            </h4>
+                            <div className="text-[8px] font-extrabold text-slate-500 uppercase tracking-wider mt-0.5">
+                              {displayGradeSection}
+                            </div>
+                          </DraggableField>
                         </div>
 
-                        {/* Emergency guardian setup */}
-                        <div className="w-full z-10 my-1 pt-1.5 border-t border-dashed border-slate-200">
-                          <h5 className="text-[5px] font-black uppercase tracking-wider text-rose-600 leading-none">IN CASE OF EMERGENCY</h5>
-                          <p className="text-[6.5px] font-extrabold text-slate-800 mt-0.5 uppercase max-w-full truncate">{displayGuardian}</p>
-                          <p className="text-[4.5px] text-slate-550 uppercase font-black tracking-tight leading-none font-bold">Relationship: {displayRelationship}</p>
-                          <p className="text-[6px] font-mono font-bold text-slate-700 bg-slate-50 py-0.5 px-1.5 rounded-full border border-slate-100 mt-1 tracking-wider inline-block">
-                            {studentContactNum}
-                          </p>
-                        </div>
-
-                        {/* Adviser confirmation panel */}
-                        <div className="w-full z-10 mt-auto flex flex-col items-center pt-1.5">
-                          <div className="w-20 border-b border-slate-350 mt-1" />
-                          <p className="text-[6.5px] font-bold text-slate-800 mt-0.5 uppercase max-w-full truncate">{displayPrincipal}</p>
-                          <p className="text-[4.5px] text-slate-400 uppercase font-bold tracking-widest leading-none">School Principal</p>
-                        </div>
-
-                        {/* Legal markers */}
-                        <div className="w-full z-10 mt-1 pt-1 border-t border-slate-100 flex items-center justify-between text-[4px] text-slate-450 uppercase font-bold tracking-wider leading-none">
-                          <span>SYS ID: {section?.schoolId || "DEPED-10902"}</span>
-                          <span>OFFICIAL VERIFIED</span>
-                        </div>
-                      </div>
-                      <div className="h-1 bg-amber-500 w-full" />
-                    </div>
-
-                  </div>
-                )}
-
-                {/* ID Front (Only if set to Front/Front-Back separate layout styles) */}
-                {(layoutType === 'front-back' || layoutType === 'front-only') && (
-                  <div className="id-print-card-box" style={{ width: '54mm', height: '86mm', display: 'flex', flexDirection: 'column', position: 'relative', border: `1px solid ${theme.colorScheme.primaryHex}44` }}>
-                    {/* Color Accent Bar */}
-                    <div className="h-1 bg-amber-500 w-full" />
-                    
-                    {/* Header Block */}
-                    <div className="py-1.5 px-2 flex flex-col items-center justify-center gap-1 id-print-banner" style={{ background: theme.colorScheme.primaryHex, color: '#ffffff' }}>
-                      {schoolLogo && <img src={schoolLogo} className="w-[28px] h-[28px] object-contain shrink-0 rounded-full bg-white border border-white/20 shadow-sm" referrerPolicy="no-referrer" />}
-                      <div className="text-center w-full">
-                        <p className="text-[5px] uppercase tracking-widest leading-none font-bold opacity-85 mt-0.5">Republic of the Philippines</p>
-                        <p className="text-[5px] uppercase tracking-widest leading-none font-extrabold mt-0.5 opacity-95">Department of Education</p>
-                        <p className="text-[7.5px] uppercase tracking-tight font-black leading-tight mt-1 truncate max-w-full" style={{ color: cardTheme === 'presidential' ? '#fbbf24' : '#ffffff' }}>
-                          {section?.schoolName || "Matatag High School"}
-                        </p>
+                        {/* Bottom Accent */}
+                        <div className="h-1.5 w-full" style={{ background: theme.colorScheme.primaryHex }} />
                       </div>
                     </div>
+                  )}
 
-                    {/* Body content with Watermark */}
-                    <div className="flex-1 flex flex-col items-center justify-between p-2 relative overflow-hidden bg-white">
-                      {/* Watermark Logo placement */}
-                      <div className="absolute inset-0 flex items-center justify-center opacity-[0.06] pointer-events-none select-none">
-                        {getWatermarkIcon()}
-                      </div>
+                  {/* ID Back (Only if set to Back/Front-Back separate layout styles) */}
+                  {(layoutType === 'front-back' || layoutType === 'back-only') && (
+                    <div className="id-print-card-cell">
+                      <div className={`id-print-card-scalable rounded-3xl overflow-hidden border ${theme.cardBorder} flex flex-col relative`} style={{ fontFamily }}>
+                        {/* Solid Header Accent Color */}
+                        <div className="h-1.5 w-full" style={{ background: theme.colorScheme.primaryHex }} />
+                        
+                        {/* ID Back Card Interior */}
+                        <div className="flex-1 flex flex-col items-center justify-between p-5 relative overflow-hidden bg-white text-center id-font-family-container" style={{ fontFamily }}>
+                          {/* Faint Watermark backdrop */}
+                          <div className="id-print-watermark absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none select-none z-0 overflow-hidden grayscale">
+                            {getWatermarkIcon()}
+                          </div>
 
-                      {/* Photo Container - Exact 35mm x 45mm User Photo or placeholder box */}
-                      <div className="z-10 mt-0.5 flex flex-col items-center text-center">
-                        {s.photo ? (
-                          <div className="overflow-hidden bg-slate-100 rounded border border-slate-300 shadow-sm" style={{ width: '35mm', height: '45mm', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <img src={s.photo} alt={displayName} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                          </div>
-                        ) : includePhotoBox ? (
-                          <div className="border border-dashed rounded bg-slate-50/70 flex flex-col items-center justify-center" style={{ width: '35mm', height: '45mm', borderColor: `${theme.colorScheme.primaryHex}44` }}>
-                            <User size={20} className="text-slate-350 opacity-40" />
-                            <span className="text-[5px] uppercase tracking-wide text-slate-400 font-extrabold mt-1">35mm x 45mm Photo</span>
-                            <span className="text-[4px] uppercase tracking-wide text-slate-350 font-bold leading-none">Affix Photo Here</span>
-                          </div>
-                        ) : (
-                          <div className="w-10 h-10 rounded-full flex items-center justify-center bg-indigo-50 border border-slate-100 uppercase font-black text-sm" style={{ color: theme.colorScheme.primaryHex, background: `${theme.colorScheme.primaryHex}10` }}>
-                            {displayName.charAt(0)}
-                          </div>
-                        )}
-                        <span className="text-[6.5px] font-black tracking-[0.05em] uppercase mt-1.5 px-2 py-0.5 rounded" style={{ background: `${theme.colorScheme.primaryHex}10`, color: theme.colorScheme.primaryHex }}>LRN: {displayLrn}</span>
-                      </div>
+                          {/* Group QR Code and Return Policy together */}
+                          <DraggableField id="qr-return" className="w-full flex flex-col items-center gap-1.5 z-10 shrink-0" offsets={elementOffsets} setOffsets={() => {}} isEditMode={false}>
+                            {includeBarcode && (
+                              <div className="p-0.5 bg-white shadow-sm border border-slate-200 shrink-0">
+                                <QRCode value={displayLrn} size={52} level="M" />
+                              </div>
+                            )}
 
-                      {/* Student Specs */}
-                      <div className="w-full text-center z-10 flex-1 flex flex-col justify-center mt-1">
-                        <h4 className="text-[9.5px] font-black text-slate-900 leading-tight uppercase tracking-tight line-clamp-2 px-1">
-                          {displayName}
-                        </h4>
-                        <div className="text-[6.5px] font-extrabold text-slate-500 uppercase tracking-wider mt-0.5">
-                          {displayGradeSection}
+                            <div className="w-full">
+                              <h5 className="text-[8px] font-black uppercase text-slate-400 tracking-widest leading-none mt-1">Return Policy & Directions</h5>
+                              <p className="text-[8px] text-slate-550 leading-relaxed font-semibold mt-1 px-2">
+                                {emergencyNotes || "If found, please return to the school administration office immediately."}
+                              </p>
+                            </div>
+                          </DraggableField>
+
+                          {/* Emergency Contacts Block */}
+                          <DraggableField id="emergency-contact" className="w-full z-10 border-t border-dashed border-slate-200 pt-3 my-1" offsets={elementOffsets} setOffsets={() => {}} isEditMode={false}>
+                            <h5 className="text-[9px] font-black uppercase tracking-wider text-rose-600">IN CASE OF EMERGENCY</h5>
+                            <p className="text-[11px] font-bold text-slate-800 mt-1 uppercase max-w-full truncate">
+                              {displayGuardian}
+                            </p>
+                            <p className="text-[8px] text-slate-550 uppercase font-black tracking-tight leading-none mt-0.5">
+                              Relationship: {displayRelationship}
+                            </p>
+                            <p className="text-[10px] font-mono font-bold text-slate-700 bg-slate-50 border border-slate-150 py-1 px-3 mt-1.5 rounded-full inline-block tracking-wider font-bold">
+                              {studentContactNum}
+                            </p>
+                          </DraggableField>
+
+                          {/* Signature line space */}
+                          <DraggableField id="signature" className="w-full z-10 mt-auto flex flex-col items-center pt-2" offsets={elementOffsets} setOffsets={() => {}} isEditMode={false}>
+                            <div className="w-28 border-b border-slate-300 mt-1.5" />
+                            <p className="text-[10px] font-bold text-slate-800 mt-1 uppercase max-w-full truncate">{schoolHead}</p>
+                            <p className="text-[7px] text-slate-450 uppercase font-black tracking-wider leading-none font-bold">School Principal</p>
+                          </DraggableField>
+
+                          {/* Fine-print school identifiers */}
+                          <div className="w-full z-10 border-t border-slate-100 pt-3 flex items-center justify-between text-[7px] text-slate-450 uppercase font-bold tracking-wider leading-none">
+                            <span>School ID: {section?.schoolId || "DEPED-10902"}</span>
+                            <span>OFFICIAL ACCESS</span>
+                          </div>
                         </div>
+
+                        {/* Bottom yellow stripe accent */}
+                        <div className="h-1.5 bg-amber-500 w-full" />
                       </div>
                     </div>
-                    {/* Bottom Border Accent */}
-                    <div className="h-1 w-full" style={{ background: theme.colorScheme.primaryHex }} />
-                  </div>
-                )}
-
-                {/* ID Back (Only if set to Back/Front-Back separate layout styles) */}
-                {(layoutType === 'front-back' || layoutType === 'back-only') && (
-                  <div className="id-print-card-box" style={{ width: '54mm', height: '86mm', display: 'flex', flexDirection: 'column', position: 'relative', border: `1px solid ${theme.colorScheme.primaryHex}44` }}>
-                    <div className="h-1 w-full" style={{ background: theme.colorScheme.primaryHex }} />
-                    
-                    {/* Inner elements inside watermarked backing sheet */}
-                    <div className="flex-1 flex flex-col items-center justify-between p-3 relative overflow-hidden bg-white text-center">
-                      <div className="absolute inset-0 flex items-center justify-center opacity-[0.06] pointer-events-none select-none">
-                        {getWatermarkIcon()}
-                      </div>
-
-                      {/* Group QR Code and Return Policy together */}
-                      <div className="w-full flex flex-col items-center gap-1.5 z-10 shrink-0">
-                        {includeBarcode && (
-                          <div className="p-0.5 bg-white shadow-sm border border-slate-200 shrink-0">
-                            <QRCode value={displayLrn} size={36} level="M" />
-                          </div>
-                        )}
-
-                        <div className="w-full">
-                          <h5 className="text-[4.5px] font-black uppercase text-slate-400 tracking-widest leading-none mt-1">Return Policy & Directions</h5>
-                          <p className="text-[4.5px] text-slate-650 leading-tight font-bold mt-0.5 px-1 text-center">
-                            {emergencyNotes}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Emergency Contact Block */}
-                      <div className="w-full z-10 my-2 pt-2 border-t border-dashed border-slate-200">
-                        <h5 className="text-[5.5px] font-black uppercase tracking-wider text-rose-600">IN CASE OF EMERGENCY</h5>
-                        <p className="text-[7.5px] font-extrabold text-slate-800 mt-1 uppercase max-w-full truncate">{displayGuardian}</p>
-                        <p className="text-[5px] text-slate-550 uppercase font-black tracking-tight leading-none font-bold">Relationship: {displayRelationship}</p>
-                        <p className="text-[6.5px] font-mono font-bold text-slate-700 bg-slate-50 py-0.5 px-2 rounded-full border border-slate-100 mt-1 tracking-wider inline-block">
-                          {studentContactNum}
-                        </p>
-                      </div>
-
-                      {/* Adviser / Guardian Signature block */}
-                      <div className="w-full z-10 mt-auto flex flex-col items-center pt-2">
-                        <div className="w-24 border-b border-slate-350 mt-1" />
-                        <p className="text-[7.5px] font-bold text-slate-800 mt-1 uppercase max-w-full truncate">{displayPrincipal}</p>
-                        <p className="text-[5px] text-slate-400 uppercase font-bold tracking-widest">School Principal</p>
-                      </div>
-
-                      {/* Property watermark footer */}
-                      <div className="w-full z-10 mt-1.5 pt-1.5 border-t border-slate-100 flex items-center justify-between text-[4.5px] text-slate-450 uppercase font-bold tracking-wider">
-                        <span>SYS ID: {section?.schoolId || "DEPED-10902"}</span>
-                        <span>OFFICIAL VERIFIED</span>
-                      </div>
-                    </div>
-                    <div className="h-1 bg-amber-500 w-full" />
-                  </div>
-                )}
-              </React.Fragment>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Main Sandbox Interactive UI Frame */}
+                  )}
+                </React.Fragment>
+              );
+            })}
+            </div>
+          </div>
+          );
+        })}
+      </div>,
+      document.body
+      )}
       <motion.div
         key="id-builder-sandbox"
         initial={{ scale: 0.95, y: 15 }}
@@ -9650,8 +9841,9 @@ function IDPrintingCenterModal({
               {/* Watermark Selector */}
               <div className="space-y-2">
                 <label className="text-[10px] font-black uppercase text-slate-540 tracking-wider">Background Watermark Logo</label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                   {[
+                    { id: 'school', label: 'School Logo' },
                     { id: 'shield', label: 'Heritage Shield' },
                     { id: 'star', label: 'Academic Star' },
                     { id: 'book', label: 'Knowledge Book' }
@@ -9723,7 +9915,7 @@ function IDPrintingCenterModal({
                       />
                     </div>
                     <div className="space-y-1">
-                      <span className="text-[8.5px] font-bold text-slate-500 uppercase tracking-widest">Office Support Number</span>
+                      <span className="text-[8.5px] font-bold text-slate-500 uppercase tracking-widest">CP Number</span>
                       <input
                         type="text"
                         value={contactNumber}
@@ -9734,6 +9926,75 @@ function IDPrintingCenterModal({
                   </div>
                 </div>
               )}
+
+              {/* Advanced Canvas Settings */}
+              <div className="space-y-3 pt-4 border-t border-slate-200">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2">
+                  <span>Advanced Pro Settings</span>
+                </h3>
+
+                <div className="space-y-2">
+                  <label htmlFor="font-select" className="text-[10px] font-black uppercase text-slate-540 tracking-wider">Typography Family</label>
+                  <select
+                    id="font-select"
+                    value={fontFamily}
+                    onChange={(e) => setFontFamily(e.target.value)}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-500 transition-colors shadow-sm cursor-pointer"
+                  >
+                    <option value="Inter">Standard UI (Inter)</option>
+                    <option value="'JetBrains Mono', monospace">Technical / Coding (Mono)</option>
+                    <option value="'Outfit', sans-serif">Modern Rounded (Outfit)</option>
+                    <option value="'Playfair Display', Georgia, serif">Editorial Elegance (Playfair)</option>
+                    <option value="'Cinzel', Georgia, serif">Regal Academy (Cinzel)</option>
+                    <option value="'Space Grotesk', sans-serif">Bold Tech (Space Grotesk)</option>
+                    <option value="'Caveat', cursive">Playful Handwriting (Caveat)</option>
+                  </select>
+                </div>
+
+                <div className="flex flex-col gap-2 mt-2">
+                  <div className="flex items-center justify-between bg-white p-3.5 rounded-2xl border border-slate-150 shadow-inner">
+                    <div>
+                      <label className="text-[10px] font-black uppercase text-slate-800 tracking-wider text-indigo-700">Design Move Mode</label>
+                      <p className="text-[8px] text-slate-400">Drag & position ID card elements</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsDragMode(!isDragMode)}
+                      className={`w-9 h-5 rounded-full p-0.5 transition-all outline-none shadow-inner ${
+                        isDragMode ? 'bg-indigo-600' : 'bg-slate-300'
+                      }`}
+                    >
+                      <div className={`w-4 h-4 bg-white rounded-full shadow transition-all ${isDragMode ? 'translate-x-4' : 'translate-x-0'}`} />
+                    </button>
+                  </div>
+
+                  {Object.keys(elementOffsets).some(k => elementOffsets[k]?.x !== 0 || elementOffsets[k]?.y !== 0) && (
+                    <button
+                      type="button"
+                      onClick={() => setElementOffsets({})}
+                      className="w-full text-indigo-700 bg-indigo-50 border border-indigo-150 hover:bg-slate-100 py-2 px-3 rounded-xl text-[9px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 active:scale-95 shadow-sm"
+                    >
+                      🔄 Reset Drag Layout Positions
+                    </button>
+                  )}
+                </div>
+                
+                {isDragMode && (
+                  <div className="text-[9px] bg-indigo-50 text-indigo-700 font-bold p-3 rounded-xl border border-indigo-100 flex items-start gap-2">
+                     <Info size={14} className="shrink-0 mt-0.5" />
+                     <span>Elements like names, LRN, headers, signatures, photos, and QR codes can now be dragged directly on the preview to adjust layout. Click "Reset" above anytime to undo.</span>
+                  </div>
+                )}
+                
+                <button
+                  type="button"
+                  onClick={handleSaveTemplate}
+                  className="w-full mt-4 flex items-center justify-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all shadow-md active:scale-95"
+                >
+                  <Save size={14} />
+                  Save as School Template
+                </button>
+              </div>
             </div>
           </div>
 
@@ -9859,7 +10120,7 @@ function IDPrintingCenterModal({
                           <div className="h-1.5 w-full bg-amber-500" />
                           
                           {/* Header Block */}
-                          <div className={`py-3 px-3 flex flex-col items-center justify-center gap-1.5 transition-all ${theme.bannerBg}`}>
+                          <DraggableField id="school-header" className={`py-3 px-3 flex flex-col items-center justify-center gap-1.5 transition-all ${theme.bannerBg}`} offsets={elementOffsets} setOffsets={setElementOffsets} isEditMode={isDragMode}>
                             {schoolLogo && <img src={schoolLogo} className="w-[38px] h-[38px] object-contain shrink-0 rounded-full bg-white border border-white/20 shadow-sm" referrerPolicy="no-referrer" />}
                             <div className="text-center w-full">
                               <p className="text-[6.5px] uppercase tracking-widest leading-none font-bold opacity-80 mt-0.5">Republic of the Philippines</p>
@@ -9868,16 +10129,16 @@ function IDPrintingCenterModal({
                                 {section?.schoolName || "Matatag High School"}
                               </p>
                             </div>
-                          </div>
+                          </DraggableField>
 
                           {/* Body elements with watermark */}
-                          <div className="flex-1 flex flex-col items-center justify-between p-4 relative overflow-hidden bg-white">
-                            <div className="absolute inset-0 flex items-center justify-center opacity-[0.06] pointer-events-none select-none">
+                          <div className="flex-1 flex flex-col items-center justify-between p-4 relative overflow-hidden bg-white" style={{ fontFamily }}>
+                            <div className="id-print-watermark absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none select-none z-0 overflow-hidden grayscale">
                               {getWatermarkIcon()}
                             </div>
 
                             {/* Photo (Proportionally scaled to match layout preview) */}
-                            <div className="mt-1 flex flex-col items-center text-center z-10 w-full animate-fade-in">
+                            <DraggableField id="student-photo" className="mt-1 flex flex-col items-center text-center z-10 w-full animate-fade-in" offsets={elementOffsets} setOffsets={setElementOffsets} isEditMode={isDragMode}>
                               {activePreviewStudent.photo ? (
                                 <div className="overflow-hidden bg-slate-100 rounded-xl border border-slate-200 shadow-sm flex items-center justify-center mx-auto" style={{ width: '90px', height: '115px' }}>
                                   <img src={activePreviewStudent.photo} alt={activePreviewStudent.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
@@ -9894,17 +10155,17 @@ function IDPrintingCenterModal({
                                 </div>
                               )}
                               <span className="text-[8px] font-black tracking-[0.1em] uppercase mt-2 px-2 py-0.5 rounded-full select-none inline-block mx-auto" style={{ background: `${theme.colorScheme.primaryHex}10`, color: theme.colorScheme.primaryHex }}>LRN: {activePreviewStudent.lrn || "---"}</span>
-                            </div>
+                            </DraggableField>
 
                             {/* Name details */}
-                            <div className="w-full text-center z-10 flex-grow flex flex-col justify-center min-h-[44px]">
+                            <DraggableField id="student-name" className="w-full text-center z-10 flex-grow flex flex-col justify-center min-h-[44px]" offsets={elementOffsets} setOffsets={setElementOffsets} isEditMode={isDragMode}>
                               <h4 className="text-[13px] font-black text-slate-900 leading-tight uppercase tracking-tight line-clamp-2 px-1">
                                 {formatStudentName(activePreviewStudent) || activePreviewStudent.name}
                               </h4>
                               <div className="text-[8px] font-extrabold text-slate-500 uppercase tracking-wider mt-0.5">
                                 {formatGradeSection(section?.gradeLevel, section?.name)}
                               </div>
-                            </div>
+                            </DraggableField>
                           </div>
 
                           {/* Base accent */}
@@ -9917,13 +10178,13 @@ function IDPrintingCenterModal({
                           <div className="h-1.5 w-full" style={{ background: theme.colorScheme.primaryHex }} />
 
                           {/* Render interior backing card contents */}
-                          <div className="flex-grow flex flex-col items-center justify-between p-5 relative overflow-hidden bg-white text-center">
-                            <div className="absolute inset-0 flex items-center justify-center opacity-[0.06] pointer-events-none select-none">
+                          <div className="flex-grow flex flex-col items-center justify-between p-5 relative overflow-hidden bg-white text-center" style={{ fontFamily }}>
+                            <div className="id-print-watermark absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none select-none z-0 overflow-hidden grayscale">
                               {getWatermarkIcon()}
                             </div>
 
                             {/* Group QR Code and Return Policy together */}
-                            <div className="w-full flex flex-col items-center gap-1.5 z-10 shrink-0">
+                            <DraggableField id="qr-return" className="w-full flex flex-col items-center gap-1.5 z-10 shrink-0" offsets={elementOffsets} setOffsets={setElementOffsets} isEditMode={isDragMode}>
                               {includeBarcode && (
                                 <div className="p-0.5 bg-white shadow-sm border border-slate-200 shrink-0">
                                   <QRCode value={activePreviewStudent.lrn || "0000"} size={48} level="M" />
@@ -9931,33 +10192,33 @@ function IDPrintingCenterModal({
                               )}
 
                               <div className="w-full">
-                                <h5 className="text-[7px] font-black uppercase text-slate-400 tracking-widest leading-none mt-1">Return Policy & Directions</h5>
-                                <p className="text-[7.5px] text-slate-550 leading-relaxed font-semibold mt-1 px-1.5">
+                                <h5 className="text-[8px] font-black uppercase text-slate-400 tracking-widest leading-none mt-1">Return Policy & Directions</h5>
+                                <p className="text-[8px] text-slate-550 leading-relaxed font-semibold mt-1 px-2">
                                   {emergencyNotes || "If found, please return to the school administration office immediately."}
                                 </p>
                               </div>
-                            </div>
+                            </DraggableField>
 
                             {/* Emergency Contacts Block */}
-                            <div className="w-full z-10 border-t border-dashed border-slate-200 pt-3 my-1">
-                              <h5 className="text-[8px] font-black uppercase tracking-wider text-rose-600 leading-none">IN CASE OF EMERGENCY</h5>
-                              <p className="text-[10px] font-bold text-slate-800 mt-1 uppercase max-w-full truncate">
+                            <DraggableField id="emergency-contact" className="w-full z-10 border-t border-dashed border-slate-200 pt-3 my-1" offsets={elementOffsets} setOffsets={setElementOffsets} isEditMode={isDragMode}>
+                              <h5 className="text-[9px] font-black uppercase tracking-wider text-rose-600 leading-none">IN CASE OF EMERGENCY</h5>
+                              <p className="text-[11px] font-bold text-slate-800 mt-1 uppercase max-w-full truncate">
                                 {previewGuardian}
                               </p>
-                              <p className="text-[7px] text-slate-500 uppercase font-black tracking-tight leading-none mt-0.5">
+                              <p className="text-[8px] text-slate-500 uppercase font-black tracking-tight leading-none mt-0.5">
                                 Relationship: {previewRelationship}
                               </p>
-                              <p className="text-[9.5px] font-mono font-bold text-slate-700 bg-slate-50 border border-slate-150 py-1 px-3 mt-1.5 rounded-full inline-block tracking-wider">
+                              <p className="text-[10px] font-mono font-bold text-slate-700 bg-slate-50 border border-slate-150 py-1 px-3 mt-1.5 rounded-full inline-block tracking-wider">
                                 {previewContactNumber}
                               </p>
-                            </div>
+                            </DraggableField>
 
                             {/* Signature line space */}
-                            <div className="w-full z-10 mt-auto flex flex-col items-center pt-2">
+                            <DraggableField id="signature" className="w-full z-10 mt-auto flex flex-col items-center pt-2" offsets={elementOffsets} setOffsets={setElementOffsets} isEditMode={isDragMode}>
                               <div className="w-28 border-b border-slate-300 mt-1.5" />
                               <p className="text-[10px] font-bold text-slate-800 mt-1 uppercase max-w-full truncate">{schoolHead}</p>
                               <p className="text-[7px] text-slate-400 uppercase font-black tracking-wider leading-none font-bold">School Principal</p>
-                            </div>
+                            </DraggableField>
 
                             {/* Fine-print school identifiers */}
                             <div className="w-full z-10 border-t border-slate-100 pt-3 flex items-center justify-between text-[7px] text-slate-450 uppercase font-bold tracking-wider leading-none">
@@ -9965,9 +10226,6 @@ function IDPrintingCenterModal({
                               <span>OFFICIAL ACCESS</span>
                             </div>
                           </div>
-
-                          {/* Base accent yellow block */}
-                          <div className="h-1.5 bg-amber-500 w-full" />
                         </div>
                       </div>
                     )}
@@ -9979,7 +10237,7 @@ function IDPrintingCenterModal({
                         <div className="h-1.5 w-full bg-amber-500" />
                         
                         {/* Header Panel */}
-                        <div className={`py-3 px-3 flex flex-col items-center justify-center gap-1.5 transition-all ${theme.bannerBg}`}>
+                        <DraggableField id="school-header" className={`py-3 px-3 flex flex-col items-center justify-center gap-1.5 transition-all id-font-family-container ${theme.bannerBg}`} style={{ fontFamily }} offsets={elementOffsets} setOffsets={setElementOffsets} isEditMode={isDragMode}>
                           {schoolLogo && <img src={schoolLogo} className="w-[38px] h-[38px] object-contain shrink-0 rounded-full bg-white border border-white/20 shadow-sm" referrerPolicy="no-referrer" />}
                           <div className="text-center w-full">
                             <p className="text-[6.5px] uppercase tracking-widest leading-none font-bold opacity-80 mt-0.5">Republic of the Philippines</p>
@@ -9988,24 +10246,24 @@ function IDPrintingCenterModal({
                               {section?.schoolName || "Matatag High School"}
                             </p>
                           </div>
-                        </div>
+                        </DraggableField>
 
                         {/* Card Interior */}
-                        <div className="flex-1 flex flex-col items-center justify-between p-4 relative overflow-hidden bg-white">
+                        <div className="flex-1 flex flex-col items-center justify-between p-4 relative overflow-hidden bg-white id-font-family-container" style={{ fontFamily }}>
                           {/* Faint Watermark placement */}
-                          <div className="absolute inset-0 flex items-center justify-center opacity-[0.06] pointer-events-none select-none">
+                          <div className="id-print-watermark absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none select-none z-0 overflow-hidden grayscale">
                             {getWatermarkIcon()}
                           </div>
 
                           {/* Avatar Segment - Perfect 35mm x 45mm ratio representing 105px x 135px aspect */}
-                          <div className="mt-1 flex flex-col items-center text-center z-10 w-full">
+                          <DraggableField id="student-photo" className="mt-1 flex flex-col items-center text-center z-10 w-full animate-fade-in" offsets={elementOffsets} setOffsets={setElementOffsets} isEditMode={isDragMode}>
                             {activePreviewStudent.photo ? (
                               <div className="overflow-hidden bg-slate-100 rounded-xl border border-slate-200 shadow-sm flex items-center justify-center mx-auto transition-transform hover:scale-105" style={{ width: '105px', height: '135px' }}>
                                 <img src={activePreviewStudent.photo} alt={activePreviewStudent.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                               </div>
                             ) : includePhotoBox ? (
                               <div className="border-2 border-dashed rounded-xl flex flex-col items-center justify-center bg-slate-50/80 transition-transform hover:scale-105 mx-auto" style={{ width: '105px', height: '135px', borderColor: theme.colorScheme.primaryHex + "44" }}>
-                                <User size={24} className="text-slate-300 pointer-events-none" />
+                                <User size={24} className="text-slate-350 pointer-events-none" />
                                 <span className="text-[7.5px] uppercase tracking-wider text-slate-400 font-extrabold mt-1">35mm x 45mm Photo</span>
                                 <span className="text-[6.5px] uppercase tracking-wider text-slate-350 font-bold leading-none">SF10 Image</span>
                               </div>
@@ -10015,17 +10273,17 @@ function IDPrintingCenterModal({
                               </div>
                             )}
                             <span className="text-[8px] font-black tracking-[0.1em] uppercase mt-2 px-2 py-0.5 rounded-full select-none inline-block mx-auto" style={{ background: `${theme.colorScheme.primaryHex}10`, color: theme.colorScheme.primaryHex }}>LRN: {activePreviewStudent.lrn || "---"}</span>
-                          </div>
+                          </DraggableField>
 
                           {/* Name Block */}
-                          <div className="w-full text-center z-10 flex-1 flex flex-col justify-center min-h-[44px]">
+                          <DraggableField id="student-name" className="w-full text-center z-10 flex-grow flex flex-col justify-center min-h-[44px]" offsets={elementOffsets} setOffsets={setElementOffsets} isEditMode={isDragMode}>
                             <h4 className="text-[14px] font-black text-slate-900 leading-tight uppercase tracking-tight line-clamp-2 px-1">
                               {formatStudentName(activePreviewStudent) || activePreviewStudent.name}
                             </h4>
                             <div className="text-[8px] font-extrabold text-slate-500 uppercase tracking-wider mt-0.5">
                               {formatGradeSection(section?.gradeLevel, section?.name)}
                             </div>
-                          </div>
+                          </DraggableField>
                         </div>
 
                         {/* Bottom Accent */}
@@ -10040,14 +10298,14 @@ function IDPrintingCenterModal({
                         <div className="h-1.5 w-full" style={{ background: theme.colorScheme.primaryHex }} />
                         
                         {/* ID Back Card Interior */}
-                        <div className="flex-1 flex flex-col items-center justify-between p-5 relative overflow-hidden bg-white text-center">
+                        <div className="flex-1 flex flex-col items-center justify-between p-5 relative overflow-hidden bg-white text-center id-font-family-container" style={{ fontFamily }}>
                           {/* Faint Watermark backdrop */}
-                          <div className="absolute inset-0 flex items-center justify-center opacity-[0.06] pointer-events-none select-none">
+                          <div className="id-print-watermark absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none select-none z-0 overflow-hidden grayscale">
                             {getWatermarkIcon()}
                           </div>
 
                           {/* Group QR Code and Return Policy together */}
-                          <div className="w-full flex flex-col items-center gap-1.5 z-10 shrink-0">
+                          <DraggableField id="qr-return" className="w-full flex flex-col items-center gap-1.5 z-10 shrink-0" offsets={elementOffsets} setOffsets={setElementOffsets} isEditMode={isDragMode}>
                             {includeBarcode && (
                               <div className="p-0.5 bg-white shadow-sm border border-slate-200 shrink-0">
                                 <QRCode value={activePreviewStudent.lrn || "0000"} size={52} level="M" />
@@ -10055,33 +10313,33 @@ function IDPrintingCenterModal({
                             )}
 
                             <div className="w-full">
-                              <h5 className="text-[7px] font-black uppercase text-slate-400 tracking-widest leading-none mt-1">Return Policy & Directions</h5>
-                              <p className="text-[7.5px] text-slate-550 leading-relaxed font-semibold mt-1 px-1.5">
+                              <h5 className="text-[8px] font-black uppercase text-slate-400 tracking-widest leading-none mt-1">Return Policy & Directions</h5>
+                              <p className="text-[8px] text-slate-550 leading-relaxed font-semibold mt-1 px-2">
                                 {emergencyNotes || "If found, please return to the school administration office immediately."}
                               </p>
                             </div>
-                          </div>
+                          </DraggableField>
 
                           {/* Emergency Contacts Block */}
-                          <div className="w-full z-10 border-t border-dashed border-slate-200 pt-3 my-1">
-                            <h5 className="text-[8px] font-black uppercase tracking-wider text-rose-600">IN CASE OF EMERGENCY</h5>
-                            <p className="text-[10px] font-bold text-slate-800 mt-1 uppercase max-w-full truncate">
+                          <DraggableField id="emergency-contact" className="w-full z-10 border-t border-dashed border-slate-200 pt-3 my-1" offsets={elementOffsets} setOffsets={setElementOffsets} isEditMode={isDragMode}>
+                            <h5 className="text-[9px] font-black uppercase tracking-wider text-rose-600">IN CASE OF EMERGENCY</h5>
+                            <p className="text-[11px] font-bold text-slate-800 mt-1 uppercase max-w-full truncate">
                               {previewGuardian}
                             </p>
-                            <p className="text-[7px] text-slate-500 uppercase font-black tracking-tight leading-none mt-0.5">
+                            <p className="text-[8px] text-slate-500 uppercase font-black tracking-tight leading-none mt-0.5">
                               Relationship: {previewRelationship}
                             </p>
-                            <p className="text-[9.5px] font-mono font-bold text-slate-700 bg-slate-50 border border-slate-150 py-1 px-3 mt-1.5 rounded-full inline-block tracking-wider">
+                            <p className="text-[10px] font-mono font-bold text-slate-700 bg-slate-50 border border-slate-150 py-1 px-3 mt-1.5 rounded-full inline-block tracking-wider font-bold">
                               {previewContactNumber}
                             </p>
-                          </div>
+                          </DraggableField>
 
                           {/* Signature line space */}
-                          <div className="w-full z-10 mt-auto flex flex-col items-center pt-2">
+                          <DraggableField id="signature" className="w-full z-10 mt-auto flex flex-col items-center pt-2" offsets={elementOffsets} setOffsets={setElementOffsets} isEditMode={isDragMode}>
                             <div className="w-28 border-b border-slate-300 mt-1.5" />
                             <p className="text-[10px] font-bold text-slate-800 mt-1 uppercase max-w-full truncate">{schoolHead}</p>
-                            <p className="text-[7px] text-slate-400 uppercase font-black tracking-wider leading-none">School Principal</p>
-                          </div>
+                            <p className="text-[7px] text-slate-400 uppercase font-black tracking-wider leading-none font-bold">School Principal</p>
+                          </DraggableField>
 
                           {/* Fine-print school identifiers */}
                           <div className="w-full z-10 border-t border-slate-100 pt-3 flex items-center justify-between text-[7px] text-slate-450 uppercase font-bold tracking-wider leading-none">
@@ -11988,61 +12246,6 @@ function GradebookView({
               );
             })}
           </div>
-        </div>
-      )}
-
-      {showDataEntryHint && (
-        <div className="mx-8 mt-4">
-          <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between text-blue-800">
-            <div className="flex items-center gap-3">
-              <ShieldCheck size={18} />
-              <p className="text-xs">
-                <span className="font-bold">Entry Tip:</span> Start by filling the <span className="font-bold">HPS (Highest Possible Score)</span> row. Student cells will unlock once an HPS is provided.
-              </p>
-            </div>
-            <button onClick={() => setShowDataEntryHint(false)}>
-              <X size={16} />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {isNotOffered && (
-        <div className="mx-8 mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
-           <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-center gap-4 text-rose-800 shadow-sm">
-             <div className="w-10 h-10 bg-rose-100 rounded-full flex items-center justify-center shrink-0">
-               <AlertTriangle size={20} className="text-rose-600" />
-             </div>
-             <div>
-               <h4 className="font-black uppercase tracking-widest text-[10px] mb-1">Subject Not Offered</h4>
-               <p className="text-xs font-medium">This elective subject is <span className="font-bold italic">not offered</span> for the selected term. Data entry has been disabled.</p>
-             </div>
-           </div>
-        </div>
-      )}
-
-
-      {isSubjectTermFinalized && (
-        <div className="mx-8 mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
-           <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-amber-800 shadow-sm">
-             <div className="flex items-center gap-4">
-               <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center shrink-0">
-                 <Lock size={20} className="text-amber-600 mt-0.5" />
-               </div>
-               <div>
-                 <h4 className="font-black uppercase tracking-widest text-[10px] mb-1 text-amber-900">Term Gradebook Locked</h4>
-                 <p className="text-xs font-medium text-amber-700">Term {activeTerm} grades for {selectedSubject.name} have been finalized and locked to prevent further modifications.</p>
-               </div>
-             </div>
-             {onToggleFinalizeSubjectTerm && !isYearEndFinalized && (
-               <button 
-                 onClick={() => setConfirmFinalizeConfig({ subjectId: selectedSubject.id, term: activeTerm, finalize: false })}
-                 className="self-start sm:self-auto shrink-0 px-4 py-2 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white font-bold rounded-xl text-xs transition-all uppercase tracking-wider shadow-md shadow-amber-600/10 cursor-pointer"
-               >
-                 Unfinalize Term
-               </button>
-             )}
-           </div>
         </div>
       )}
 
@@ -15342,12 +15545,6 @@ function MATATAGReportCardModal({
   };
 
   const handlePrintCard = () => {
-    const win = window.open('', '_blank');
-    if (!win) {
-      alert("Please allow popups to print the report card.");
-      return;
-    }
-
     const isInactive = student.status === 'Transferred Out' || student.status === 'Dropped Out';
     let dropoutTerm = -1;
     if (isInactive && student.dropoutDate && calendar) {
@@ -15484,7 +15681,7 @@ function MATATAGReportCardModal({
       </tr>
     `;
 
-    win.document.write(`
+    const reportCardHTML = `
       <!DOCTYPE html>
       <html>
       <head>
@@ -15859,8 +16056,8 @@ function MATATAGReportCardModal({
         </script>
       </body>
       </html>
-    `);
-    win.document.close();
+    `;
+    printHTMLContent(reportCardHTML);
   };
 
   return (
@@ -18884,7 +19081,7 @@ function StudentPortal({
                          onClick={() => {
                            const printContents = document.getElementById("anecdotal-history-print")?.innerHTML;
                            if (printContents) {
-                             const printWindow = window.open("", "_blank");
+                             const printWindow = { document: { write: (html: string) => printHTMLContent(html), close: () => {} } };
                              if (printWindow) {
                                printWindow.document.write(`
                                  <html>
@@ -18927,8 +19124,11 @@ function StudentPortal({
                                      </div>
                                      <script>
                                        window.onload = function() {
-                                         window.print();
-                                         setTimeout(function() { window.close(); }, 500);
+                                         window.onafterprint = function() { window.close(); };
+                                         window.onfocus = function() { setTimeout(function() { window.close(); }, 800); };
+                                         setTimeout(function() {
+                                           window.print();
+                                         }, 500);
                                        };
                                      </script>
                                    </body>
@@ -19222,7 +19422,7 @@ function StudentPortal({
                </button>
                   <button 
                  onClick={() => {
-                   const printWindow = window.open('', '_blank');
+                   const printWindow = { document: { write: (html: string) => printHTMLContent(html), close: () => {} } };
                    if (printWindow) {
                      const receiptHTML = `
                      <div style="font-family: Arial, sans-serif; max-width: 100%; margin: 0 auto; color: #111;">
@@ -19290,7 +19490,7 @@ function StudentPortal({
                        </div>
                      </div>
                      `;
-                     printWindow.document.write('<html><head><title>Official PTA Receipt - ' + portalShowReceipt.orNumber + '</title><style>@page { size: A5 portrait; margin: 15mm; } body { padding: 0; margin: 0; }</style></head><body>' + receiptHTML + '<script>window.onload = function() { window.print(); setTimeout(function() { window.close(); }, 500); };</script></body></html>');
+                    printWindow.document.write('<html><head><title>Official PTA Receipt - ' + portalShowReceipt.orNumber + '</title><style>@page { size: A5 portrait; margin: 15mm; } body { padding: 0; margin: 0; }</style></head><body>' + receiptHTML + '<script>window.onload = function() { window.onafterprint = function() { window.close(); }; window.onfocus = function() { setTimeout(function() { window.close(); }, 800); }; setTimeout(function() { window.print(); }, 500); };</script></body></html>');
                      printWindow.document.close();
                    }
                  }}

@@ -1,0 +1,134 @@
+9452-                              <QRCode value={displayLrn} size={32} level="M" />
+9453-                            </div>
+9454-                          )}
+9455-
+9456-                          <div className="w-full">
+9457:                            <h5 className="text-[6.5px] font-black uppercase text-slate-400 tracking-widest leading-none mt-1">Return Policy & Directions</h5>
+9458-                            <p className="text-[6.5px] text-slate-600 leading-tight font-bold mt-0.5 px-1 text-center">
+9459-                              {emergencyNotes}
+9460-                            </p>
+9461-                          </div>
+9462-                        </div>
+9463-
+9464-                        {/* Emergency guardian setup */}
+9465-                        <div className="w-full z-10 my-1 pt-1.5 border-t border-dashed border-slate-200">
+9466-                          <h5 className="text-[6.5px] font-black uppercase tracking-wider text-rose-600 leading-none">IN CASE OF EMERGENCY</h5>
+9467-                          <p className="text-[9.5px] font-extrabold text-slate-800 mt-0.5 uppercase max-w-full truncate">{displayGuardian}</p>
+9468-                          <p className="text-[6.5px] text-slate-550 uppercase font-black tracking-tight leading-none font-bold">Relationship: {displayRelationship}</p>
+9469-                          <p className="text-[7px] font-mono font-bold text-slate-700 bg-slate-50 py-0.5 px-1.5 rounded-full border border-slate-100 mt-1 tracking-wider inline-block">
+9470-                            {studentContactNum}
+9471-                          </p>
+9472-                        </div>
+9473-
+9474-                        {/* Adviser confirmation panel */}
+9475-                        <div className="w-full z-10 mt-auto flex flex-col items-center pt-1.5">
+9476-                          <div className="w-20 border-b border-slate-350 mt-1" />
+9477-                          <p className="text-[7.5px] font-bold text-slate-800 mt-0.5 uppercase max-w-full truncate">{displayPrincipal}</p>
+--
+9559-                    <div className="flex-1 flex flex-col items-center justify-between p-3 relative overflow-hidden bg-white text-center">
+9560-                      <div className="id-print-watermark absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none select-none z-0 overflow-hidden grayscale">
+9561-                        {getWatermarkIcon()}
+9562-                      </div>
+9563-
+9564:                      {/* Group QR Code and Return Policy together */}
+9565-                      <div className="w-full flex flex-col items-center gap-1.5 z-10 shrink-0">
+9566-                        {includeBarcode && (
+9567-                          <div className="p-0.5 bg-white shadow-sm border border-slate-200 shrink-0">
+9568-                            <QRCode value={displayLrn} size={36} level="M" />
+9569-                          </div>
+9570-                        )}
+9571-
+9572-                        <div className="w-full">
+9573:                          <h5 className="text-[7px] font-black uppercase text-slate-400 tracking-widest leading-none mt-1">Return Policy & Directions</h5>
+9574-                          <p className="text-[7px] text-slate-650 leading-tight font-bold mt-0.5 px-2 text-center">
+9575-                            {emergencyNotes}
+9576-                          </p>
+9577-                        </div>
+9578-                      </div>
+9579-
+9580-                      {/* Emergency Contact Block */}
+9581-                      <div className="w-full z-10 my-2 pt-2 border-t border-dashed border-slate-200">
+9582-                        <h5 className="text-[7px] font-black uppercase tracking-wider text-rose-600">IN CASE OF EMERGENCY</h5>
+9583-                        <p className="text-[9.5px] font-extrabold text-slate-800 mt-1 uppercase max-w-full truncate">{displayGuardian}</p>
+9584-                        <p className="text-[7px] text-slate-550 uppercase font-black tracking-tight leading-none font-bold">Relationship: {displayRelationship}</p>
+9585-                        <p className="text-[8.5px] font-mono font-bold text-slate-700 bg-slate-50 py-1 px-3 rounded-full border border-slate-100 mt-1.5 tracking-wider inline-block">
+9586-                          {studentContactNum}
+9587-                        </p>
+9588-                      </div>
+9589-
+9590-                      {/* Adviser / Guardian Signature block */}
+9591-                      <div className="w-full z-10 mt-auto flex flex-col items-center pt-2">
+9592-                        <div className="w-24 border-b border-slate-350 mt-1" />
+9593-                        <p className="text-[7.5px] font-bold text-slate-800 mt-1 uppercase max-w-full truncate">{displayPrincipal}</p>
+--
+9968-                          <div className="flex-grow flex flex-col items-center justify-between p-5 relative overflow-hidden bg-white text-center">
+9969-                            <div className="id-print-watermark absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none select-none z-0 overflow-hidden grayscale">
+9970-                              {getWatermarkIcon()}
+9971-                            </div>
+9972-
+9973:                            {/* Group QR Code and Return Policy together */}
+9974-                            <div className="w-full flex flex-col items-center gap-1.5 z-10 shrink-0">
+9975-                              {includeBarcode && (
+9976-                                <div className="p-0.5 bg-white shadow-sm border border-slate-200 shrink-0">
+9977-                                  <QRCode value={activePreviewStudent.lrn || "0000"} size={48} level="M" />
+9978-                                </div>
+9979-                              )}
+9980-
+9981-                              <div className="w-full">
+9982:                                <h5 className="text-[8px] font-black uppercase text-slate-400 tracking-widest leading-none mt-1">Return Policy & Directions</h5>
+9983-                                <p className="text-[8px] text-slate-550 leading-relaxed font-semibold mt-1 px-2">
+9984-                                  {emergencyNotes || "If found, please return to the school administration office immediately."}
+9985-                                </p>
+9986-                              </div>
+9987-                            </div>
+9988-
+9989-                            {/* Emergency Contacts Block */}
+9990-                            <div className="w-full z-10 border-t border-dashed border-slate-200 pt-3 my-1">
+9991-                              <h5 className="text-[9px] font-black uppercase tracking-wider text-rose-600 leading-none">IN CASE OF EMERGENCY</h5>
+9992-                              <p className="text-[11px] font-bold text-slate-800 mt-1 uppercase max-w-full truncate">
+9993-                                {previewGuardian}
+9994-                              </p>
+9995-                              <p className="text-[8px] text-slate-500 uppercase font-black tracking-tight leading-none mt-0.5">
+9996-                                Relationship: {previewRelationship}
+9997-                              </p>
+9998-                              <p className="text-[10px] font-mono font-bold text-slate-700 bg-slate-50 border border-slate-150 py-1 px-3 mt-1.5 rounded-full inline-block tracking-wider">
+9999-                                {previewContactNumber}
+10000-                              </p>
+10001-                            </div>
+10002-
+--
+10092-                          {/* Faint Watermark backdrop */}
+10093-                          <div className="id-print-watermark absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none select-none z-0 overflow-hidden grayscale">
+10094-                            {getWatermarkIcon()}
+10095-                          </div>
+10096-
+10097:                          {/* Group QR Code and Return Policy together */}
+10098-                          <div className="w-full flex flex-col items-center gap-1.5 z-10 shrink-0">
+10099-                            {includeBarcode && (
+10100-                              <div className="p-0.5 bg-white shadow-sm border border-slate-200 shrink-0">
+10101-                                <QRCode value={activePreviewStudent.lrn || "0000"} size={52} level="M" />
+10102-                              </div>
+10103-                            )}
+10104-
+10105-                            <div className="w-full">
+10106:                              <h5 className="text-[8px] font-black uppercase text-slate-400 tracking-widest leading-none mt-1">Return Policy & Directions</h5>
+10107-                              <p className="text-[8px] text-slate-550 leading-relaxed font-semibold mt-1 px-2">
+10108-                                {emergencyNotes || "If found, please return to the school administration office immediately."}
+10109-                              </p>
+10110-                            </div>
+10111-                          </div>
+10112-
+10113-                          {/* Emergency Contacts Block */}
+10114-                          <div className="w-full z-10 border-t border-dashed border-slate-200 pt-3 my-1">
+10115-                            <h5 className="text-[9px] font-black uppercase tracking-wider text-rose-600">IN CASE OF EMERGENCY</h5>
+10116-                            <p className="text-[11px] font-bold text-slate-800 mt-1 uppercase max-w-full truncate">
+10117-                              {previewGuardian}
+10118-                            </p>
+10119-                            <p className="text-[8px] text-slate-500 uppercase font-black tracking-tight leading-none mt-0.5">
+10120-                              Relationship: {previewRelationship}
+10121-                            </p>
+10122-                            <p className="text-[10px] font-mono font-bold text-slate-700 bg-slate-50 border border-slate-150 py-1 px-3 mt-1.5 rounded-full inline-block tracking-wider">
+10123-                              {previewContactNumber}
+10124-                            </p>
+10125-                          </div>
+10126-

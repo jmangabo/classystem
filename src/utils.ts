@@ -89,3 +89,76 @@ export const getSubjectSortScore = (name: string): number => {
 
   return indexFallback === -1 ? 999 : indexFallback;
 };
+
+export function printHTMLContent(html: string) {
+  // Pre-process the HTML on the fly to convert premature timeouts for window.close into safe onafterprint triggers.
+  // This prevents the print preview container from disappearing or showing blank document errors.
+  let processedHTML = html;
+
+  // Pattern 1: setTimeout(function() { window.close(); }, 500); or variations with whitespace
+  processedHTML = processedHTML.replace(
+    /setTimeout\(\s*function\(\s*\)\s*\{\s*window\.close\(\s*\);?\s*\}\s*,\s*\d+\s*\);?/g,
+    "window.onafterprint = function() { window.close(); }; window.onfocus = function() { setTimeout(function() { window.close(); }, 800); };"
+  );
+
+  // Pattern 2: setTimeout(() => window.close(), 500) or similar arrow functions
+  processedHTML = processedHTML.replace(
+    /setTimeout\(\s*\(\s*\)\s*=>\s*\{?\s*window\.close\(\s*\);?\s*\}?\s*,\s*\d+\s*\);?/g,
+    "window.onafterprint = function() { window.close(); }; window.onfocus = function() { setTimeout(function() { window.close(); }, 800); };"
+  );
+
+  // 1. Try opening a blank window
+  let printWindow: Window | null = null;
+  try {
+    printWindow = window.open("", "_blank");
+  } catch (e) {
+    console.warn("window.open blocked or failed:", e);
+  }
+
+  if (printWindow) {
+    try {
+      printWindow.document.write(processedHTML);
+      printWindow.document.close();
+      return;
+    } catch (e) {
+      console.error("Failed to write to opened window:", e);
+      try {
+        printWindow.close();
+      } catch (_) {}
+    }
+  }
+
+  // 2. Dynamic Hidden iframe Fallback (No Popup Blockers can block this!)
+  console.log("Using hidden iframe printing fallback...");
+  let iframe = document.getElementById("robust-print-iframe") as HTMLIFrameElement;
+  if (!iframe) {
+    iframe = document.createElement("iframe");
+    iframe.id = "robust-print-iframe";
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "0";
+    iframe.style.zIndex = "-9999";
+    document.body.appendChild(iframe);
+  }
+
+  const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+  if (iframeDoc) {
+    iframeDoc.open();
+    iframeDoc.write(processedHTML);
+    iframeDoc.close();
+
+    setTimeout(() => {
+      if (iframe.contentWindow) {
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
+      }
+    }, 500);
+  } else {
+    // Ultimate fallback
+    window.print();
+  }
+}
+

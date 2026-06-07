@@ -11,7 +11,7 @@ import {
 } from 'firebase/firestore';
 import { db, handleFirestoreError } from '../firebase';
 import { Student, Section, UserProfile, PTAFee, PTAPayment, PTAAuditLog } from '../types';
-import { formatStudentName } from '../utils';
+import { formatStudentName, printHTMLContent } from '../utils';
 import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx-js-style';
 import { jsPDF } from 'jspdf';
@@ -1820,7 +1820,12 @@ export function PTAFeesManagementView({
                   onClick={() => {
                     const printContents = document.getElementById('learner-summary-print-container')?.innerHTML;
                     if (printContents) {
-                      const printWindow = window.open('', '_blank');
+                      const printWindow = {
+                        document: {
+                          write: (html: string) => printHTMLContent(html),
+                          close: () => {}
+                        }
+                      };
                       if (printWindow) {
                         const styleBlock = `
                           <style>
@@ -1868,7 +1873,7 @@ export function PTAFeesManagementView({
                             .hidden { display: none; }
                           </style>
                         `;
-                        printWindow.document.write('<html><head><title>Learner Contribution Summary</title>' + styleBlock + '</head><body>' + printContents + '<script>window.onload = function() { window.print(); setTimeout(function() { window.close(); }, 500); };</script></body></html>');
+                        printWindow.document.write('<html><head><title>Learner Contribution Summary</title>' + styleBlock + '</head><body>' + printContents + '<script>window.onload = function() { window.onafterprint = function() { window.close(); }; window.onfocus = function() { setTimeout(function() { window.close(); }, 800); }; setTimeout(function() { window.print(); }, 500); };</script></body></html>');
                         printWindow.document.close();
                       }
                     }
@@ -2876,7 +2881,12 @@ export function PTAFeesManagementView({
                   )}
                   <button 
                       onClick={() => {
-                        const printWindow = window.open('', '_blank');
+                        const printWindow = {
+                          document: {
+                            write: (html: string) => printHTMLContent(html),
+                            close: () => {}
+                          }
+                        };
                         if (printWindow) {
                           const receiptHTML = `
                           <div style="font-family: Arial, sans-serif; max-width: 100%; margin: 0 auto; color: #111;">
@@ -2944,7 +2954,7 @@ export function PTAFeesManagementView({
                             </div>
                           </div>
                           `;
-                          printWindow.document.write('<html><head><title>Official PTA Receipt - ' + showReceipt.orNumber + '</title><style>@page { size: A5 portrait; margin: 15mm; } body { padding: 0; margin: 0; }</style></head><body>' + receiptHTML + '<script>window.onload = function() { window.print(); setTimeout(function() { window.close(); }, 500); };</script></body></html>');
+                          printWindow.document.write('<html><head><title>Official PTA Receipt - ' + showReceipt.orNumber + '</title><style>@page { size: A5 portrait; margin: 15mm; } body { padding: 0; margin: 0; }</style></head><body>' + receiptHTML + '<script>window.onload = function() { window.onafterprint = function() { window.close(); }; window.onfocus = function() { setTimeout(function() { window.close(); }, 800); }; setTimeout(function() { window.print(); }, 500); };</script></body></html>');
                           printWindow.document.close();
                         }
                       }}

@@ -1,4 +1,4 @@
-import { formatStudentName } from "../utils";
+import { formatStudentName, printHTMLContent } from "../utils";
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Student, School } from '../types';
 import { Download, FileText, Calendar, Printer, X } from 'lucide-react';
@@ -100,7 +100,12 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
   const handlePrintNewWindow = () => {
     if (!currentMonthData) return;
 
-    const win = window.open('', '_blank');
+    const win = {
+      document: {
+        write: (html: string) => printHTMLContent(html),
+        close: () => {}
+      }
+    };
     if (!win) {
       alert("Please allow popups to print the report.");
       return;
@@ -672,9 +677,10 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
         <script>
           window.onload = function() {
             setTimeout(function() {
+              window.onafterprint = function() { window.close(); };
+              window.onfocus = function() { setTimeout(function() { window.close(); }, 800); };
               window.print();
-              setTimeout(function() { window.close(); }, 500);
-            }, 600);
+            }, 800);
           };
         </script>
       </body>
