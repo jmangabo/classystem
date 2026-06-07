@@ -8798,9 +8798,7 @@ function IDPrintingCenterModal({
   const [emergencyNotes, setEmergencyNotes] = useState(
     "This card is non-transferable and must be worn inside the school premises at all times. If recovered, please return to the school administration."
   );
-  const [contactNumber, setContactNumber] = useState(
-    section?.district ? `District: ${section.district}` : "Local Unit Office: (02) 8303-1234"
-  );
+  const [contactNumber, setContactNumber] = useState("09XX XXXX XXX");
   const [searchStudentTerm, setSearchStudentTerm] = useState("");
   const [previewIndex, setPreviewIndex] = useState(0);
 
@@ -8940,7 +8938,7 @@ function IDPrintingCenterModal({
       previewGuardian = activePreviewStudent.guardianName;
       previewRelationship = activePreviewStudent.guardianRelationship || "Guardian";
     }
-    previewContactNumber = activePreviewStudent.contactNumber || contactNumber;
+    previewContactNumber = contactNumber;
   }
 
   // Get SVG watermark icon
@@ -9500,7 +9498,7 @@ function IDPrintingCenterModal({
                 displayGuardian = s.guardianName;
                 displayRelationship = s.guardianRelationship || "Guardian";
               }
-              const studentContactNum = s.contactNumber || contactNumber;
+              const studentContactNum = contactNumber;
               
               return (
                 <React.Fragment key={s.id}>
@@ -9938,6 +9936,7 @@ function IDPrintingCenterModal({
                       <input
                         type="text"
                         value={contactNumber}
+                        placeholder="09XX XXXX XXX"
                         disabled={!isAdmin}
                         onChange={(e) => setContactNumber(e.target.value)}
                         className={`w-full text-[9.5px] p-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-indigo-400 font-bold text-slate-700 ${!isAdmin ? 'opacity-65 cursor-not-allowed bg-slate-100/50' : ''}`}
