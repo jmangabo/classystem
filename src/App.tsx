@@ -8938,7 +8938,7 @@ function IDPrintingCenterModal({
       previewGuardian = activePreviewStudent.guardianName;
       previewRelationship = activePreviewStudent.guardianRelationship || "Guardian";
     }
-    previewContactNumber = contactNumber;
+    previewContactNumber = activePreviewStudent.contactNumber || contactNumber;
   }
 
   // Get SVG watermark icon
@@ -9498,7 +9498,7 @@ function IDPrintingCenterModal({
                 displayGuardian = s.guardianName;
                 displayRelationship = s.guardianRelationship || "Guardian";
               }
-              const studentContactNum = contactNumber;
+              const studentContactNum = s.contactNumber || contactNumber;
               
               return (
                 <React.Fragment key={s.id}>
@@ -9932,14 +9932,31 @@ function IDPrintingCenterModal({
                       />
                     </div>
                     <div className="space-y-1">
-                      <span className="text-[8.5px] font-bold text-slate-500 uppercase tracking-widest">CP Number</span>
+                      <span className="text-[8.5px] font-bold text-slate-500 uppercase tracking-widest">
+                        {activePreviewStudent 
+                          ? `CP Number (${activePreviewStudent.firstName || activePreviewStudent.name}'s Profile)` 
+                          : "CP Number"}
+                      </span>
                       <input
                         type="text"
-                        value={contactNumber}
+                        value={activePreviewStudent ? (activePreviewStudent.contactNumber || "") : contactNumber}
                         placeholder="09XX XXXX XXX"
-                        disabled={!isAdmin}
-                        onChange={(e) => setContactNumber(e.target.value)}
-                        className={`w-full text-[9.5px] p-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-indigo-400 font-bold text-slate-700 ${!isAdmin ? 'opacity-65 cursor-not-allowed bg-slate-100/50' : ''}`}
+                        disabled={!activePreviewStudent && !isAdmin}
+                        onChange={async (e) => {
+                          const val = e.target.value;
+                          if (activePreviewStudent && section?.id) {
+                            try {
+                              await updateDoc(doc(db, `sections/${section.id}/students`, activePreviewStudent.id), {
+                                contactNumber: val
+                              });
+                            } catch (err) {
+                              console.error("Error updating student contact number:", err);
+                            }
+                          } else {
+                            setContactNumber(val);
+                          }
+                        }}
+                        className={`w-full text-[9.5px] p-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-indigo-400 font-bold text-slate-700 ${(!activePreviewStudent && !isAdmin) ? 'opacity-65 cursor-not-allowed bg-slate-100/50' : ''}`}
                       />
                     </div>
                   </div>
