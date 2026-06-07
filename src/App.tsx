@@ -8712,6 +8712,7 @@ function AddLearnerView({
           preselectedStudent={idPrintPreselectedStudent}
           section={section}
           globalSettings={globalSettings}
+          isAdmin={isSystemAdmin}
           onClose={() => {
             setShowIDPrintModal(false);
             setIdPrintPreselectedStudent(null);
@@ -8767,6 +8768,7 @@ interface IDPrintingCenterModalProps {
   section: Section | null | undefined;
   globalSettings?: any;
   onClose: () => void;
+  isAdmin?: boolean;
 }
 
 function IDPrintingCenterModal({
@@ -8774,7 +8776,8 @@ function IDPrintingCenterModal({
   preselectedStudent,
   section,
   globalSettings,
-  onClose
+  onClose,
+  isAdmin = false
 }: IDPrintingCenterModalProps) {
   // Select all by default or preselect the single student
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => {
@@ -8808,6 +8811,13 @@ function IDPrintingCenterModal({
   const [fontFamily, setFontFamily] = useState<string>('Inter');
   const [isDragMode, setIsDragMode] = useState<boolean>(false);
   const [elementOffsets, setElementOffsets] = useState<Record<string, {x: number, y: number}>>({});
+
+  // Safeguard: Ensure drag mode is strictly false for non-admins (advisers)
+  useEffect(() => {
+    if (!isAdmin && isDragMode) {
+      setIsDragMode(false);
+    }
+  }, [isAdmin, isDragMode]);
 
   useEffect(() => {
     const fetchSchoolData = async () => {
@@ -9477,7 +9487,6 @@ function IDPrintingCenterModal({
               const displayLrn = s.lrn || "---";
               const displayName = formatStudentName(s) || "N/A";
               const displayYear = section?.schoolYear || "SY 2025-2026";
-              const displayGradeSection = formatGradeSection(section?.gradeLevel, section?.name);
               const displayPrincipal = schoolHead || "School Principal";
               let displayGuardian = s.guardianName || s.fatherName || s.motherName || "Guardian Signature";
               let displayRelationship = s.guardianRelationship || (s.fatherName ? "Father" : s.motherName ? "Mother" : "Guardian");
@@ -9552,9 +9561,6 @@ function IDPrintingCenterModal({
                               <h4 className="text-[13px] font-black text-slate-900 leading-tight uppercase tracking-tight line-clamp-2 px-1">
                                 {displayName}
                               </h4>
-                              <div className="text-[8px] font-extrabold text-slate-500 uppercase tracking-wider mt-0.5">
-                                {displayGradeSection}
-                              </div>
                             </DraggableField>
                           </div>
 
@@ -9672,9 +9678,6 @@ function IDPrintingCenterModal({
                             <h4 className="text-[14px] font-black text-slate-900 leading-tight uppercase tracking-tight line-clamp-2 px-1">
                               {displayName}
                             </h4>
-                            <div className="text-[8px] font-extrabold text-slate-500 uppercase tracking-wider mt-0.5">
-                              {displayGradeSection}
-                            </div>
                           </DraggableField>
                         </div>
 
@@ -9795,6 +9798,16 @@ function IDPrintingCenterModal({
               <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2">
                 <span>1. Card Configurations</span>
               </h3>
+
+              {!isAdmin && (
+                <div className="bg-amber-50/75 border border-amber-200/80 p-3.5 rounded-2xl text-[10px] text-amber-900 font-bold flex items-start gap-2.5 shadow-sm select-none leading-relaxed">
+                  <Shield size={16} className="shrink-0 text-amber-600 mt-0.5" />
+                  <div>
+                    <p className="font-extrabold uppercase tracking-widest text-amber-800 text-[8.5px] mb-1">Adviser Mode / Print-Only</p>
+                    <p className="text-slate-650 font-semibold leading-normal">The School Administrator has defined this official ID layout template. Advisers can select learners and print, but are restricted from modifying layout settings, custom texts, or styles.</p>
+                  </div>
+                </div>
+              )}
               
               {/* Theme selection */}
               <div className="space-y-2">
@@ -9802,8 +9815,9 @@ function IDPrintingCenterModal({
                 <select
                   id="theme-select"
                   value={cardTheme}
+                  disabled={!isAdmin}
                   onChange={(e) => setCardTheme(e.target.value as any)}
-                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-500 transition-colors shadow-sm cursor-pointer"
+                  className={`w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-500 transition-colors shadow-sm cursor-pointer ${!isAdmin ? 'opacity-60 cursor-not-allowed' : ''}`}
                 >
                   <option value="presidential">🏛️ Indigo Gold (Presidential)</option>
                   <option value="metro">🏙️ City Metallic (Metro)</option>
@@ -9828,8 +9842,9 @@ function IDPrintingCenterModal({
                 <select
                   id="layout-select"
                   value={layoutType}
+                  disabled={!isAdmin}
                   onChange={(e) => setLayoutType(e.target.value as any)}
-                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-500 transition-colors shadow-sm cursor-pointer"
+                  className={`w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-500 transition-colors shadow-sm cursor-pointer ${!isAdmin ? 'opacity-60 cursor-not-allowed' : ''}`}
                 >
                   <option value="front-back-vertical">🖨️ Foldable (A4 - Top: Front, Bottom: Back)</option>
                   <option value="front-back">📄 Front & Back Separate Pages</option>
@@ -9851,12 +9866,13 @@ function IDPrintingCenterModal({
                     <button
                       key={w.id}
                       type="button"
+                      disabled={!isAdmin}
                       onClick={() => setWatermarkLogo(w.id as any)}
                       className={`p-2 border rounded-xl text-[9.5px] font-bold text-center transition-all ${
                         watermarkLogo === w.id 
                           ? 'border-indigo-600 bg-indigo-50/40 text-indigo-950 font-black' 
                           : 'border-slate-200 bg-white hover:border-slate-350 text-slate-650'
-                      }`}
+                      } ${!isAdmin ? 'opacity-50 cursor-not-allowed hover:bg-white select-none' : ''}`}
                     >
                       {w.label}
                     </button>
@@ -9873,10 +9889,11 @@ function IDPrintingCenterModal({
                   </div>
                   <button
                     type="button"
+                    disabled={!isAdmin}
                     onClick={() => setIncludeBarcode(!includeBarcode)}
                     className={`w-9 h-5 rounded-full p-0.5 transition-all outline-none ${
                       includeBarcode ? 'bg-emerald-600' : 'bg-slate-300'
-                    }`}
+                    } ${!isAdmin ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     <div className={`w-4 h-4 bg-white rounded-full shadow transition-all ${includeBarcode ? 'translate-x-4' : 'translate-x-0'}`} />
                   </button>
@@ -9891,10 +9908,11 @@ function IDPrintingCenterModal({
                   </div>
                   <button
                     type="button"
+                    disabled={!isAdmin}
                     onClick={() => setIncludePhotoBox(!includePhotoBox)}
                     className={`w-9 h-5 rounded-full p-0.5 transition-all outline-none ${
                       includePhotoBox ? 'bg-emerald-600' : 'bg-slate-300'
-                    }`}
+                    } ${!isAdmin ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     <div className={`w-4 h-4 bg-white rounded-full shadow transition-all ${includePhotoBox ? 'translate-x-4' : 'translate-x-0'}`} />
                   </button>
@@ -9910,8 +9928,9 @@ function IDPrintingCenterModal({
                       <span className="text-[8.5px] font-bold text-slate-500 uppercase tracking-widest">Emergency Warning Code</span>
                       <textarea
                         value={emergencyNotes}
+                        disabled={!isAdmin}
                         onChange={(e) => setEmergencyNotes(e.target.value)}
-                        className="w-full text-[9px] p-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-indigo-400 h-14 font-semibold text-slate-705"
+                        className={`w-full text-[9px] p-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-indigo-400 h-14 font-semibold text-slate-705 ${!isAdmin ? 'opacity-65 cursor-not-allowed bg-slate-100/50' : ''}`}
                       />
                     </div>
                     <div className="space-y-1">
@@ -9919,8 +9938,9 @@ function IDPrintingCenterModal({
                       <input
                         type="text"
                         value={contactNumber}
+                        disabled={!isAdmin}
                         onChange={(e) => setContactNumber(e.target.value)}
-                        className="w-full text-[9.5px] p-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-indigo-400 font-bold text-slate-700"
+                        className={`w-full text-[9.5px] p-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-indigo-400 font-bold text-slate-700 ${!isAdmin ? 'opacity-65 cursor-not-allowed bg-slate-100/50' : ''}`}
                       />
                     </div>
                   </div>
@@ -9938,8 +9958,9 @@ function IDPrintingCenterModal({
                   <select
                     id="font-select"
                     value={fontFamily}
+                    disabled={!isAdmin}
                     onChange={(e) => setFontFamily(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-500 transition-colors shadow-sm cursor-pointer"
+                    className={`w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-500 transition-colors shadow-sm cursor-pointer ${!isAdmin ? 'opacity-60 cursor-not-allowed' : ''}`}
                   >
                     <option value="Inter">Standard UI (Inter)</option>
                     <option value="'JetBrains Mono', monospace">Technical / Coding (Mono)</option>
@@ -9959,16 +9980,17 @@ function IDPrintingCenterModal({
                     </div>
                     <button
                       type="button"
+                      disabled={!isAdmin}
                       onClick={() => setIsDragMode(!isDragMode)}
                       className={`w-9 h-5 rounded-full p-0.5 transition-all outline-none shadow-inner ${
                         isDragMode ? 'bg-indigo-600' : 'bg-slate-300'
-                      }`}
+                      } ${!isAdmin ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                       <div className={`w-4 h-4 bg-white rounded-full shadow transition-all ${isDragMode ? 'translate-x-4' : 'translate-x-0'}`} />
                     </button>
                   </div>
 
-                  {Object.keys(elementOffsets).some(k => elementOffsets[k]?.x !== 0 || elementOffsets[k]?.y !== 0) && (
+                  {isAdmin && Object.keys(elementOffsets).some(k => elementOffsets[k]?.x !== 0 || elementOffsets[k]?.y !== 0) && (
                     <button
                       type="button"
                       onClick={() => setElementOffsets({})}
@@ -9986,14 +10008,16 @@ function IDPrintingCenterModal({
                   </div>
                 )}
                 
-                <button
-                  type="button"
-                  onClick={handleSaveTemplate}
-                  className="w-full mt-4 flex items-center justify-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all shadow-md active:scale-95"
-                >
-                  <Save size={14} />
-                  Save as School Template
-                </button>
+                {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={handleSaveTemplate}
+                    className="w-full mt-4 flex items-center justify-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all shadow-md active:scale-95"
+                  >
+                    <Save size={14} />
+                    Save as School Template
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -10162,9 +10186,6 @@ function IDPrintingCenterModal({
                               <h4 className="text-[13px] font-black text-slate-900 leading-tight uppercase tracking-tight line-clamp-2 px-1">
                                 {formatStudentName(activePreviewStudent) || activePreviewStudent.name}
                               </h4>
-                              <div className="text-[8px] font-extrabold text-slate-500 uppercase tracking-wider mt-0.5">
-                                {formatGradeSection(section?.gradeLevel, section?.name)}
-                              </div>
                             </DraggableField>
                           </div>
 
@@ -10280,9 +10301,6 @@ function IDPrintingCenterModal({
                             <h4 className="text-[14px] font-black text-slate-900 leading-tight uppercase tracking-tight line-clamp-2 px-1">
                               {formatStudentName(activePreviewStudent) || activePreviewStudent.name}
                             </h4>
-                            <div className="text-[8px] font-extrabold text-slate-500 uppercase tracking-wider mt-0.5">
-                              {formatGradeSection(section?.gradeLevel, section?.name)}
-                            </div>
                           </DraggableField>
                         </div>
 
