@@ -3491,6 +3491,32 @@ function SectionForm({
   const [availableSchools, setAvailableSchools] = useState<any[]>([]);
   const [availableSchoolYears, setAvailableSchoolYears] = useState<string[]>([]);
   const [activeSchoolYear, setActiveSchoolYear] = useState<string | null>(null);
+  const [advisoryCandidates, setAdvisoryCandidates] = useState<UserProfile[]>([]);
+
+  useEffect(() => {
+    if (!form.schoolId) {
+      setAdvisoryCandidates([]);
+      return;
+    }
+    const q = query(
+      collection(db, "users"),
+      where("schoolId", "==", form.schoolId)
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      const candidates: UserProfile[] = [];
+      snap.forEach((docSnap) => {
+        const u = { uid: docSnap.id, ...docSnap.data() } as UserProfile;
+        if (u.role !== 'student') {
+          candidates.push(u);
+        }
+      });
+      candidates.sort((a, b) => (a.displayName || a.email || "").localeCompare(b.displayName || b.email || ""));
+      setAdvisoryCandidates(candidates);
+    }, (err) => {
+      console.error("Error fetching advisory candidates:", err);
+    });
+    return () => unsub();
+  }, [form.schoolId]);
 
   const schoolYearsToDisplay = useMemo(() => {
     const list = [...availableSchoolYears];
@@ -3595,12 +3621,41 @@ function SectionForm({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         <div className="space-y-1.5">
             <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider ml-1">Adviser Name</label>
-            <input 
-              value={form.adviserName}
-              onChange={e => setForm({...form, adviserName: e.target.value})}
-              className="w-full h-11 px-4 bg-slate-50/50 border border-slate-200 rounded-lg outline-none focus:border-indigo-500 font-semibold text-sm transition-all"
-              placeholder="Complete Name of Adviser"
-            />
+            {advisoryCandidates.length > 0 ? (
+              <select 
+                value={form.adviserName}
+                onChange={e => {
+                  const val = e.target.value;
+                  const matched = advisoryCandidates.find(c => (c.displayName || c.email) === val);
+                  setForm(prev => ({
+                    ...prev,
+                    adviserName: val,
+                    adviserEmail: matched ? (matched.email || "") : prev.adviserEmail
+                  }));
+                }}
+                className="w-full h-11 px-4 bg-slate-50/50 border border-slate-200 rounded-lg outline-none focus:border-indigo-500 font-semibold text-sm transition-all text-slate-800"
+              >
+                <option value="" disabled>Select Class Adviser...</option>
+                {form.adviserName && !advisoryCandidates.some(c => (c.displayName || c.email) === form.adviserName) && (
+                  <option value={form.adviserName}>{form.adviserName}</option>
+                )}
+                {advisoryCandidates.map(c => {
+                  const label = c.displayName || c.email;
+                  return (
+                    <option key={c.uid} value={label}>
+                      {label} ({c.email})
+                    </option>
+                  );
+                })}
+              </select>
+            ) : (
+              <input 
+                value={form.adviserName}
+                onChange={e => setForm({...form, adviserName: e.target.value})}
+                className="w-full h-11 px-4 bg-slate-50/50 border border-slate-200 rounded-lg outline-none focus:border-indigo-500 font-semibold text-sm transition-all text-slate-800"
+                placeholder="No registered users found. Type manually..."
+              />
+            )}
         </div>
 
         <div className="space-y-1.5">
@@ -3608,7 +3663,12 @@ function SectionForm({
             <input 
               value={form.adviserEmail}
               onChange={e => setForm({...form, adviserEmail: e.target.value})}
-              className="w-full h-11 px-4 bg-slate-50/50 border border-slate-200 rounded-lg outline-none focus:border-indigo-500 font-semibold text-sm transition-all"
+              readOnly={!!form.adviserName && advisoryCandidates.some(c => (c.displayName || c.email) === form.adviserName)}
+              className={`w-full h-11 px-4 border border-slate-200 rounded-lg outline-none font-semibold text-sm transition-all ${
+                (form.adviserName && advisoryCandidates.some(c => (c.displayName || c.email) === form.adviserName)) 
+                  ? 'bg-slate-100 text-slate-500 cursor-not-allowed' 
+                  : 'bg-slate-50/50 focus:border-indigo-500 text-slate-850'
+              }`}
               placeholder="Enter Teacher's Email"
             />
         </div>
@@ -8938,7 +8998,7 @@ function IDPrintingCenterModal({
       previewGuardian = activePreviewStudent.guardianName;
       previewRelationship = activePreviewStudent.guardianRelationship || "Guardian";
     }
-    previewContactNumber = activePreviewStudent.contactNumber || contactNumber;
+    previewContactNumber = activePreviewStudent.contactNumber || "09XX XXXX XXX";
   }
 
   // Get SVG watermark icon
@@ -9498,7 +9558,7 @@ function IDPrintingCenterModal({
                 displayGuardian = s.guardianName;
                 displayRelationship = s.guardianRelationship || "Guardian";
               }
-              const studentContactNum = s.contactNumber || contactNumber;
+              const studentContactNum = s.contactNumber || "09XX XXXX XXX";
               
               return (
                 <React.Fragment key={s.id}>
