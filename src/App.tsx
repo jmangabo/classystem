@@ -728,6 +728,15 @@ export default function App() {
 
   const [students, setStudents] = useState<Student[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [globalSubjects, setGlobalSubjects] = useState<Subject[]>([]);
+  
+  useEffect(() => {
+    if (!currentUser) return;
+    const unsub = onSnapshot(collection(db, 'global_subjects'), (snap) => {
+      setGlobalSubjects(snap.docs.map(d => ({ id: d.id, ...d.data() } as Subject)));
+    });
+    return () => unsub();
+  }, [currentUser]);
   const [activeSchool, setActiveSchool] = useState<School | null>(null);
   const [teacherCount, setTeacherCount] = useState<number>(0);
   
@@ -1247,8 +1256,8 @@ export default function App() {
         // Fetch all subjects for the school (admin/system_admin) or the teacher (teacher) to show on section cards
         let q;
         if (userProfile.role === 'admin' || userProfile.role === 'system_admin') {
-          // Filter by teacherEmail for administrators as well, ensuring they only view subjects assigned to them
-          q = query(collectionGroup(db, 'subjects'), where("teacherEmail", "==", userProfile.email || ''));
+          // Administrators view all subjects across the school
+          q = query(collectionGroup(db, 'subjects'));
         } else {
           // Teacher: Fetch subjects where they are the teacher
           q = query(collectionGroup(db, 'subjects'), where("teacherEmail", "==", userProfile.email || ''));
@@ -1256,7 +1265,7 @@ export default function App() {
           
         const unsub = onSnapshot(q, (snapshot) => {
           let list = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Subject));
-          if (userProfile?.role === 'system_admin' && userProfile.schoolId) {
+          if ((userProfile?.role === 'system_admin' || userProfile?.role === 'admin') && userProfile.schoolId) {
             const schoolSectionIds = new Set(sections.map(s => s.id));
             list = list.filter(sub => {
               return (sub.schoolId === userProfile.schoolId) || (sub.sectionId && schoolSectionIds.has(sub.sectionId));
@@ -1290,20 +1299,35 @@ export default function App() {
       (err) => handleFirestoreError(err, 'list', `sections/${selectedSection.id}/students`)
     );
 
-    const subjectsUnsub = onSnapshot(
-      collection(db, `sections/${selectedSection.id}/subjects`),
-      (snapshot) => {
-        let list = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Subject));
-        setSubjects(list);
-      },
-      (err) => handleFirestoreError(err, 'list', `sections/${selectedSection.id}/subjects`)
-    );
+    let subjectsUnsub = () => {};
+    
+    if (selectedSection.gradeLevel >= 11) {
+      const globalIds = selectedSection.globalSubjectIds || [];
+      const secTeachers = selectedSection.subjectTeachers || {};
+      const list = globalSubjects
+        .filter(s => globalIds.includes(s.id))
+        .map(s => ({
+          ...s,
+          sectionId: selectedSection.id,
+          teacherEmail: secTeachers[s.id] || ''
+        }));
+      setSubjects(list);
+    } else {
+      subjectsUnsub = onSnapshot(
+        collection(db, `sections/${selectedSection.id}/subjects`),
+        (snapshot) => {
+          let list = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Subject));
+          setSubjects(list);
+        },
+        (err) => handleFirestoreError(err, 'list', `sections/${selectedSection.id}/subjects`)
+      );
+    }
 
     return () => {
       studentsUnsub();
       subjectsUnsub();
     };
-  }, [selectedSection?.id, userProfile?.role, sections]);
+  }, [selectedSection?.id, selectedSection?.gradeLevel, selectedSection?.globalSubjectIds, selectedSection?.subjectTeachers, globalSubjects, userProfile?.role, sections]);
 
   useEffect(() => {
     if (!selectedSection) return;
@@ -2493,9 +2517,97 @@ export default function App() {
     );
   }
 
+  const handleAddSubjectGlobal = async (s: Omit<Subject, 'id'>) => {
+    if (!s.gradeLevel) {
+      alert("Target Grade Level is missing.");
+      return;
+    }
+    
+    try {
+      await addDoc(collection(db, `global_subjects`), {
+        ...s,
+        teacherEmail: s.teacherEmail ? s.teacherEmail.trim().toLowerCase() : ""
+      });
+    } catch (error) {
+      handleFirestoreError(error, 'create', `global_subjects`);
+    }
+  };
+
+  const handleEditSubjectGlobal = async (id: string, s: Omit<Subject, 'id'>) => {
+    try {
+      const updateData: any = {
+        group: s.group,
+        name: s.name,
+        gradeLevel: s.gradeLevel,
+        subjectType: s.subjectType,
+        wwWeight: s.wwWeight,
+        ptWeight: s.ptWeight,
+        taWeight: s.taWeight,
+        offeredTerms: s.offeredTerms || [1],
+      };
+      if (s.order !== undefined) {
+        updateData.order = s.order;
+      }
+      if (s.teacherEmail) {
+        updateData.teacherEmail = s.teacherEmail.trim().toLowerCase();
+      }
+      await updateDoc(doc(db, `global_subjects`, id), updateData);
+    } catch (error) {
+      handleFirestoreError(error, 'update', `global_subjects`);
+    }
+  };
+
+  const handleDeleteSubjectGlobal = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, `global_subjects`, id));
+    } catch (error) {
+      handleFirestoreError(error, 'delete', `global_subjects`);
+    }
+  };
+
   if (!selectedSection) {
+    if (activeTab === 'subjects') {
+      return (
+        <div className="flex-1 bg-slate-50 min-h-screen">
+          <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between sticky top-0 z-20 shadow-sm">
+            <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+              <BookOpen size={24} className="text-indigo-600" />
+              Global Subjects Directory
+            </h1>
+            <button 
+              onClick={() => setActiveTab('dashboard')}
+              className="flex items-center gap-2 text-slate-500 hover:text-slate-800 font-semibold px-4 py-2 hover:bg-slate-50 rounded-xl transition-all border border-transparent hover:border-slate-200"
+            >
+              Back to Dashboard
+            </button>
+          </div>
+          <div className="p-8">
+            <div className="max-w-7xl mx-auto">
+               <div className="bg-amber-50 text-amber-800 px-5 py-4 rounded-xl mb-6 text-sm font-medium border border-amber-200/50 flex flex-col gap-1">
+                 <p className="font-bold">Global View (SHS Only)</p>
+                 <p className="opacity-90">You are viewing Senior High School (Grade 11 & 12) subjects across the school. For Grade 1-10, please use the Subject Menu within each specific Section View.</p>
+               </div>
+               <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                 <SubjectsView 
+                    subjects={globalSubjects.filter(s => Number(s.gradeLevel) >= 11)}
+                    onAddSubject={handleAddSubjectGlobal}
+                    onEditSubject={handleEditSubjectGlobal}
+                    onDeleteSubject={handleDeleteSubjectGlobal}
+                    selectedSection={null}
+                    currentUser={userProfile}
+                    globalSettings={globalSettings}
+                    allSections={sections}
+                 />
+               </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <SectionsView 
+
         sections={sections} 
         expiredSchoolIds={expiredSchoolIds}
         globalSettings={globalSettings}
@@ -2512,6 +2624,7 @@ export default function App() {
            setSelectedSubjectId(subjectObj ? subjectObj.id : subjName);
         }}
         subjects={subjects}
+        globalSubjects={globalSubjects}
         onCreate={handleCreateSection}
         onUpdate={handleUpdateSection}
         onDelete={handleDeleteSection}
@@ -2550,6 +2663,16 @@ export default function App() {
 
   const handleAddSubject = async (s: Omit<Subject, 'id'>) => {
     if (!selectedSection) return;
+    const adviserEmail = (selectedSection.adviserEmail || "").trim().toLowerCase();
+    const authEmail = (currentUser?.email || "").trim().toLowerCase();
+    const profEmail = (userProfile?.email || "").trim().toLowerCase();
+    const isSectionAdviser = adviserEmail && (adviserEmail === authEmail || adviserEmail === profEmail);
+    const isAdmin = userProfile?.role === 'system_admin' || userProfile?.role === 'admin';
+
+    if (!isAdmin && !isSectionAdviser) {
+      alert("Only Administrators and Section Advisers can modify subjects for this section.");
+      return;
+    }
     try {
       await addDoc(collection(db, `sections/${selectedSection.id}/subjects`), {
         ...s,
@@ -2564,6 +2687,16 @@ export default function App() {
 
   const handleEditSubject = async (id: string, s: Omit<Subject, 'id'>) => {
     if (!selectedSection) return;
+    const adviserEmail = (selectedSection.adviserEmail || "").trim().toLowerCase();
+    const authEmail = (currentUser?.email || "").trim().toLowerCase();
+    const profEmail = (userProfile?.email || "").trim().toLowerCase();
+    const isSectionAdviser = adviserEmail && (adviserEmail === authEmail || adviserEmail === profEmail);
+    const isAdmin = userProfile?.role === 'system_admin' || userProfile?.role === 'admin';
+
+    if (!isAdmin && !isSectionAdviser) {
+      alert("Only Administrators and Section Advisers can modify subjects for this section.");
+      return;
+    }
     try {
       await updateDoc(doc(db, `sections/${selectedSection.id}/subjects`, id), {
         ...s,
@@ -2577,6 +2710,16 @@ export default function App() {
 
   const handleDeleteSubject = async (id: string) => {
     if (!selectedSection) return;
+    const adviserEmail = (selectedSection.adviserEmail || "").trim().toLowerCase();
+    const authEmail = (currentUser?.email || "").trim().toLowerCase();
+    const profEmail = (userProfile?.email || "").trim().toLowerCase();
+    const isSectionAdviser = adviserEmail && (adviserEmail === authEmail || adviserEmail === profEmail);
+    const isAdmin = userProfile?.role === 'system_admin' || userProfile?.role === 'admin';
+
+    if (!isAdmin && !isSectionAdviser) {
+      alert("Only Administrators and Section Advisers can modify subjects for this section.");
+      return;
+    }
     try {
       await deleteDoc(doc(db, `sections/${selectedSection.id}/subjects`, id));
     } catch (error) {
@@ -2631,6 +2774,7 @@ export default function App() {
                 ] : [])
               ];
               const allowedTabs = allTabs.filter(tab => {
+                if (tab.id === 'subjects' && userProfile?.role !== 'system_admin') return false;
                 if (tab.id === 'logs' || tab.id === 'logs-clear') return currentUser?.email === 'jessiemangabo@gmail.com';
                 if (tab.id === 'summary' && !isSectionAdviser) return false;
 
@@ -2644,7 +2788,10 @@ export default function App() {
                 if (tab.id === 'sf4' && userProfile?.role !== 'system_admin' && userProfile?.role !== 'school_head' && !isAuthorizedCashier) return false;
 
                 if (userProfile?.role === 'system_admin' || userProfile?.role === 'admin' || isAuthorizedCashier) {
-                  const allowedTabsList = ['dashboard', 'enroll', 'pta', 'subjects', 'sf8', 'guide', 'sys-docs', 'gradebook', 'summary', 'attendance', 'observed-values', 'sf2', 'transfers', 'sf10', 'sf4', 'anecdotes', 'logs', 'logs-clear'];
+                  const allowedTabsList = [
+                    'dashboard', 'enroll', 'pta', 'sf8', 'guide', 'sys-docs', 'gradebook', 'summary', 'attendance', 'observed-values', 'sf2', 'transfers', 'sf10', 'sf4', 'anecdotes', 'logs', 'logs-clear',
+                    ...(userProfile?.role === 'system_admin' ? ['subjects'] : [])
+                  ];
                   if (userProfile?.role === 'system_admin') {
                     return allowedTabsList.filter(id => {
                       if (id === 'summary' && !isSectionAdviser) return false;
@@ -2664,7 +2811,7 @@ export default function App() {
                 if (userProfile?.role === 'teacher') {
                   if (isSectionAdviser) {
                     // Advisers see most things except restricted ones like SF4
-                    return ['dashboard', 'enroll', 'pta', 'subjects', 'sf8', 'sf10', 'attendance', 'observed-values', 'sf2', 'transfers', 'anecdotes', 'guide', 'gradebook', 'summary'].includes(tab.id);
+                    return ['dashboard', 'enroll', 'pta', 'sf8', 'sf10', 'attendance', 'observed-values', 'sf2', 'transfers', 'anecdotes', 'guide', 'gradebook', 'summary'].includes(tab.id);
                   }
                   return tab.id === 'gradebook' || tab.id === 'dashboard' || tab.id === 'anecdotes' || tab.id === 'pta';
                 }
@@ -2760,29 +2907,8 @@ export default function App() {
                   {renderDropdown('academic', 'Academic Records', <BookOpen size={14} />, academicTabs)}
                   {renderDropdown('support', 'Support', <HelpCircle size={14} />, supportTabsGroup)}
 
-                  {/* Settings Menu Submenu and System Admin actions */}
-                  {userProfile?.role === 'system_admin' && (
-                    <div className="relative z-50 pl-2 ml-2 border-l border-slate-100 flex items-center gap-1">
-                      <button 
-                        onClick={() => setShowAdminUsers(true)}
-                        className={`flex shrink-0 items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all relative text-slate-400 hover:text-slate-700 hover:bg-slate-50`}
-                      >
-                        <Users size={14} />
-                        <span className="uppercase tracking-wide">Manage Users</span>
-                        {pendingUsersCount > 0 && (
-                          <span className="absolute top-1 right-1 flex h-2 w-2 items-center justify-center rounded-full bg-rose-500" />
-                        )}
-                      </button>
-                      <button 
-                        onClick={() => setShowAdminSchools(true)}
-                        className={`flex shrink-0 items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all relative text-slate-400 hover:text-slate-700 hover:bg-slate-50`}
-                      >
-                        <Building size={14} />
-                        <span className="uppercase tracking-wide">Manage School</span>
-                      </button>
-                    </div>
-                  )}
-                  {userProfile?.role === 'admin' && (
+                  {/* Settings Menu Submenu */}
+                  {(userProfile?.role === 'admin' || userProfile?.role === 'system_admin') && (
                     <div className="relative z-50 ml-2 border-l border-slate-100 pl-2">
                       <button 
                         onClick={() => {
@@ -2809,6 +2935,14 @@ export default function App() {
                                >
                                   <Users size={14} /> <span className="uppercase tracking-wider">Manage Users</span>
                                </button>
+                               {userProfile?.role === 'system_admin' && (
+                                 <button
+                                    onClick={() => { setActiveTab('subjects'); setIsSettingsDropdownOpen(false); }}
+                                    className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-[11px] font-bold text-slate-500 hover:text-slate-900 hover:bg-slate-50 border-b border-slate-50 w-full text-left"
+                                 >
+                                    <BookOpen size={14} /> <span className="uppercase tracking-wider">Subject Menu</span>
+                                 </button>
+                               )}
                                <button
                                   onClick={() => { setShowAdminSchools(true); setIsSettingsDropdownOpen(false); }}
                                   className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-[11px] font-bold text-slate-500 hover:text-slate-900 hover:bg-slate-50 border-b border-slate-50 w-full text-left"
@@ -2875,6 +3009,7 @@ export default function App() {
           { id: 'anecdotes', icon: <MessageSquare size={20} /> },
           { id: 'guide', icon: <HelpCircle size={20} /> },
         ].filter(tab => {
+          if (tab.id === 'subjects' && userProfile?.role !== 'system_admin') return false;
           if (tab.id === 'summary' && !isSectionAdviser) return false;
 
           if (tab.id === 'gradebook' && (!editableSubjects || editableSubjects.length === 0) && !isSectionAdviser) return false;
@@ -2883,7 +3018,10 @@ export default function App() {
           if (tab.id === 'sf4' && userProfile?.role !== 'system_admin') return false;
 
           if (userProfile?.role === 'system_admin' || userProfile?.role === 'admin') {
-            const allowedTabsList = ['dashboard', 'enroll', 'subjects', 'sf8', 'guide', 'sys-docs', 'gradebook', 'summary', 'attendance', 'observed-values', 'sf2', 'transfers', 'sf10', 'sf4', 'anecdotes'];
+            const allowedTabsList = [
+              'dashboard', 'enroll', 'sf8', 'guide', 'sys-docs', 'gradebook', 'summary', 'attendance', 'observed-values', 'sf2', 'transfers', 'sf10', 'sf4', 'anecdotes',
+              ...(userProfile?.role === 'system_admin' ? ['subjects'] : [])
+            ];
             if (userProfile?.role === 'system_admin') {
               return allowedTabsList.filter(id => {
                 if (id === 'summary' && !isSectionAdviser) return false;
@@ -3076,6 +3214,9 @@ export default function App() {
                   selectedSection={selectedSection}
                   currentUser={userProfile}
                   globalSettings={globalSettings}
+                  isSectionAdviser={isSectionAdviser}
+                  globalSubjects={globalSubjects}
+                  onUpdateSection={handleUpdateSection}
                 />
               </motion.div>
             )}
@@ -3468,12 +3609,14 @@ function SectionForm({
   initialData, 
   onSubmit, 
   buttonLabel,
-  user
+  user,
+  globalSubjects = []
 }: { 
   initialData?: any, 
   onSubmit: (data: any) => void,
   buttonLabel: string,
-  user?: UserProfile | null
+  user?: UserProfile | null,
+  globalSubjects?: Subject[]
 }) {
   const [form, setForm] = useState({
     name: initialData?.name || "",
@@ -3485,7 +3628,9 @@ function SectionForm({
     district: initialData?.district || "",
     schoolName: initialData?.schoolName || "",
     schoolId: initialData?.schoolId || (user?.role === 'system_admin' ? (user?.schoolId || "") : ""),
-    schoolYear: initialData?.schoolYear || ""
+    schoolYear: initialData?.schoolYear || "",
+    globalSubjectIds: initialData?.globalSubjectIds || [],
+    subjectTeachers: initialData?.subjectTeachers || {}
   });
 
   const [availableSchools, setAvailableSchools] = useState<any[]>([]);
@@ -4948,6 +5093,7 @@ function SectionsView({
   onShowFeedbackDashboard,
   globalSettings,
   subjects,
+  globalSubjects,
   schoolCalendar,
   onToggleFinalizeSubjectTerm,
   activeSchool = null,
@@ -4982,6 +5128,7 @@ function SectionsView({
   onShowFeedbackDashboard?: () => void,
   globalSettings?: any,
   subjects: Subject[],
+  globalSubjects?: Subject[],
   schoolCalendar: any[],
   onToggleFinalizeSubjectTerm?: (subjectId: string, term: TermNumber, finalize: boolean) => void,
   activeSchool?: any,
@@ -5936,6 +6083,15 @@ function SectionsView({
                     <span>Student List</span>
                   </button>
                 )}
+                {user?.role === 'system_admin' && (
+                  <button 
+                    onClick={() => onSetActiveTab('subjects')}
+                    className="flex items-center justify-center gap-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-sm px-5 py-2.5 rounded-xl transition-all shadow-sm w-full sm:w-auto"
+                  >
+                    <BookOpen size={16} className="text-indigo-600" />
+                    <span>Subject Menu</span>
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -6090,6 +6246,7 @@ function SectionsView({
                       }}
                       buttonLabel="Create Section"
                       user={user}
+                      globalSubjects={globalSubjects}
                     />
                   </div>
                 </motion.div>
@@ -6883,6 +7040,7 @@ function SectionsView({
                   }} 
                   buttonLabel="Save Changes"
                   user={user}
+                  globalSubjects={globalSubjects}
                 />
               </div>
             </motion.div>
@@ -13417,7 +13575,11 @@ function SubjectsView({
   onDeleteSubject,
   selectedSection,
   currentUser,
-  globalSettings
+  globalSettings,
+  allSections,
+  isSectionAdviser = false,
+  globalSubjects = [],
+  onUpdateSection
 }: { 
   subjects: Subject[], 
   onAddSubject: (s: Omit<Subject, 'id'>) => Promise<void>,
@@ -13425,19 +13587,28 @@ function SubjectsView({
   onDeleteSubject: (id: string) => Promise<void>,
   selectedSection: Section | null,
   currentUser: UserProfile | null,
-  globalSettings?: any
+  globalSettings?: any,
+  allSections?: Section[],
+  isSectionAdviser?: boolean,
+  globalSubjects?: Subject[],
+  onUpdateSection?: (id: string, data: any) => void
 }) {
   const [isAddingPreset, setIsAddingPreset] = useState(false);
   const [presetQueue, setPresetQueue] = useState<'matatag' | 'non-matatag' | 'ssh-shs' | 'shs-core' | null>(null);
+  const [globalPresetGradeLevel, setGlobalPresetGradeLevel] = useState<string>('');
   const [presetSelectedSubjects, setPresetSelectedSubjects] = useState<string[]>([]);
+  
+  const effectiveGradeLevel = selectedSection?.gradeLevel || globalPresetGradeLevel;
   const [presetSubjectGroup, setPresetSubjectGroup] = useState<Subject['group']>('Revised K-10 Curriculum');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const isMainAdmin = currentUser?.email === 'jessiemangabo@gmail.com';
+  const isAdmin = currentUser?.role === 'system_admin' || currentUser?.role === 'admin';
   const isActiveSY = isMainAdmin || (
     !!globalSettings?.activeSchoolYear && 
     !globalSettings?.finalizedSchoolYears?.includes(globalSettings?.activeSchoolYear) && 
     !selectedSection?.isFinalized
   );
+  const canModifySubjects = isActiveSY && (isAdmin || isSectionAdviser);
   const [form, setForm] = useState<Omit<Subject, 'id'>>({
     group: 'SHS Core Subjects, Other SHS Academic Electives',
     name: '',
@@ -13450,6 +13621,41 @@ function SubjectsView({
     offeredTerms: [1]
   });
   const [editingId, setEditingId] = useState<string | null>(null);
+
+  const [teacherCandidates, setTeacherCandidates] = useState<UserProfile[]>([]);
+  const [presetTeacherEmail, setPresetTeacherEmail] = useState<string>(currentUser?.email || '');
+
+  useEffect(() => {
+    if (currentUser?.email) {
+      setPresetTeacherEmail(currentUser.email);
+    }
+  }, [currentUser]);
+
+  useEffect(() => {
+    const schoolId = selectedSection?.schoolId || currentUser?.schoolId;
+    if (!schoolId) {
+      setTeacherCandidates([]);
+      return;
+    }
+    const q = query(
+      collection(db, "users"),
+      where("schoolId", "==", schoolId)
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      const candidates: UserProfile[] = [];
+      snap.forEach((docSnap) => {
+        const u = { uid: docSnap.id, ...docSnap.data() } as UserProfile;
+        if (u.role !== 'student') {
+          candidates.push(u);
+        }
+      });
+      candidates.sort((a, b) => (a.displayName || a.email || "").localeCompare(b.displayName || b.email || ""));
+      setTeacherCandidates(candidates);
+    }, (err) => {
+      console.error("Error fetching subject teachers:", err);
+    });
+    return () => unsub();
+  }, [selectedSection?.schoolId, currentUser?.schoolId]);
 
   useEffect(() => {
     if (selectedSection) {
@@ -13475,7 +13681,7 @@ function SubjectsView({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name || !form.teacherEmail) return;
+    if (!form.name || (selectedSection && !form.teacherEmail)) return;
     
     try {
       if (editingId) {
@@ -13510,16 +13716,26 @@ function SubjectsView({
           </div>
         </div>
         
-        {isActiveSY && (
+        {canModifySubjects && (
           <button 
             onClick={() => {
-              setEditingId(null);
-              setIsModalOpen(true);
+              if (selectedSection && selectedSection.gradeLevel >= 11) {
+                // We'll open a multi-select modal
+                setPresetSelectedSubjects(selectedSection.globalSubjectIds || []);
+                setIsAddingPreset(true); // Re-use this flag for the modal
+                setIsModalOpen(true);
+              } else {
+                setEditingId(null);
+                setIsModalOpen(true);
+              }
             }}
             className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 w-full md:w-auto relative z-10 shrink-0"
           >
-            <Plus size={16} />
-            Add Subject
+            {selectedSection && selectedSection.gradeLevel >= 11 ? (
+               <><BookOpen size={16} /> Select from Curriculum</>
+            ) : (
+               <><Plus size={16} /> Add Subject</>
+            )}
           </button>
         )}
       </div>
@@ -13527,17 +13743,33 @@ function SubjectsView({
       <div className="max-w-7xl mx-auto px-8 md:px-12 py-10 space-y-8">
         {/* CURRICULUM PRESETS */}
         {subjects.length === 0 && (
-          <div>
-            <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Curriculum Presets</h2>
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Curriculum Presets</h2>
+              {!selectedSection && allSections && (
+                <div className="w-full sm:w-auto">
+                  <select
+                    value={globalPresetGradeLevel}
+                    onChange={(e) => setGlobalPresetGradeLevel(e.target.value)}
+                    className="w-full sm:w-64 bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
+                  >
+                    <option value="" disabled>Select target grade level...</option>
+                    {[11, 12].map(g => (
+                      <option key={g} value={g}>Grade {g}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {Number(selectedSection?.gradeLevel) >= 7 && Number(selectedSection?.gradeLevel) <= 10 && (
+              {Number(effectiveGradeLevel) >= 7 && Number(effectiveGradeLevel) <= 10 && (
                 <>
                   <button 
                     type="button"
                     disabled={isAddingPreset || !isActiveSY}
                     onClick={() => {
-                      if (!selectedSection) {
-                        alert("No section selected. Please select a section from the sidebar first.");
+                      if (!effectiveGradeLevel) {
+                        alert("No section selected. Please select a target grade level first.");
                         return;
                       }
                       setPresetSubjectGroup('Revised K-10 Curriculum');
@@ -13562,8 +13794,8 @@ function SubjectsView({
                     type="button"
                     disabled={isAddingPreset || !isActiveSY}
                     onClick={() => {
-                      if (!selectedSection) {
-                        alert("No section selected. Please select a section from the sidebar first.");
+                      if (!effectiveGradeLevel) {
+                        alert("No section selected. Please select a target grade level first.");
                         return;
                       }
                       setPresetSubjectGroup('SHS Core Subjects, Other SHS Academic Electives');
@@ -13586,13 +13818,13 @@ function SubjectsView({
                 </>
               )}
 
-              {Number(selectedSection?.gradeLevel) >= 11 && (
+              {Number(effectiveGradeLevel) >= 11 && (
                 <button 
                   type="button"
                   disabled={isAddingPreset || !isActiveSY}
                   onClick={() => {
-                    if (!selectedSection) {
-                      alert("No section selected. Please select a section from the sidebar first.");
+                    if (!effectiveGradeLevel) {
+                      alert("No section selected. Please select a target grade level first.");
                       return;
                     }
                     setPresetSubjectGroup('SHS Core Subjects, Other SHS Academic Electives');
@@ -13614,11 +13846,15 @@ function SubjectsView({
                 </button>
               )}
 
-              {Number(selectedSection?.gradeLevel) === 11 && (
+              {Number(effectiveGradeLevel) === 11 && (
                 <button 
                   type="button"
                   disabled={isAddingPreset || !isActiveSY}
                   onClick={() => {
+                    if (!effectiveGradeLevel) {
+                      alert("No section selected. Please select a target grade level first.");
+                      return;
+                    }
                     setPresetSubjectGroup('SHS Core Subjects, Other SHS Academic Electives');
                     setPresetSelectedSubjects([...STRENGTHENED_SHS_SUBJECTS]);
                     setPresetQueue('ssh-shs');
@@ -13685,6 +13921,34 @@ function SubjectsView({
                   </select>
                 </div>
 
+                {selectedSection && (
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-700">Assigned Teacher</label>
+                    {teacherCandidates.length > 0 ? (
+                      <select 
+                        value={presetTeacherEmail}
+                        onChange={e => setPresetTeacherEmail(e.target.value)}
+                        className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-medium text-slate-700 outline-none text-slate-800"
+                      >
+                        <option value="">Select Teacher...</option>
+                        {teacherCandidates.map(c => (
+                          <option key={c.uid} value={c.email}>
+                            {c.displayName || c.email} ({c.email})
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input 
+                        type="email"
+                        placeholder="teacher@example.com"
+                        value={presetTeacherEmail}
+                        onChange={e => setPresetTeacherEmail(e.target.value)}
+                        className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-medium text-slate-700 outline-none placeholder:text-slate-400 text-slate-800"
+                      />
+                    )}
+                  </div>
+                )}
+ 
                 <div className="space-y-1.5">
                   <div className="flex justify-between items-center mb-1.5">
                     <div className="flex items-center gap-2">
@@ -13732,7 +13996,7 @@ function SubjectsView({
                   </div>
                 </div>
               </div>
-
+ 
               <div className="p-6 border-t border-slate-100 bg-slate-50 flex gap-3">
                 <button 
                   onClick={() => setPresetQueue(null)}
@@ -13746,7 +14010,7 @@ function SubjectsView({
                     const subjectsToAdd = [...presetSelectedSubjects];
                     setPresetQueue(null);
                     setIsAddingPreset(true);
-
+ 
                     try {
                       const sourceList = presetQueue === 'matatag' ? MATATAG_SUBJECTS : presetQueue === 'shs-core' ? SHS_CORE_SUBJECTS : presetQueue === 'ssh-shs' ? STRENGTHENED_SHS_SUBJECTS : NON_MATATAG_SUBJECTS;
                       for (const name of subjectsToAdd) {
@@ -13754,14 +14018,14 @@ function SubjectsView({
                         await onAddSubject({
                           group: presetSubjectGroup,
                           name,
-                          gradeLevel: selectedSection?.gradeLevel || 1,
+                          gradeLevel: effectiveGradeLevel || 1,
                           subjectType: 'CORE',
-                          teacherEmail: currentUser?.email || '',
+                          teacherEmail: selectedSection ? (presetTeacherEmail || currentUser?.email || '') : '',
                           wwWeight: 25,
                           ptWeight: 50,
                           taWeight: 25,
                           order: order !== -1 ? order : 999
-                        });
+                        } as Omit<Subject, 'id'>);
                       }
                       alert(`${type === 'matatag' ? 'MATATAG' : type === 'shs-core' ? 'SHS Core' : type === 'ssh-shs' ? 'Strengthened SHS' : 'Non-MATATAG'} subjects added successfully.`);
                     } catch (err: any) {
@@ -13813,9 +14077,113 @@ function SubjectsView({
                   <X size={20} />
                 </button>
               </div>
-              <form onSubmit={handleSubmit} className="flex flex-col max-h-[85vh]">
+              <form onSubmit={async (e) => {
+                e.preventDefault();
+                if (selectedSection && selectedSection.gradeLevel >= 11 && editingId && onUpdateSection) {
+                  // Save teacher assignment
+                  onUpdateSection(selectedSection.id, {
+                    subjectTeachers: {
+                      ...(selectedSection.subjectTeachers || {}),
+                      [editingId]: form.teacherEmail
+                    }
+                  });
+                  resetForm();
+                  return;
+                }
+                if (selectedSection && selectedSection.gradeLevel >= 11 && !editingId && onUpdateSection) {
+                  // Save selected subjects
+                  onUpdateSection(selectedSection.id, {
+                    globalSubjectIds: presetSelectedSubjects
+                  });
+                  resetForm();
+                  return;
+                }
+                await handleSubmit(e);
+              }} className="flex flex-col max-h-[85vh]">
                 <div className="p-6 md:p-8 space-y-6 overflow-y-auto custom-scrollbar flex-1">
+                  {(selectedSection && selectedSection.gradeLevel >= 11 && !editingId) ? (
+                    <div className="space-y-4">
+                       <p className="text-sm text-slate-600 mb-4 tracking-tight">Select which subjects from the Curriculum Configuration are part of this section.</p>
+                       <div className="space-y-2 border border-slate-200 rounded-2xl overflow-hidden bg-slate-50">
+                         {globalSubjects?.filter(s => Number(s.gradeLevel) === Number(selectedSection.gradeLevel)).map(gs => {
+                           const isSelected = presetSelectedSubjects.includes(gs.id);
+                           return (
+                             <label key={gs.id} className="flex items-start gap-4 p-4 bg-white border-b border-slate-100 last:border-b-0 hover:bg-slate-50 cursor-pointer transition-colors">
+                               <input type="checkbox" checked={isSelected} onChange={(e) => {
+                                 if (e.target.checked) setPresetSelectedSubjects(prev => [...prev, gs.id]);
+                                 else setPresetSelectedSubjects(prev => prev.filter(id => id !== gs.id));
+                               }} className="mt-1 w-4 h-4 text-indigo-600 rounded border-slate-300" />
+                               <div>
+                                 <p className="font-bold text-slate-900 text-sm">{gs.name}</p>
+                                 <p className="text-xs text-slate-500 font-medium">{gs.group}</p>
+                               </div>
+                             </label>
+                           );
+                         })}
+                         {globalSubjects?.filter(s => Number(s.gradeLevel) === Number(selectedSection.gradeLevel)).length === 0 && (
+                            <div className="p-8 text-center bg-white">
+                               <p className="text-sm font-medium text-slate-500">No subjects configured in the Global Curriculum for Grade {selectedSection.gradeLevel}.</p>
+                            </div>
+                         )}
+                       </div>
+                    </div>
+                  ) : (
+                  <>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5 md:gap-6">
+                    {/* Grade 11/12 Editing: ONLY Teacher */}
+                    {(selectedSection && selectedSection.gradeLevel >= 11 && editingId) ? (
+                      <div className="space-y-1.5 md:col-span-2">
+                        <label className="text-xs font-bold text-slate-700">Assign Subject Teacher</label>
+                        {teacherCandidates.length > 0 ? (
+                          <select 
+                            value={form.teacherEmail || ''}
+                            onChange={e => setForm({...form, teacherEmail: e.target.value})}
+                            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none text-sm font-medium text-slate-900"
+                            required
+                          >
+                            <option value="" disabled>Select Teacher...</option>
+                            {form.teacherEmail && !teacherCandidates.some(c => c.email === form.teacherEmail) && (
+                              <option value={form.teacherEmail}>{form.teacherEmail}</option>
+                            )}
+                            {teacherCandidates.map(c => (
+                              <option key={c.uid} value={c.email}>
+                                {c.displayName || c.email} ({c.email})
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input 
+                            type="email"
+                            placeholder="teacher@example.com"
+                            value={form.teacherEmail || ''}
+                            onChange={e => setForm({...form, teacherEmail: e.target.value})}
+                            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none font-medium text-slate-900 placeholder:text-slate-400"
+                            required
+                          />
+                        )}
+                        <p className="text-xs text-slate-500 mt-2">Note: To edit the curriculum details of this subject, navigate to the Global Subjects Directory.</p>
+                      </div>
+                    ) : (
+                      <>
+                        {!selectedSection && (
+                          <div className="space-y-1.5 md:col-span-2">
+                        <label className="text-xs font-bold text-slate-700">Target Grade Level <span className="text-rose-500">*</span></label>
+                        <select 
+                          required
+                          value={form.gradeLevel || ''}
+                          onChange={e => {
+                            setForm({...form, gradeLevel: e.target.value});
+                          }}
+                          className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none text-sm font-medium text-slate-900"
+                        >
+                          <option value="" disabled>Select a grade level...</option>
+                          {[11, 12].map(g => (
+                            <option key={g} value={g}>Grade {g}</option>
+                          ))}
+                        </select>
+                        <p className="text-[10px] text-slate-500 mt-1">This subject will automatically be added to all sections of this grade level.</p>
+                      </div>
+                    )}
                     <div className="space-y-1.5 md:col-span-2">
                       <label className="text-xs font-bold text-slate-700">Subject Group</label>
                       <select 
@@ -13839,24 +14207,51 @@ function SubjectsView({
                       <input 
                         type="text"
                         required
+                        list="preset-subjects"
                         placeholder="e.g. Special Science"
                         value={form.name}
                         onChange={e => setForm({...form, name: e.target.value})}
                         className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none font-medium text-slate-900 placeholder:text-slate-400"
                       />
+                      <datalist id="preset-subjects">
+                        {Array.from(new Set(Number(form.gradeLevel || effectiveGradeLevel) >= 11 ? [...SHS_CORE_SUBJECTS, ...STRENGTHENED_SHS_SUBJECTS] : [...MATATAG_SUBJECTS, ...NON_MATATAG_SUBJECTS])).map(sub => (
+                          <option key={sub} value={sub} />
+                        ))}
+                      </datalist>
                     </div>
 
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-slate-700">Teacher Email</label>
-                      <input 
-                        type="email"
-                        placeholder="teacher@example.com"
-                        value={form.teacherEmail || ''}
-                        onChange={e => setForm({...form, teacherEmail: e.target.value})}
-                        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none font-medium text-slate-900 placeholder:text-slate-400"
-                        required
-                      />
-                    </div>
+                    {selectedSection && (
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-slate-700">Teacher Email</label>
+                        {teacherCandidates.length > 0 ? (
+                          <select 
+                            value={form.teacherEmail || ''}
+                            onChange={e => setForm({...form, teacherEmail: e.target.value})}
+                            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none text-sm font-medium text-slate-900"
+                            required
+                          >
+                            <option value="" disabled>Select Teacher...</option>
+                            {form.teacherEmail && !teacherCandidates.some(c => c.email === form.teacherEmail) && (
+                              <option value={form.teacherEmail}>{form.teacherEmail}</option>
+                            )}
+                            {teacherCandidates.map(c => (
+                              <option key={c.uid} value={c.email}>
+                                {c.displayName || c.email} ({c.email})
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input 
+                            type="email"
+                            placeholder="teacher@example.com"
+                            value={form.teacherEmail || ''}
+                            onChange={e => setForm({...form, teacherEmail: e.target.value})}
+                            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none font-medium text-slate-900 placeholder:text-slate-400"
+                            required
+                          />
+                        )}
+                      </div>
+                    )}
 
                     <div className="space-y-1.5">
                       <label className="text-xs font-bold text-slate-700">Subject Type</label>
@@ -13932,6 +14327,8 @@ function SubjectsView({
                         {[1,2,3,4,5,6,7,8,9,10,11,12].map(n => <option key={n} value={n}>Grade {n}</option>)}
                       </select>
                     </div>
+                  </>
+                  )}
                   </div>
 
                   <div className="pt-6 border-t border-slate-100">
@@ -13974,6 +14371,8 @@ function SubjectsView({
                       </div>
                     </div>
                   </div>
+                  </>
+                  )}
                 </div>
 
                 <div className="p-6 border-t border-slate-100 bg-slate-50 flex gap-3">
@@ -13986,11 +14385,11 @@ function SubjectsView({
                   </button>
                   <button 
                     type="submit"
-                    disabled={form.wwWeight + form.ptWeight + form.taWeight !== 100 || !isActiveSY}
+                    disabled={(selectedSection && selectedSection.gradeLevel >= 11 && !editingId) ? false : (form.wwWeight + form.ptWeight + form.taWeight !== 100 || !isActiveSY)}
                     className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold rounded-xl shadow-sm transition-all flex items-center justify-center gap-2"
                   >
                     {editingId ? <Check size={18} /> : <Plus size={18} />}
-                    {editingId ? 'Save Changes' : 'Add Subject'}
+                    {editingId ? 'Save Changes' : (selectedSection && selectedSection.gradeLevel >= 11 ? 'Save Selected Subjects' : 'Add Subject')}
                   </button>
                 </div>
               </form>
@@ -14020,7 +14419,7 @@ function SubjectsView({
                 <th className="px-6 py-4 text-[11px] uppercase tracking-widest font-semibold">Type</th>
                 <th className="px-6 py-4 text-[11px] uppercase tracking-widest font-semibold">Group</th>
                 <th className="px-6 py-4 text-[11px] uppercase tracking-widest font-semibold text-center">Grade</th>
-                <th className="px-6 py-4 text-[11px] uppercase tracking-widest font-semibold text-center">Teacher</th>
+                {selectedSection && <th className="px-6 py-4 text-[11px] uppercase tracking-widest font-semibold text-center">Teacher</th>}
                 <th className="px-6 py-4 text-[11px] uppercase tracking-widest font-semibold text-center" title="Written Works Weight">WW</th>
                 <th className="px-6 py-4 text-[11px] uppercase tracking-widest font-semibold text-center" title="Performance Tasks Weight">PT</th>
                 <th className="px-6 py-4 text-[11px] uppercase tracking-widest font-semibold text-center" title="Quarterly Assessment Weight">QA</th>
@@ -14030,7 +14429,7 @@ function SubjectsView({
             <tbody className="divide-y divide-slate-100 bg-white">
               {subjects.length === 0 ? (
                 <tr>
-                  <td colSpan={isActiveSY ? 9 : 8} className="px-6 py-12">
+                  <td colSpan={isActiveSY ? (selectedSection ? 9 : 8) : (selectedSection ? 8 : 7)} className="px-6 py-12">
                     <div className="flex flex-col items-center justify-center p-8 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200 text-center max-w-md mx-auto">
                       <div className="size-16 bg-white rounded-full border border-slate-200 flex items-center justify-center mx-auto mb-4 shadow-sm">
                         <BookOpen size={24} className="text-slate-400" />
@@ -14068,9 +14467,11 @@ function SubjectsView({
                         {Number(subject.gradeLevel) === 0 ? "K" : `G${subject.gradeLevel}`}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-center">
-                      <span className="text-[13px] text-slate-600 truncate max-w-[150px] inline-block">{subject.teacherEmail || '-'}</span>
-                    </td>
+                    {selectedSection && (
+                      <td className="px-6 py-4 text-center">
+                        <span className="text-[13px] text-slate-600 truncate max-w-[150px] inline-block">{subject.teacherEmail || '-'}</span>
+                      </td>
+                    )}
                     <td className="px-6 py-4 text-center">
                         <span className="text-xs font-semibold text-slate-700">{subject.wwWeight}%</span>
                     </td>
@@ -14080,7 +14481,7 @@ function SubjectsView({
                     <td className="px-6 py-4 text-center">
                         <span className="text-xs font-semibold text-slate-700">{subject.taWeight}%</span>
                     </td>
-                    {isActiveSY && (
+                    {canModifySubjects && (
                       <td className="px-6 py-4 text-right align-middle">
                         <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 flex-wrap">
                           <button 

@@ -115,6 +115,7 @@ export interface Student {
   dropoutReason?: string;
   isTransferredIn?: boolean;
   eligibility?: Eligibility;
+  enrolledSubjectIds?: string[];
 }
 
 export interface Subject {
@@ -184,6 +185,8 @@ export interface Section {
   disapprovalReason?: string;
   deletionReason?: string;
   isFinalized?: boolean;
+  globalSubjectIds?: string[];
+  subjectTeachers?: Record<string, string>;
 }
 
 export interface UserProfile {

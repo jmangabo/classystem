@@ -1,0 +1,429 @@
+158:  const [subjects, setSubjects] = useState<Subject[]>([]);
+169:    const qSubjects = collection(db, `sections/${sectionId}/subjects`);
+170:    const unsubscribeSubjects = onSnapshot(qSubjects, (snap) => {
+171:      setSubjects(snap.docs.map(d => ({ id: d.id, ...d.data() } as Subject)));
+178:      unsubscribeSubjects();
+508:import { Subject, Student, Course, TermNumber, RatedValue, Section, UserProfile, School, Eligibility, AnecdotalRecord } from "./types";
+509:import { formatStudentName, capitalizeName, capitalizeFirst, getSubjectSortScore, printHTMLContent } from "./utils";
+600:const calculateGrade = (student: Student, subject: Subject, term: TermNumber) => {
+730:  const [subjects, setSubjects] = useState<Subject[]>([]);
+753:  const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(null);
+900:  const editableSubjects = useMemo(() => {
+1151:              console.error("Subjects collectionGroup query failed:", err);
+1161:               const subjectData = subjDoc.data() as Subject;
+1167:                 if (!sec.teacherSubjects) sec.teacherSubjects = [];
+1168:                 if (!sec.teacherSubjects.includes(subjectData.name)) {
+1169:                     sec.teacherSubjects.push(subjectData.name);
+1184:                      .map((s: any) => (s.data() as Subject).name);
+1186:                    sectionsMap.set(secId, { ...sectionData, teacherSubjects: Array.from(new Set(subjNames)) });
+1214:      let unsubSubjectsGroup = () => {};
+1220:        unsubSubjectsGroup = onSnapshot(subjectsQuery, () => {
+1229:        unsubSubjectsGroup();
+1242:  // Students & Subjects Listener for Selected Section
+1258:          let list = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Subject));
+1265:          setSubjects(list);
+1271:        setSubjects([]);
+1296:        let list = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Subject));
+1297:        setSubjects(list);
+1318:        const matchedSubject = subjects.find(s => 
+1319:          (selectedSubjectId && s.id === selectedSubjectId) || 
+1320:          (selectedSubjectId && s.name === selectedSubjectId && s.sectionId === selectedSection.id)
+1323:        if (!selectedSubjectId || !matchedSubject) {
+1324:            setSelectedSubjectId(subjectsForSection[0].id);
+1325:        } else if (matchedSubject && selectedSubjectId !== matchedSubject.id) {
+1327:            setSelectedSubjectId(matchedSubject.id);
+1330:  }, [subjects, selectedSubjectId, selectedSection?.id]);
+1344:      const savedSubjectId = localStorage.getItem(`selectedSubjectId_${currentUser.uid}`);
+1345:      if (savedSubjectId) setSelectedSubjectId(savedSubjectId);
+1362:    if (currentUser && selectedSubjectId) {
+1363:      localStorage.setItem(`selectedSubjectId_${currentUser.uid}`, selectedSubjectId);
+1365:  }, [selectedSubjectId, currentUser]);
+1437:      localStorage.removeItem(`selectedSubjectId_${currentUser.uid}`);
+1640:  const updateSubjectConfig = async (subjectId: string, updates: any) => {
+1817:         editableSubjects.forEach(subj => {
+1886:  const handleToggleFinalizeSubjectTerm = async (subjectId: string, term: TermNumber, finalize: boolean) => {
+1894:      const currentFinalized = (subjectDoc.data() as Subject).finalizedTerms || [];
+2506:        onSelectSubject={setSelectedSubjectId}
+2508:        onNavigateToSubject={(section, subjName) => {
+2512:           setSelectedSubjectId(subjectObj ? subjectObj.id : subjName);
+2537:        onToggleFinalizeSubjectTerm={handleToggleFinalizeSubjectTerm}
+2551:  const handleAddSubject = async (s: Omit<Subject, 'id'>) => {
+2565:  const handleEditSubject = async (id: string, s: Omit<Subject, 'id'>) => {
+2578:  const handleDeleteSubject = async (id: string) => {
+2618:                { id: 'subjects', label: 'Subjects', icon: <BookOpen size={14} /> },
+2640:                if (tab.id === 'gradebook' && (!editableSubjects || editableSubjects.length === 0) && !isSectionAdviser) return false;
+2655:                      if (id === 'gradebook' && !isSectionAdviser && (!editableSubjects || editableSubjects.length === 0)) return false;
+2793:                        <span className="uppercase tracking-wide">Subject Menu</span>
+2900:          if (tab.id === 'gradebook' && (!editableSubjects || editableSubjects.length === 0) && !isSectionAdviser) return false;
+2913:                if (id === 'gradebook' && !isSectionAdviser && (!editableSubjects || editableSubjects.length === 0)) return false;
+2956:                  onToggleFinalizeSubjectTerm={handleToggleFinalizeSubjectTerm}
+2962:                  onSelectSubject={(subjId) => {
+2963:                    setSelectedSubjectId(subjId);
+2982:                  subjects={(userProfile?.role === 'system_admin' || userProfile?.role === 'admin' || userProfile?.role === 'school_head' || isSectionAdviser) ? subjects : editableSubjects}
+2983:                  selectedSubjectId={selectedSubjectId}
+2984:                  onSelectSubject={setSelectedSubjectId}
+2988:                  onUpdateSubject={updateSubjectConfig}
+2996:                  onToggleFinalizeSubjectTerm={handleToggleFinalizeSubjectTerm}
+3094:                <SubjectsView 
+3096:                  onAddSubject={handleAddSubject}
+3097:                  onEditSubject={handleEditSubject}
+3098:                  onDeleteSubject={handleDeleteSubject}
+4002:  subjects: Subject[],
+4080:  const relevantSubjects = useMemo(() => {
+4085:  const isAllSubjectsTermsFinalized = useMemo(() => {
+4086:    if (targetSections.length === 0 || relevantSubjects.length === 0) return false;
+4087:    return relevantSubjects.every(subj => {
+4091:  }, [targetSections, relevantSubjects]);
+4093:  const unfinalizedSectionsSubjectsAndTerms = useMemo(() => {
+4098:    relevantSubjects.forEach(subj => {
+4110:  }, [targetSections, relevantSubjects, isAnySectionFinalized]);
+4123:    relevantSubjects.forEach(subj => {
+4138:  }, [targetSections, relevantSubjects, isAnySectionFinalized]);
+4140:  if (targetSections.length === 0 || relevantSubjects.length === 0) {
+4154:        const sectionSubjects = subjects.filter(s => s.sectionId === section.id);
+4162:          sectionSubjects.forEach(subj => {
+4952:  onSelectSubject,
+4954:  onNavigateToSubject,
+4975:  onToggleFinalizeSubjectTerm,
+4986:  onSelectSubject: (id: string) => void,
+4988:  onNavigateToSubject: (s: Section, subName: string) => void,
+5007:  subjects: Subject[],
+5009:  onToggleFinalizeSubjectTerm?: (subjectId: string, term: TermNumber, finalize: boolean) => void,
+5473:                 <BookOpen size={14} /> <span className="hidden sm:inline">Subject Menu</span>
+5974:              <h4 className="text-sm font-bold text-slate-800 mb-4 border-b border-slate-100 pb-2 font-sans uppercase tracking-tight">Section Subject Finalization Overview</h4>
+6001:                                      {onToggleFinalizeSubjectTerm && (
+6070:                        if (onToggleFinalizeSubjectTerm) {
+6071:                          onToggleFinalizeSubjectTerm(confirmFinalizeConfig.subjectId, confirmFinalizeConfig.term as any, confirmFinalizeConfig.finalize);
+6277:                    const sectionSubjects = subjects.filter(s => s.sectionId === section.id);
+6280:                      ? sectionSubjects.filter(sub => (sub.teacherEmail || "").trim().toLowerCase() === userEmail).map(s => s.name)
+6281:                      : (section.teacherSubjects || []);
+6286:                        const subA = sectionSubjects.find(s => s.name === a);
+6287:                        const subB = sectionSubjects.find(s => s.name === b);
+6296:                        const scoreA = getSubjectSortScore(a);
+6297:                        const scoreB = getSubjectSortScore(b);
+6315:                                  onNavigateToSubject(section, subj);
+6341:                    const coreNames = sectionSubjects.filter(s => s.subjectType === 'CORE' && subjectsToDisplayNames.includes(s.name)).map(s => s.name);
+6342:                    const appliedNames = sectionSubjects.filter(s => s.subjectType === 'ELECTIVE' && subjectsToDisplayNames.includes(s.name)).map(s => s.name);
+6351:                              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Core Subjects</span>
+6360:                                    onNavigateToSubject(section, subj);
+6384:                                    onNavigateToSubject(section, subj);
+7698:  const [history, setHistory] = useState<{section: Section, studentLocal: Student, subjects: Subject[]}[]>([]);
+7711:        const records: {section: Section, studentLocal: Student, subjects: Subject[]}[] = [];
+7722:               const subjects = subjSnap.docs.map(ds => ({ id: ds.id, ...ds.data() } as Subject));
+7741:  const getStatus = (studentLocal: Student, subjects: Subject[]) => {
+11048:  selectedSubjectId, 
+11049:  onSelectSubject,
+11053:  onUpdateSubject,
+11061:  onToggleFinalizeSubjectTerm,
+11065:  subjects: Subject[], 
+11066:  selectedSubjectId: string | null,
+11067:  onSelectSubject: (id: string) => void,
+11071:  onUpdateSubject?: (subjectId: string, updates: any) => void,
+11079:  onToggleFinalizeSubjectTerm?: (subjectId: string, term: TermNumber, finalize: boolean) => void,
+11083:  const selectedSubject = subjects.find(s => s.id === selectedSubjectId) || 
+11084:                          subjects.find(s => s.name === selectedSubjectId) || 
+11087:  const teacherAssignedSubjects = useMemo(() => {
+11092:  const hasAssignedSubjects = useMemo(() => {
+11094:    return teacherAssignedSubjects.length > 0;
+11095:  }, [currentUser, teacherAssignedSubjects]);
+11097:  const showLockedState = currentUser?.role === 'teacher' && !hasAssignedSubjects;
+11106:  const isSubjectTermFinalized = useMemo(() => {
+11107:    return selectedSubject?.finalizedTerms?.includes(activeTerm) || false;
+11108:  }, [selectedSubject, activeTerm]);
+11111:    if (!selectedSubject) return false;
+11112:    const allOffered = selectedSubject.offeredTerms && selectedSubject.offeredTerms.length > 0 ? selectedSubject.offeredTerms : ([1, 2, 3, 4] as TermNumber[]);
+11114:    const finalized = selectedSubject.finalizedTerms || [];
+11116:  }, [selectedSubject, activeTerm]);
+11119:    if (students.length === 0 || !selectedSubject) return false;
+11123:      const g = calculateGrade(student, selectedSubject, activeTerm);
+11126:  }, [students, selectedSubject, activeTerm]);
+11147:  const isAllSubjectsTermsFinalized = useMemo(() => {
+11155:  const unfinalizedSubjectsAndTerms = useMemo(() => {
+11192:  const currentIndex = subjects.findIndex(s => s.id === selectedSubject?.id);
+11194:  const handlePrevSubject = () => {
+11196:      onSelectSubject(subjects[currentIndex - 1].id);
+11200:  const handleNextSubject = () => {
+11202:      onSelectSubject(subjects[currentIndex + 1].id);
+11206:  const isNotOffered = selectedSubject?.offeredTerms && 
+11207:                       selectedSubject?.offeredTerms.length > 0 && 
+11208:                       !selectedSubject?.offeredTerms.includes(activeTerm);
+11315:    if (!selectedSubject || !selectedSection) return;
+11449:    // 4. Row 3: Grade & Section, Subject, Quarter/Term Row
+11463:      createCell("Subject:", { bold: true, bg: "E6E6E6", align: "center" }),
+11465:      createCell(selectedSubject.name, { align: "left" }),
+11502:      createCell(`Written Works (WW) - ${selectedSubject.wwWeight || 30}%`, { bold: true, color: "FFFFFF", bg: "107C41", align: "center" }),
+11506:      createCell(`Performance Tasks (PT) - ${selectedSubject.ptWeight || 50}%`, { bold: true, color: "FFFFFF", bg: "107C41", align: "center" }),
+11510:      createCell(`Summative Assessment (SA) - ${selectedSubject.taWeight || 20}%`, { bold: true, color: "FFFFFF", bg: "107C41", align: "center" }),
+11571:      createCell(selectedSubject.wwWeight ? `${selectedSubject.wwWeight.toFixed(0)}%` : "-", { bold: true, bg: "FFD966", align: "center" }),
+11577:      createCell(selectedSubject.ptWeight ? `${selectedSubject.ptWeight.toFixed(0)}%` : "-", { bold: true, bg: "FFD966", align: "center" }),
+11584:      createCell(selectedSubject.taWeight ? `${selectedSubject.taWeight.toFixed(0)}%` : "-", { bold: true, bg: "FFD966", align: "center" }),
+11608:      const g = calculateGrade(student, selectedSubject, activeTerm);
+11770:      createCell("Subject Teacher", { size: 9, align: "center", borderTheme: "none" }),
+11792:    XLSX.writeFile(workbook, `${selectedSubject.name}_Q${activeTerm}_Export.xlsx`);
+11796:    if (!selectedSubjectId && subjects.length > 0) {
+11797:      onSelectSubject(subjects[0].id);
+11799:  }, [selectedSubjectId, subjects, onSelectSubject]);
+11801:  if (!selectedSubject) {
+11808:          <h2 className="text-2xl font-bold text-slate-800">No Subjects Configured</h2>
+11816:    const sId = selectedSubject.id;
+11844:    onUpdateGrades(studentId, { [categoryKey]: updated }, selectedSubject.id, activeTerm);
+11864:    onUpdateGrades(studentId, { termExam: { ...(data.termExam || DEFAULT_TERM_DATA.termExam), score: numValue } }, selectedSubject.id, activeTerm);
+11873:    onUpdateGrades(studentId, { manualFinalGrade: numValue }, selectedSubject.id, activeTerm);
+11896:      const newSubjectGrades = { ...(newGrades[selectedSubject.id] || {}) };
+11897:      newSubjectGrades[activeTerm] = { ...data, [categoryKey]: updatedCategory };
+11898:      newGrades[selectedSubject.id] = newSubjectGrades;
+11903:    onBulkUpdate(updatedStudents, selectedSubject.id, activeTerm);
+11911:      const newSubjectGrades = { ...(newGrades[selectedSubject.id] || {}) };
+11912:      newSubjectGrades[activeTerm] = { ...data, termExam: { ...(data.termExam || DEFAULT_TERM_DATA.termExam), maxScore: numValue } };
+11913:      newGrades[selectedSubject.id] = newSubjectGrades;
+11916:    onBulkUpdate(updatedStudents, selectedSubject.id, activeTerm);
+11943:        const grades = calculateGrade(student, selectedSubject, activeTerm);
+11982:              const isDisabled = !hasHps || isInactive || isNotOffered || isSubjectTermFinalized || isTermLocked;
+11996:                    } ${(isInactive || isSubjectTermFinalized || isTermLocked) ? 'cursor-not-allowed text-slate-400 bg-transparent' : ''}`}
+12009:        const isDisabled = !hasHps || isInactive || isNotOffered || isSubjectTermFinalized || isTermLocked;
+12023:              } ${(isInactive || isSubjectTermFinalized || isTermLocked) ? 'cursor-not-allowed text-slate-400 bg-transparent' : ''}`}
+12036:        const isDisabled = !hasHps || isInactive || isNotOffered || isSubjectTermFinalized || isTermLocked;
+12050:              } ${(isInactive || isSubjectTermFinalized || isTermLocked) ? 'cursor-not-allowed text-slate-400 bg-transparent' : ''}`}
+12059:          const isDisabled = !hasHps || isInactive || isNotOffered || isSubjectTermFinalized || isTermLocked;
+12072:              } ${(isInactive || isNotOffered || isSubjectTermFinalized || isTermLocked) ? 'cursor-not-allowed text-slate-400 bg-transparent' : ''}`}
+12113:    if (group.length === 0 || !selectedSubject) return { takers: 0, passed: 0, pctPassed: 0, mps: 0, advancing: 0, benchmarking: 0, connecting: 0, developing: 0, emerging: 0 };
+12114:    const grades = group.map(s => calculateGrade(s, selectedSubject, activeTerm)).filter(g => g.hasData);
+12162:              No Assigned Subject Core Detected
+12181:                <h2 className="text-2xl font-bold text-slate-900 tracking-tight leading-tight truncate">{selectedSubject.name}</h2>
+12185:                  {(Number(selectedSubject.gradeLevel) === 0) ? "Kindergarten" : `Grade ${selectedSubject.gradeLevel}`}
+12197:                      const offered = !selectedSubject?.offeredTerms || selectedSubject?.offeredTerms.length === 0 || selectedSubject?.offeredTerms.includes(q as TermNumber);
+12212:                      checked={!!selectedSubject.isZeroBasedGrading}
+12214:                        if (onUpdateSubject) {
+12215:                          onUpdateSubject(selectedSubject.id, { isZeroBasedGrading: e.target.checked });
+12275:      {/* Assigned Subjects Card Selector - Styled exactly like the admin / dashboard user assignments */}
+12281:              Assigned Academic Subjects
+12290:              const isSelected = sub.id === selectedSubject.id;
+12291:              const isSubjectFullyComplete = offered.every(t => sub.finalizedTerms?.includes(t));
+12309:                        {isSelected ? 'Active Subject' : 'Academic Class Load'}
+12312:                    {isSubjectFullyComplete ? (
+12345:                            onSelectSubject(sub.id);
+12375:      {!isSubjectTermFinalized && isActiveTermReady && onToggleFinalizeSubjectTerm && (
+12388:               onClick={() => setConfirmFinalizeConfig({ subjectId: selectedSubject.id, term: activeTerm, finalize: true })}
+12417:                    Written Works ({selectedSubject.wwWeight}%)
+12420:                    Performance Tasks ({selectedSubject.ptWeight}%)
+12423:                    Tests & Exam ({selectedSubject.taWeight}%)
+12434:                        disabled={isNotOffered || isYearEndFinalized || isSubjectTermFinalized}
+12438:                        className={`w-full text-center bg-transparent outline-none py-2 text-[9px] font-bold text-slate-700 placeholder:text-slate-300 ${(isNotOffered || isYearEndFinalized || isSubjectTermFinalized) ? 'cursor-not-allowed opacity-50' : ''}`}
+12451:                        disabled={isNotOffered || isYearEndFinalized || isSubjectTermFinalized}
+12455:                        className={`w-full text-center bg-transparent outline-none py-2 text-[9px] font-bold text-slate-600 placeholder:text-slate-300 ${(isNotOffered || isYearEndFinalized || isSubjectTermFinalized) ? 'cursor-not-allowed opacity-50' : ''}`}
+12468:                        disabled={isNotOffered || isYearEndFinalized || isSubjectTermFinalized}
+12472:                        className={`w-full text-center bg-transparent outline-none py-2 text-[9px] font-bold text-slate-600 placeholder:text-slate-300 ${(isNotOffered || isYearEndFinalized || isSubjectTermFinalized) ? 'cursor-not-allowed opacity-50' : ''}`}
+12492:                        disabled={isNotOffered || isYearEndFinalized || isSubjectTermFinalized}
+12496:                        className={`w-full text-center text-xs font-bold p-1 outline-none bg-transparent hover:bg-slate-100 focus:bg-white border text-slate-700 border-transparent focus:border-slate-300 rounded transition-all ${(isNotOffered || isYearEndFinalized || isSubjectTermFinalized) ? 'cursor-not-allowed text-slate-400 bg-transparent' : ''}`}
+12512:                        disabled={isNotOffered || isYearEndFinalized || isSubjectTermFinalized}
+12516:                        className={`w-full text-center text-xs font-bold p-1 outline-none bg-transparent hover:bg-slate-100 focus:bg-white border text-slate-700 border-transparent focus:border-slate-300 rounded transition-all ${(isNotOffered || isYearEndFinalized || isSubjectTermFinalized) ? 'cursor-not-allowed text-slate-400 bg-transparent' : ''}`}
+12532:                        disabled={isNotOffered || isYearEndFinalized || isSubjectTermFinalized}
+12536:                        className={`w-full text-center text-xs font-bold p-1 outline-none bg-transparent hover:bg-slate-100 focus:bg-white border text-slate-700 border-transparent focus:border-slate-300 rounded transition-all ${(isNotOffered || isYearEndFinalized || isSubjectTermFinalized) ? 'cursor-not-allowed text-slate-400 bg-transparent' : ''}`}
+12544:                        disabled={isNotOffered || isYearEndFinalized || isSubjectTermFinalized}
+12548:                        className={`w-full text-center text-xs font-bold p-1 outline-none bg-transparent hover:bg-slate-100 focus:bg-white border text-slate-700 border-transparent focus:border-slate-300 rounded transition-all ${(isNotOffered || isYearEndFinalized || isSubjectTermFinalized) ? 'cursor-not-allowed text-slate-400 bg-transparent' : ''}`}
+12660:                    if (onToggleFinalizeSubjectTerm) {
+12661:                      onToggleFinalizeSubjectTerm(confirmFinalizeConfig.subjectId, confirmFinalizeConfig.term as TermNumber, confirmFinalizeConfig.finalize);
+12693:  onSelectSubject,
+12696:  onToggleFinalizeSubjectTerm,
+12702:  subjects: Subject[],
+12711:  onSelectSubject?: (subjectId: string) => void,
+12714:  onToggleFinalizeSubjectTerm?: (subjectId: string, term: TermNumber, finalize: boolean) => void,
+12720:  const totalSubjects = subjects.length;
+12827:            const studentSubjectAvg = sum / validTerms;
+12828:            totalGradeSum += studentSubjectAvg;
+12829:            if (studentSubjectAvg >= 75) {
+12876:  const isAllSubjectsTermsFinalized = useMemo(() => {
+12912:  const myAssignedSubjects = useMemo(() => {
+13025:        {/* Subject Load Status List */}
+13026:        {!isYearEndFinalized && myAssignedSubjects.length > 0 && (
+13028:            <h4 className="text-sm font-bold text-slate-800 mb-4 border-b border-slate-100 pb-2 font-sans uppercase tracking-tight">My Assigned Subjects</h4>
+13030:              {myAssignedSubjects.map(sub => {
+13032:                const isSubjectFullyComplete = offered.every(t => sub.finalizedTerms?.includes(t));
+13039:                         <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Subject Assignment</p>
+13041:                       {isSubjectFullyComplete ? (
+13062:                                onSelectSubject?.(sub.id);
+13080:                            {isFinalized && onToggleFinalizeSubjectTerm && (
+13103:        {/* Section Advisory: All Finalized Subjects Overview */}
+13106:            <h4 className="text-sm font-bold text-slate-800 mb-4 border-b border-slate-100 pb-2 font-sans uppercase tracking-tight">Section Subject Finalization Overview</h4>
+13130:                                  {onToggleFinalizeSubjectTerm && (
+13169:            <p className="text-sm font-medium">Total Subjects</p>
+13172:          <h3 className="text-3xl font-bold text-slate-900">{totalSubjects}</h3>
+13365:                    if (onToggleFinalizeSubjectTerm) {
+13366:                      onToggleFinalizeSubjectTerm(confirmFinalizeConfig.subjectId, confirmFinalizeConfig.term as TermNumber, confirmFinalizeConfig.finalize);
+13442:function SubjectsView({ 
+13444:  onAddSubject, 
+13445:  onEditSubject,
+13446:  onDeleteSubject,
+13451:  subjects: Subject[], 
+13452:  onAddSubject: (s: Omit<Subject, 'id'>) => Promise<void>,
+13453:  onEditSubject: (id: string, s: Omit<Subject, 'id'>) => Promise<void>,
+13454:  onDeleteSubject: (id: string) => Promise<void>,
+13461:  const [presetSelectedSubjects, setPresetSelectedSubjects] = useState<string[]>([]);
+13462:  const [presetSubjectGroup, setPresetSubjectGroup] = useState<Subject['group']>('Revised K-10 Curriculum');
+13470:  const [form, setForm] = useState<Omit<Subject, 'id'>>({
+13471:    group: 'SHS Core Subjects, Other SHS Academic Electives',
+13526:      group: 'SHS Core Subjects, Other SHS Academic Electives',
+13546:        await onEditSubject(editingId, form);
+13548:        await onAddSubject(form);
+13586:            Add Subject
+13607:                      setPresetSubjectGroup('Revised K-10 Curriculum');
+13608:                      setPresetSelectedSubjects([...MATATAG_SUBJECTS]);
+13633:                      setPresetSubjectGroup('SHS Core Subjects, Other SHS Academic Electives');
+13634:                      setPresetSelectedSubjects([...NON_MATATAG_SUBJECTS]);
+13662:                    setPresetSubjectGroup('SHS Core Subjects, Other SHS Academic Electives');
+13663:                    setPresetSelectedSubjects([...SHS_CORE_SUBJECTS]);
+13686:                    setPresetSubjectGroup('SHS Core Subjects, Other SHS Academic Electives');
+13687:                    setPresetSelectedSubjects([...STRENGTHENED_SHS_SUBJECTS]);
+13726:                  <h2 className="text-xl font-bold text-slate-900 tracking-tight leading-none">Select Subject Group</h2>
+13736:                  <label className="text-xs font-bold text-slate-700">Subject Group</label>
+13738:                    value={presetSubjectGroup}
+13739:                    onChange={e => setPresetSubjectGroup(e.target.value as any)}
+13742:                    <option value="SHS Core Subjects, Other SHS Academic Electives">SHS Core Subjects, Other Academic Electives</option>
+13781:                      <label className="text-xs font-bold text-slate-700">Select Subjects to Add</label>
+13783:                        {presetSelectedSubjects.length} selected
+13794:                        if (presetSelectedSubjects.length === currentList.length) {
+13795:                          setPresetSelectedSubjects([]);
+13797:                          setPresetSelectedSubjects([...currentList]);
+13802:                      {presetSelectedSubjects.length === (presetQueue === 'matatag' ? MATATAG_SUBJECTS : presetQueue === 'shs-core' ? SHS_CORE_SUBJECTS : presetQueue === 'ssh-shs' ? STRENGTHENED_SHS_SUBJECTS : NON_MATATAG_SUBJECTS).length ? 'Deselect All' : 'Select All'}
+13808:                          if (presetSelectedSubjects.includes(subjectName)) {
+13809:                            setPresetSelectedSubjects(prev => prev.filter(s => s !== subjectName));
+13811:                            setPresetSelectedSubjects(prev => [...prev, subjectName]);
+13814:                        <div className={`w-5 h-5 rounded flex items-center justify-center border transition-all ${presetSelectedSubjects.includes(subjectName) ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-slate-300'}`}>
+13815:                          {presetSelectedSubjects.includes(subjectName) && <Check size={14} strokeWidth={3} />}
+13836:                    const subjectsToAdd = [...presetSelectedSubjects];
+13844:                        await onAddSubject({
+13845:                          group: presetSubjectGroup,
+13864:                  disabled={isAddingPreset || presetSelectedSubjects.length === 0}
+13867:                  Continue & Add ({presetSelectedSubjects.length})
+13895:                    {editingId ? 'Edit Subject' : 'Add New Subject'}
+13910:                      <label className="text-xs font-bold text-slate-700">Subject Group</label>
+13917:                        <option value="SHS Core Subjects, Other SHS Academic Electives">SHS Core Subjects, Other SHS Academic Electives</option>
+13928:                      <label className="text-xs font-bold text-slate-700">Subject Name</label>
+13971:                      <label className="text-xs font-bold text-slate-700">Subject Type</label>
+14102:                    {editingId ? 'Save Changes' : 'Add Subject'}
+14117:            Configured Subjects
+14128:                <th className="px-6 py-4 text-[11px] uppercase tracking-widest font-semibold">Subject</th>
+14148:                        <h2 className="text-lg font-bold text-slate-800 tracking-tight">No Subjects Configured</h2>
+14202:                            title="Edit Subject"
+14208:                              onDeleteSubject(subject.id);
+14211:                            title="Remove Subject"
+14243:  subjects: Subject[], 
+14261:  const renderGradeCell = (grade: number, term: number, subject?: Subject) => {
+14356:  // DepEd Revised K-12 Subject Arrangement Logic
+14357:  const displaySubjectsList = (() => {
+14431:    const processedSubjectIds = new Set<string>();
+14435:        const mapehSub = subjects.find(s => s.name.toUpperCase() === "MAPEH" && !processedSubjectIds.has(s.id));
+14437:          !processedSubjectIds.has(s.id) && 
+14446:          if (mapehSub) processedSubjectIds.add(mapehSub.id);
+14447:          foundComponents.forEach(c => processedSubjectIds.add(c.id));
+14457:          !processedSubjectIds.has(s.id) && 
+14461:          processedSubjectIds.add(sub.id);
+14469:      if (!processedSubjectIds.has(s.id)) {
+14479:      return term === 'final' ? getSubjectFinalGrade(entry.subject) : getSubjectTermGrade(entry.subject, term);
+14485:          term === 'final' ? getSubjectFinalGrade(c) : getSubjectTermGrade(c, term)
+14490:          if (!entry.subject.dummy) return term === 'final' ? getSubjectFinalGrade(entry.subject) : getSubjectTermGrade(entry.subject, term);
+14495:      if (!entry.subject.dummy) return term === 'final' ? getSubjectFinalGrade(entry.subject) : getSubjectTermGrade(entry.subject, term);
+14501:    if (displaySubjectsList.length === 0) return 0;
+14502:    const gradedEntries = displaySubjectsList.filter(entry => getEntryGrades(entry, 'final') > 0);
+14567:  const getSubjectTermGrade = (s: Subject, term: TermNumber) => {
+14574:  const getSubjectFinalGrade = (s: Subject) => {
+14585:    const grades = expectedTerms.map(t => getSubjectTermGrade(s, t));
+14855:      const totalRows = displaySubjectsList.reduce((acc, entry) => acc + 1 + (entry.type === 'mapeh' ? entry.components.length : 0), 0);
+14858:      displaySubjectsList.forEach((entry, idx) => {
+14952:            const cq1 = getSubjectTermGrade(comp, 1);
+14953:            const cq2 = getSubjectTermGrade(comp, 2);
+14954:            const cq3 = getSubjectTermGrade(comp, 3);
+14955:            const cq4 = q4 > 0 ? getSubjectTermGrade(comp, 4) : 0;
+15431:    displaySubjectsList.forEach((entry) => {
+15484:            const cq = getSubjectTermGrade(comp, q as any);
+15697:      createCell("Class Adviser / Subject Teacher", { align: "center", size: 8, italic: true, borderTheme: "none" }),
+15765:    displaySubjectsList.forEach((entry, idx) => {
+15837:          const cq1 = getSubjectTermGrade(comp, 1);
+15838:          const cq2 = getSubjectTermGrade(comp, 2);
+15839:          const cq3 = getSubjectTermGrade(comp, 3);
+15840:          const cq4 = numTerms === 4 ? getSubjectTermGrade(comp, 4) : 0;
+15841:          const cfin = getSubjectFinalGrade(comp);
+16685:                     const totalRows = displaySubjectsList.reduce((acc, entry) => acc + 1 + (entry.type === 'mapeh' ? entry.components.length : 0), 0);
+16687:                     return displaySubjectsList.map((entry, idx) => {
+16811:                           const cq1 = getSubjectTermGrade(comp, 1);
+16812:                           const cq2 = getSubjectTermGrade(comp, 2);
+16813:                           const cq3 = getSubjectTermGrade(comp, 3);
+16814:                           const cq4 = numTerms === 4 ? getSubjectTermGrade(comp, 4 as any) : 0;
+16815:                           const cfin = getSubjectFinalGrade(comp);
+16914:  subjects: Subject[], 
+16950:  const abbreviateSubject = (name: string) => {
+16990:  const sortedSubjects = useMemo(() => {
+17003:      const scoreA = getSubjectSortScore(a.name);
+17004:      const scoreB = getSubjectSortScore(b.name);
+17012:      | { type: 'subject', subject: Subject, id: string, name: string } 
+17013:      | { type: 'mapeh', subjects: Subject[], subject?: Subject, id: string, name: string };
+17022:       const core = sortedSubjects.filter(s => (s.subjectType || 'CORE') === 'CORE');
+17023:       const electives = sortedSubjects.filter(s => s.subjectType === 'ELECTIVE');
+17089:    const processedSubjectIds = new Set<string>();
+17095:          return n === "MAPEH" && !processedSubjectIds.has(s.id);
+17099:          !processedSubjectIds.has(s.id) && 
+17108:          if (mapehSub) processedSubjectIds.add(mapehSub.id);
+17109:          foundComponents.forEach(c => processedSubjectIds.add(c.id));
+17124:        const matchingSubjects = subjects.filter(s => 
+17125:          !processedSubjectIds.has(s.id) && 
+17129:        matchingSubjects.forEach(sub => {
+17130:          processedSubjectIds.add(sub.id);
+17138:      if (!processedSubjectIds.has(s.id)) {
+17144:  }, [subjects, selectedSection, sortedSubjects]);
+17155:  const getSubjectTermGrade = (student: Student, subject: Subject, term: TermNumber) => {
+17162:  const getSubjectFinalGrade = (student: Student, subject: Subject) => {
+17167:    const grades = terms.map(t => getSubjectTermGrade(student, subject, t));
+17174:      return getSubjectTermGrade(student, col.subject, term);
+17177:        const grades = col.subjects.map((s: Subject) => getSubjectTermGrade(student, s, term));
+17184:        return getSubjectTermGrade(student, col.subject, term);
+17192:      return getSubjectFinalGrade(student, col.subject);
+17195:        const grades = col.subjects.map((s: Subject) => getSubjectFinalGrade(student, s));
+17204:        return getSubjectFinalGrade(student, col.subject);
+17422:      // First Level: Subject Name (merged horizontally across termsToShow + 1)
+17698:                      {abbreviateSubject(c.name)}
+18415:  subjects: Subject[],
+18427:  const [selectedTermDetail, setSelectedTermDetail] = useState<{ subject: Subject, term: TermNumber } | null>(null);
+18731:                        const gradedSubjects = subjects.filter(s => {
+18739:                        if (gradedSubjects.length === 0) {
+18745:                                  <h3 className="text-sm font-bold text-slate-900 mb-1">No Graded Subjects</h3>
+18751:                        const groupedSubjects = gradedSubjects.reduce((acc, subject) => {
+18756:                        }, {} as Record<number, Subject[]>);
+18758:                        return Object.entries(groupedSubjects).map(([gradeLevel, gradeSubjects]) => (
+18766:                                 {gradeSubjects.map(subject => {
+18798:                                          title={isNotOffered ? "Subject not offered this term" : (isTermEnabled ? "Click for grade breakdown" : "Grade locked")}
+19394:                                      Subject: {record.subjectName}
+20109:  const [allSubjects, setAllSubjects] = useState<Subject[]>([]);
+20225:      setAllSubjects(prev => prev.filter(sub => sub.id !== subjectId));
+20308:          } as Subject;
+20310:        setAllSubjects(subjList);
+20347:  const getAssignedSubjects = (userEmail: string) => {
+20350:    return allSubjects.filter(sub => {
+20380:      const unknownSubjects = snapSubj.docs.filter(docSnap => {
+20410:      const totalUnknowns = unknownSections.length + unknownSubjects.length + unknownAnecdotes.length + unknownPTA.length + unknownEnrollments.length;
+20423:      const allUnknownDocs = [...unknownSections, ...unknownSubjects, ...unknownAnecdotes, ...unknownPTA, ...unknownEnrollments];
+20438:      setAllSubjects(prev => prev.filter(sub => sub.sectionId && sectionMap.has(sub.sectionId)));
+20533:            <p className="text-slate-500 text-sm mb-6">Are you sure you want to permanently clear all orphaned items (Sections, Learners, Subjects, Anecdotes, PTA) whose parents do not exist anymore? This action is IRREVERSIBLE.</p>
+20581:        const assignedSubjects = getAssignedSubjects(userEmail);
+20628:                    assignedSubjects.forEach(sub => {
+20645:                      const syAssignedSubjects = assignedSubjects.filter(sub => {
+20669:                                {syAdviserSections.length + syAssignedSubjects.length} load{syAdviserSections.length + syAssignedSubjects.length !== 1 ? 's' : ''}
+20701:                              {/* Subject Loading Section */}
+20703:                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Academic Subject Load ({syAssignedSubjects.length})</p>
+20704:                                {syAssignedSubjects.length === 0 ? (
+20708:                                    {syAssignedSubjects.map(sub => {
+20815:                  const oSubjects = allSubjects.filter(sub => !sub.sectionId || !sectionMap.has(sub.sectionId));
+20819:                  const totalOrphans = oSections.length + oSubjects.length + oAnecdotes.length + oPTA.length + oEnrollments.length;
+20870:                      {oSubjects.length > 0 && (
+20872:                          <div className="p-3 bg-slate-950/80 border-b border-slate-800 text-xs font-bold text-slate-300 uppercase tracking-wider">Orphaned Subjects ({oSubjects.length})</div>
+20876:                                <th className="p-4">Subject Name</th>
+20883:                              {oSubjects.map(sub => (
+21110:                      <span>Assigned Academic Subjects count</span>
+21111:                      <strong className="text-slate-200">{allSubjects.length}</strong>
+21274:                  const assignedSubjects = getAssignedSubjects(u.email);
+21292:                            {(adviserSections.length > 0 || assignedSubjects.length > 0) && (
+21298:                                <span>Show Lodged Assignments ({adviserSections.length + assignedSubjects.length})</span>
+21384:            <p className="text-amber-800 text-sm leading-relaxed">Administrators should first configure the <strong>Schools</strong> and <strong>Users</strong> (Teachers) before class records can be managed. Teachers are then assigned to sections as either Advisers or Subject Teachers through the Settings menu. System Administrators can access the comprehensive <strong>Student Master List</strong> to view and search all students across all sections.</p>
+21473:      description: 'Subject config, Assessments, and Grading Sheets',
+21480:              <h6 className="font-bold text-indigo-900 mb-1">1. Subjects & Weights</h6>
+21721:    const introText = "A comprehensive operational user guide and systemic handbook for Admins, Advisers, and Subject Teachers running the CLASS Portal. This document supplies structured guidelines for continuous bulk student registration, class attendance forms automation, complete grading matrices, and Digital Anecdotal record-keeping systems.";
+21772:          "• Subject Teacher: Input-level access. Can configure scoring weight parameters, log quarterly grades, written works, and performance logs for assigned sections.",
