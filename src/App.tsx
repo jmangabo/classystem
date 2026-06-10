@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import QRCode from "react-qr-code";
 import * as XLSX from "xlsx-js-style";
 import jsPDF from "jspdf";
@@ -468,7 +468,7 @@ function SectionStatsDisplay({ sectionId, schoolYear, schoolCalendar }: { sectio
     </div>
   );
 }
-import { AnimatePresence } from "framer-motion";
+
 import { 
   LineChart, 
   Line, 
@@ -5187,6 +5187,8 @@ function SectionsView({
   const [requestDeletionReason, setRequestDeletionReason] = useState("");
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
   const [confirmFinalizeConfig, setConfirmFinalizeConfig] = useState<{ subjectId: string, term: number, finalize: boolean } | null>(null);
+  const [isOverviewOpen, setIsOverviewOpen] = useState(true);
+  const [isListOpen, setIsListOpen] = useState(true);
   
   const [isSchoolDbFinalized, setIsSchoolDbFinalized] = useState(false);
 
@@ -6279,10 +6281,6 @@ function SectionsView({
 
           <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end border-b border-slate-200 pb-6 mb-6 gap-6">
             <div className="space-y-4 flex-1 w-full xl:w-auto overflow-hidden">
-              <div className="space-y-1">
-                <h2 className="text-2xl font-semibold text-slate-900 tracking-tight">Active Sections</h2>
-                <p className="text-slate-500 text-sm font-medium">Select a section to view detailed analytics and performance reports.</p>
-              </div>
               
               <div className="flex flex-wrap items-center gap-2 max-w-full">
                 <div className="relative group shrink-0">
@@ -6453,58 +6451,90 @@ function SectionsView({
           </div>
 
           {user?.role === 'system_admin' && subjects.length > 0 && (
-            <div className="animate-in fade-in slide-in-from-top-2 duration-300 mt-8 mb-8 pb-6 border-b border-slate-200">
-              <h4 className="text-sm font-bold text-slate-800 mb-4 border-b border-slate-100 pb-2 font-sans uppercase tracking-tight">Section Subject Finalization Overview</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                {subjects.map(sub => {
-                  const sectionObj = sections.find(s => s.id === sub.sectionId);
-                  const sectionName = sectionObj ? `${Number(sectionObj.gradeLevel) === 0 ? "Kinder" : "G" + sectionObj.gradeLevel} - ${sectionObj.name}` : 'Unknown Section';
-                    const offered = sub.offeredTerms && sub.offeredTerms.length > 0 ? sub.offeredTerms : ([1, 2, 3, 4] as any[]);
-                    const teacherName = sub.teacherEmail || 'No Teacher Assigned';
-                    
-                    return (
-                      <div key={sub.id} className="bg-white p-3 rounded-xl border border-slate-200 flex flex-col justify-between gap-2.5 transition-all shadow-sm group hover:border-slate-300">
-                        <div className="flex items-start justify-between gap-2">
-                           <div className="min-w-0 flex-1">
-                             <span className="text-[9px] font-black uppercase tracking-widest text-indigo-600">{sectionName}</span>
-                             <h6 className="font-bold text-slate-800 text-xs truncate mt-0.5" title={sub.name}>{sub.name}</h6>
-                             <p className="text-[9px] text-slate-500 truncate mt-0.5" title={teacherName}>{teacherName}</p>
-                           </div>
-                        </div>
-                        
-                        <div className="flex flex-col gap-1.5 pt-1 border-t border-slate-100/80">
-                          {offered.map(term => {
-                            const isFinalized = sub.finalizedTerms?.includes(term);
-                            return (
-                              <div key={term} className="flex flex-row items-center justify-between text-xs p-1.5 rounded-lg bg-slate-50 border border-slate-100">
-                                 <span className="font-semibold text-slate-600 text-[10px] uppercase tracking-wider">Term {term}</span>
-                                 {isFinalized ? (
-                                   <div className="flex items-center gap-2">
-                                      <span className="text-[9px] font-bold text-emerald-600 uppercase flex items-center gap-1"><Check size={10} /> Finalized</span>
-                                      {onToggleFinalizeSubjectTerm && (
-                                         <button 
-                                            onClick={(e) => { 
-                                              e.stopPropagation(); 
-                                              setConfirmFinalizeConfig({ subjectId: sub.id, term, finalize: false });
-                                            }}
-                                            className="text-[9px] px-2 py-0.5 rounded border border-amber-200 bg-amber-50 text-amber-700 font-bold uppercase hover:bg-amber-100 cursor-pointer transition-colors"
-                                            title={`Unfinalize Term ${term}`}
-                                         >
-                                            Unfinalize
-                                         </button>
-                                      )}
-                                   </div>
-                                 ) : (
-                                   <span className="text-[9px] font-bold text-slate-400 uppercase">Pending</span>
-                                 )}
+            <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm mb-6 transition-all">
+              <button 
+                type="button"
+                onClick={() => setIsOverviewOpen(!isOverviewOpen)}
+                className="w-full px-6 py-4 flex items-center justify-between bg-slate-50 hover:bg-slate-100/70 border-b border-slate-100 transition-colors text-left font-sans cursor-pointer"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                    <BookOpen size={16} />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-slate-800 text-sm uppercase tracking-wider leading-none font-sans uppercase tracking-tight">Section Subject Finalization Overview</h4>
+                    <p className="text-[10px] text-slate-500 font-medium uppercase tracking-widest mt-1">Monitor finalization status across academic classes</p>
+                  </div>
+                </div>
+                <div className="text-slate-400 p-1 bg-white hover:bg-slate-200 rounded-lg border border-slate-200 transition-all">
+                  {isOverviewOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                </div>
+              </button>
+              
+              <AnimatePresence initial={false}>
+                {isOverviewOpen && (
+                  <motion.div 
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="p-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                        {subjects.map(sub => {
+                          const sectionObj = sections.find(s => s.id === sub.sectionId);
+                          const sectionName = sectionObj ? `${Number(sectionObj.gradeLevel) === 0 ? "Kinder" : "G" + sectionObj.gradeLevel} - ${sectionObj.name}` : 'Unknown Section';
+                          const offered = sub.offeredTerms && sub.offeredTerms.length > 0 ? sub.offeredTerms : ([1, 2, 3, 4] as any[]);
+                          const teacherName = sub.teacherEmail || 'No Teacher Assigned';
+                          
+                          return (
+                            <div key={sub.id} className="bg-white p-3 rounded-xl border border-slate-200 flex flex-col justify-between gap-2.5 transition-all shadow-sm group hover:border-slate-300">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0 flex-1">
+                                  <span className="text-[9px] font-black uppercase tracking-widest text-indigo-600">{sectionName}</span>
+                                  <h6 className="font-bold text-slate-800 text-xs truncate mt-0.5" title={sub.name}>{sub.name}</h6>
+                                  <p className="text-[9px] text-slate-500 truncate mt-0.5" title={teacherName}>{teacherName}</p>
+                                </div>
                               </div>
-                            );
-                          })}
-                        </div>
+                              
+                              <div className="flex flex-col gap-1.5 pt-1 border-t border-slate-100/80">
+                                {offered.map(term => {
+                                  const isFinalized = sub.finalizedTerms?.includes(term);
+                                  return (
+                                    <div key={term} className="flex flex-row items-center justify-between text-xs p-1.5 rounded-lg bg-slate-50 border border-slate-100">
+                                      <span className="font-semibold text-slate-600 text-[10px] uppercase tracking-wider">Term {term}</span>
+                                      {isFinalized ? (
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-[9px] font-bold text-emerald-600 uppercase flex items-center gap-1"><Check size={10} /> Finalized</span>
+                                          {onToggleFinalizeSubjectTerm && (
+                                            <button 
+                                              onClick={(e) => { 
+                                                e.stopPropagation(); 
+                                                setConfirmFinalizeConfig({ subjectId: sub.id, term, finalize: false });
+                                              }}
+                                              className="text-[9px] px-2 py-0.5 rounded border border-amber-200 bg-amber-50 text-amber-700 font-bold uppercase hover:bg-amber-100 cursor-pointer transition-colors"
+                                              title={`Unfinalize Term ${term}`}
+                                            >
+                                              Unfinalize
+                                            </button>
+                                          )}
+                                        </div>
+                                      ) : (
+                                        <span className="text-[9px] font-bold text-slate-400 uppercase">Pending</span>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
-                    );
-                  })}
-              </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           )}
 
@@ -6610,27 +6640,54 @@ function SectionsView({
             )}
           </AnimatePresence>
 
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 mt-8 gap-4 border-b border-slate-100 pb-3">
-            <div>
-              <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider font-sans">Academic Sections List</h3>
-              <p className="text-[11px] text-slate-500 font-medium">Browse and manage active groups below.</p>
-            </div>
-            {(user?.role === 'admin' || user?.role === 'system_admin') && !isEntireSchoolFinalized && (
-              <button 
-                onClick={() => {
-                  if (user?.email !== 'jessiemangabo@gmail.com' && (!globalSettings?.activeSchoolYear || isGlobalFinalized)) return;
-                  setShowAdd(!showAdd);
-                }}
-                disabled={user?.email !== 'jessiemangabo@gmail.com' && (!globalSettings?.activeSchoolYear || isGlobalFinalized)}
-                className="flex items-center justify-center gap-2 bg-indigo-600 text-white disabled:bg-slate-300 disabled:cursor-not-allowed px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider shadow-sm hover:bg-indigo-700 hover:shadow transition-all w-full sm:w-auto"
-              >
-                <Plus size={14} />
-                <span>Add Section</span>
-              </button>
-            )}
-          </div>
+          <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm transition-all mt-8">
+            <button 
+              type="button"
+              onClick={() => setIsListOpen(!isListOpen)}
+              className="w-full px-6 py-4 flex items-center justify-between bg-slate-50 hover:bg-slate-100/70 border-b border-slate-100 transition-colors text-left font-sans cursor-pointer"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                  <Users size={16} />
+                </div>
+                <div>
+                  <h4 className="font-bold text-slate-800 text-sm uppercase tracking-wider leading-none">Academic Sections List</h4>
+                  <p className="text-[10px] text-slate-500 font-medium uppercase tracking-widest mt-1">Browse and manage active groups below</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                {(user?.role === 'admin' || user?.role === 'system_admin') && !isEntireSchoolFinalized && (
+                  <button 
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (user?.email !== 'jessiemangabo@gmail.com' && (!globalSettings?.activeSchoolYear || isGlobalFinalized)) return;
+                      setShowAdd(true);
+                    }}
+                    disabled={user?.email !== 'jessiemangabo@gmail.com' && (!globalSettings?.activeSchoolYear || isGlobalFinalized)}
+                    className="flex items-center justify-center gap-1.5 bg-indigo-600 text-white disabled:bg-slate-300 disabled:cursor-not-allowed px-3 py-1.5 rounded-lg font-bold text-[10px] uppercase tracking-wider shadow-sm hover:bg-indigo-700 hover:shadow transition-all cursor-pointer"
+                  >
+                    <Plus size={12} />
+                    <span>Add Section</span>
+                  </button>
+                )}
+                <div className="text-slate-400 p-1 bg-white hover:bg-slate-200 rounded-lg border border-slate-200 transition-all">
+                  {isListOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                </div>
+              </div>
+            </button>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <AnimatePresence initial={false}>
+              {isListOpen && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="overflow-hidden"
+                >
+                  <div className="p-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {!isFiltered ? (
                <div className="col-span-full flex flex-col items-center justify-center p-16 bg-white rounded-2xl border border-dashed border-slate-300 text-center shadow-sm">
                  <div className="size-16 bg-indigo-50/50 rounded-2xl flex items-center justify-center mx-auto mb-5 text-indigo-500">
@@ -6951,6 +7008,11 @@ function SectionsView({
                 );
               })
             )}
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
           </>
           )}
