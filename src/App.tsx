@@ -1299,35 +1299,33 @@ export default function App() {
       (err) => handleFirestoreError(err, 'list', `sections/${selectedSection.id}/students`)
     );
 
-    let subjectsUnsub = () => {};
-    
-    if (selectedSection.gradeLevel >= 11) {
-      const globalIds = selectedSection.globalSubjectIds || [];
-      const secTeachers = selectedSection.subjectTeachers || {};
-      const list = globalSubjects
-        .filter(s => globalIds.includes(s.id))
-        .map(s => ({
-          ...s,
-          sectionId: selectedSection.id,
-          teacherEmail: secTeachers[s.id] || ''
-        }));
-      setSubjects(list);
-    } else {
-      subjectsUnsub = onSnapshot(
-        collection(db, `sections/${selectedSection.id}/subjects`),
-        (snapshot) => {
-          let list = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Subject));
-          setSubjects(list);
-        },
-        (err) => handleFirestoreError(err, 'list', `sections/${selectedSection.id}/subjects`)
-      );
-    }
-
     return () => {
       studentsUnsub();
-      subjectsUnsub();
     };
-  }, [selectedSection?.id, selectedSection?.gradeLevel, selectedSection?.globalSubjectIds, selectedSection?.subjectTeachers, globalSubjects, userProfile?.role, sections]);
+  }, [selectedSection?.id, userProfile?.role, sections]);
+
+  useEffect(() => {
+    if (!selectedSection) {
+      setSubjects([]);
+      return;
+    }
+    const globalIds = selectedSection.globalSubjectIds || [];
+    const secTeachers = selectedSection.subjectTeachers || {};
+    const enrolledIds = new Set(students.flatMap(s => s.enrolledSubjectIds || []));
+    
+    const list = globalSubjects
+      .filter(s => 
+        Number(s.gradeLevel) === Number(selectedSection.gradeLevel) || 
+        globalIds.includes(s.id) ||
+        enrolledIds.has(s.id)
+      )
+      .map(s => ({
+        ...s,
+        sectionId: selectedSection.id,
+        teacherEmail: secTeachers[s.id] || ''
+      }));
+    setSubjects(list as Subject[]);
+  }, [selectedSection, globalSubjects, students]);
 
   useEffect(() => {
     if (!selectedSection) return;
@@ -1518,15 +1516,28 @@ export default function App() {
   };
 
   const handleUpdateSection = async (id: string, sectionData: any) => {
-    if (userProfile?.role === 'teacher') {
-      alert("Teachers and Advisers are not authorized to edit section details. Please contact the System Administrator.");
+    const isCriticalUpdate = 'name' in sectionData || 'gradeLevel' in sectionData || 'schoolId' in sectionData || 'schoolYear' in sectionData || 'adviserEmail' in sectionData;
+    
+    const sec = sections.find(s => s.id === id);
+    const adviserEmail = (sec?.adviserEmail || "").trim().toLowerCase();
+    const profEmail = (userProfile?.email || "").trim().toLowerCase();
+    const isSecAdviser = adviserEmail && adviserEmail === profEmail;
+    
+    if (userProfile?.role === 'teacher' && !isSecAdviser) {
+      alert("Teachers are not authorized to edit section details. Please contact the System Administrator.");
+      return;
+    }
+    if (userProfile?.role === 'teacher' && isSecAdviser && isCriticalUpdate) {
+      alert("Section Advisers are not authorized to edit core section metadata. Please contact the System Administrator.");
       return;
     }
     try {
       const updatedData = {
         ...sectionData,
-        adviserEmail: (sectionData.adviserEmail || "").trim().toLowerCase()
       };
+      if (updatedData.adviserEmail !== undefined) {
+        updatedData.adviserEmail = (updatedData.adviserEmail || "").trim().toLowerCase();
+      }
       await setDoc(doc(db, "sections", id), updatedData, { merge: true });
     } catch (error) {
       handleFirestoreError(error, 'update', `sections/${id}`);
@@ -1723,6 +1734,9 @@ export default function App() {
         setEditingId(null);
       } else {
         const { bmi, category } = computeBMI(parseFloat(learnerForm.weight) || 0, parseFloat(learnerForm.height) || 0);
+        // By user request, we do not automatically enroll the subjects. Only use what is explicitly checked in the form, default to empty.
+        const resolvedEnrolledSubjectIds = learnerForm.enrolledSubjectIds || [];
+
         const newLearner = {
           sectionId: selectedSection.id,
           name: fullName,
@@ -1755,7 +1769,8 @@ export default function App() {
           attendance: learnerForm.attendance || {},
           eligibility: learnerForm.eligibility || {},
           photo: learnerForm.photo || "",
-          grades: {}
+          grades: {},
+          enrolledSubjectIds: resolvedEnrolledSubjectIds
         };
         await addDoc(collection(db, `sections/${selectedSection.id}/students`), newLearner);
       }
@@ -2265,7 +2280,8 @@ export default function App() {
           dateOfFirstAttendance: learner.dateOfFirstAttendance || "",
           isTransferredIn: learner.isTransferredIn || false,
           eligibility: learner.eligibility || {},
-          grades: {}
+          grades: {},
+          enrolledSubjectIds: []
         });
       });
       await batch.commit();
@@ -2290,6 +2306,26 @@ export default function App() {
     if (!studentViewMatched?.section?.schoolYear) return schoolCalendar;
     return schoolCalendar.filter(c => c.schoolYear === studentViewMatched.section.schoolYear);
   }, [schoolCalendar, studentViewMatched?.section?.schoolYear]);
+
+  const filteredStudents = useMemo(() => {
+    return students.filter(s => 
+      s.status !== 'Dropped Out' && s.status !== 'Transferred Out' &&
+      s.enrolledSubjectIds && s.enrolledSubjectIds.length > 0 &&
+      (s.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+       s.lrn?.includes(searchTerm))
+    );
+  }, [students, searchTerm]);
+
+  const enrolledStudents = useMemo(() => {
+    return students.filter(s => s.status !== 'Dropped Out' && s.status !== 'Transferred Out' && s.enrolledSubjectIds && s.enrolledSubjectIds.length > 0);
+  }, [students]);
+
+  const unenrolledStudents = useMemo(() => {
+    return students.filter(s => 
+      s.status !== 'Dropped Out' && s.status !== 'Transferred Out' &&
+      (!s.enrolledSubjectIds || s.enrolledSubjectIds.length === 0)
+    );
+  }, [students]);
 
   if (authLoading) {
     return (
@@ -2584,12 +2620,12 @@ export default function App() {
           <div className="p-8">
             <div className="max-w-7xl mx-auto">
                <div className="bg-amber-50 text-amber-800 px-5 py-4 rounded-xl mb-6 text-sm font-medium border border-amber-200/50 flex flex-col gap-1">
-                 <p className="font-bold">Global View (SHS Only)</p>
-                 <p className="opacity-90">You are viewing Senior High School (Grade 11 & 12) subjects across the school. For Grade 1-10, please use the Subject Menu within each specific Section View.</p>
+                 <p className="font-bold">Global Curriculum View</p>
+                 <p className="opacity-90">You are viewing the global subject curriculum for all grade levels. Changes made here will affect the available subjects for student enrollment across the curriculum.</p>
                </div>
                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                  <SubjectsView 
-                    subjects={globalSubjects.filter(s => Number(s.gradeLevel) >= 11)}
+                    subjects={globalSubjects}
                     onAddSubject={handleAddSubjectGlobal}
                     onEditSubject={handleEditSubjectGlobal}
                     onDeleteSubject={handleDeleteSubjectGlobal}
@@ -2654,12 +2690,6 @@ export default function App() {
       />
     );
   }
-
-  const filteredStudents = students.filter(s => 
-    s.status !== 'Dropped Out' && s.status !== 'Transferred Out' &&
-    (s.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-     s.lrn?.includes(searchTerm))
-  );
 
   const handleAddSubject = async (s: Omit<Subject, 'id'>) => {
     if (!selectedSection) return;
@@ -2753,12 +2783,12 @@ export default function App() {
             {(() => {
               const allTabs = [
                 { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={14} /> },
+                { id: 'enroll', label: 'Learner', icon: <UserPlus size={14} /> },
+                { id: 'subjects', label: 'Subjects', icon: <BookOpen size={14} /> },
                 { id: 'gradebook', label: 'Records Assessment', icon: <TableIcon size={14} /> },
                 { id: 'summary', label: 'Grading Sheet', icon: <ClipboardCheck size={14} /> },
                 { id: 'transfers', label: 'Transfer Facility', icon: <Share2 size={14} /> },
-                { id: 'enroll', label: 'Learner', icon: <UserPlus size={14} /> },
                 { id: 'pta', label: 'PTA Fees', icon: <CreditCard size={14} /> },
-                { id: 'subjects', label: 'Subjects', icon: <BookOpen size={14} /> },
                 { id: 'sf2', label: 'School Form 2', icon: <FileText size={14} /> },
                 { id: 'sf10', label: 'Learners Records', icon: <HistoryIcon size={14} /> },
                 { id: 'attendance', label: 'Daily Attendance', icon: <Calendar size={14} /> },
@@ -2774,7 +2804,7 @@ export default function App() {
                 ] : [])
               ];
               const allowedTabs = allTabs.filter(tab => {
-                if (tab.id === 'subjects' && userProfile?.role !== 'system_admin') return false;
+                if (tab.id === 'subjects' && userProfile?.role !== 'system_admin' && userProfile?.role !== 'admin' && !isSectionAdviser) return false;
                 if (tab.id === 'logs' || tab.id === 'logs-clear') return currentUser?.email === 'jessiemangabo@gmail.com';
                 if (tab.id === 'summary' && !isSectionAdviser) return false;
 
@@ -2789,8 +2819,7 @@ export default function App() {
 
                 if (userProfile?.role === 'system_admin' || userProfile?.role === 'admin' || isAuthorizedCashier) {
                   const allowedTabsList = [
-                    'dashboard', 'enroll', 'pta', 'sf8', 'guide', 'sys-docs', 'gradebook', 'summary', 'attendance', 'observed-values', 'sf2', 'transfers', 'sf10', 'sf4', 'anecdotes', 'logs', 'logs-clear',
-                    ...(userProfile?.role === 'system_admin' ? ['subjects'] : [])
+                    'dashboard', 'enroll', 'subjects', 'pta', 'sf8', 'guide', 'sys-docs', 'gradebook', 'summary', 'attendance', 'observed-values', 'sf2', 'transfers', 'sf10', 'sf4', 'anecdotes', 'logs', 'logs-clear'
                   ];
                   if (userProfile?.role === 'system_admin') {
                     return allowedTabsList.filter(id => {
@@ -2811,7 +2840,7 @@ export default function App() {
                 if (userProfile?.role === 'teacher') {
                   if (isSectionAdviser) {
                     // Advisers see most things except restricted ones like SF4
-                    return ['dashboard', 'enroll', 'pta', 'sf8', 'sf10', 'attendance', 'observed-values', 'sf2', 'transfers', 'anecdotes', 'guide', 'gradebook', 'summary'].includes(tab.id);
+                    return ['dashboard', 'enroll', 'subjects', 'pta', 'sf8', 'sf10', 'attendance', 'observed-values', 'sf2', 'transfers', 'anecdotes', 'guide', 'gradebook', 'summary'].includes(tab.id);
                   }
                   return tab.id === 'gradebook' || tab.id === 'dashboard' || tab.id === 'anecdotes' || tab.id === 'pta';
                 }
@@ -3009,7 +3038,7 @@ export default function App() {
           { id: 'anecdotes', icon: <MessageSquare size={20} /> },
           { id: 'guide', icon: <HelpCircle size={20} /> },
         ].filter(tab => {
-          if (tab.id === 'subjects' && userProfile?.role !== 'system_admin') return false;
+          if (tab.id === 'subjects' && userProfile?.role !== 'system_admin' && userProfile?.role !== 'admin' && !isSectionAdviser) return false;
           if (tab.id === 'summary' && !isSectionAdviser) return false;
 
           if (tab.id === 'gradebook' && (!editableSubjects || editableSubjects.length === 0) && !isSectionAdviser) return false;
@@ -3019,8 +3048,7 @@ export default function App() {
 
           if (userProfile?.role === 'system_admin' || userProfile?.role === 'admin') {
             const allowedTabsList = [
-              'dashboard', 'enroll', 'sf8', 'guide', 'sys-docs', 'gradebook', 'summary', 'attendance', 'observed-values', 'sf2', 'transfers', 'sf10', 'sf4', 'anecdotes',
-              ...(userProfile?.role === 'system_admin' ? ['subjects'] : [])
+              'dashboard', 'enroll', 'subjects', 'sf8', 'guide', 'sys-docs', 'gradebook', 'summary', 'attendance', 'observed-values', 'sf2', 'transfers', 'sf10', 'sf4', 'anecdotes'
             ];
             if (userProfile?.role === 'system_admin') {
               return allowedTabsList.filter(id => {
@@ -3061,7 +3089,7 @@ export default function App() {
                 className="flex flex-col"
               >
                 <DashboardView 
-                  students={students}
+                  students={enrolledStudents}
                   subjects={subjects}
                   currentUser={userProfile}
                   globalSettings={globalSettings}
@@ -3097,7 +3125,7 @@ export default function App() {
                   subjects={(userProfile?.role === 'system_admin' || userProfile?.role === 'admin' || userProfile?.role === 'school_head' || isSectionAdviser) ? subjects : editableSubjects}
                   selectedSubjectId={selectedSubjectId}
                   onSelectSubject={setSelectedSubjectId}
-                  students={students}
+                  students={enrolledStudents}
                   onUpdateGrades={updateStudentGrades}
                   onBulkUpdate={handleBulkUpdate}
                   onUpdateSubject={updateSubjectConfig}
@@ -3124,7 +3152,7 @@ export default function App() {
                 className="flex flex-col"
               >
                 <SummarySheetView 
-                  students={students}
+                  students={enrolledStudents}
                   subjects={subjects}
                   selectedSection={selectedSection}
                   currentUser={userProfile}
@@ -3163,6 +3191,7 @@ export default function App() {
                   setForm={setLearnerForm} 
                   onSave={handleSaveLearner}
                   students={filteredStudents}
+                  unenrolledStudents={unenrolledStudents}
                   onEdit={handleEditClick}
                   onDelete={handleDeleteLearner}
                   onDeleteMany={handleDeleteManyLearners}
@@ -3195,6 +3224,7 @@ export default function App() {
                     setPreselectedStudentForAnecdotal(s);
                     setActiveTab('anecdotes');
                   }}
+                  globalSubjects={globalSubjects}
                 />
               </motion.div>
             )}
@@ -3236,14 +3266,14 @@ export default function App() {
                 </div>
                 {activeTab === 'sf2' ? (
                   <SF2ReportView 
-                    students={students}
+                    students={enrolledStudents}
                     calendar={sectionSchoolCalendar}
                     section={selectedSection}
                     userId={currentUser?.uid}
                   />
                 ) : (
                   <DailyAttendanceTracker 
-                    students={students}
+                    students={enrolledStudents}
                     calendar={sectionSchoolCalendar} 
                     schoolYear={selectedSection?.schoolYear}
                     onUpdateAttendance={handleUpdateDailyAttendance} 
@@ -3262,7 +3292,7 @@ export default function App() {
                 transition={{ duration: 0.2 }}
               >
                 <ObservedValuesTracker 
-                  students={students} 
+                  students={enrolledStudents} 
                   onUpdateValue={handleUpdateObservedValue} 
                   globalNumTerms={globalSettings?.numTerms || 4}
                 />
@@ -3280,7 +3310,7 @@ export default function App() {
                   currentUser={currentUser}
                   userProfile={userProfile}
                   selectedSection={selectedSection}
-                  students={students}
+                  students={enrolledStudents}
                   sections={sections}
                   preselectedStudent={preselectedStudentForAnecdotal}
                   onClearPreselectedStudent={() => setPreselectedStudentForAnecdotal(null)}
@@ -3338,7 +3368,7 @@ export default function App() {
                >
                  <SF8View 
                     section={selectedSection}
-                    students={students}
+                    students={enrolledStudents}
                     userProfile={userProfile}
                     activeSchoolYear={globalSettings?.activeSchoolYear}
                  />
@@ -3354,7 +3384,7 @@ export default function App() {
                >
                  <SF10View 
                     section={selectedSection}
-                    students={students}
+                    students={enrolledStudents}
                     subjects={subjects}
                     schoolCalendar={schoolCalendar}
                     userProfile={userProfile}
@@ -7296,14 +7326,18 @@ function AddLearnerModal({
   onSave, 
   onCancel,
   isActiveSY,
-  students
+  students,
+  globalSubjects = [],
+  section
 }: { 
   form: any, 
   setForm: any, 
   onSave: (e: React.FormEvent) => void,
   onCancel: () => void,
   isActiveSY?: boolean,
-  students?: any[]
+  students?: any[],
+  globalSubjects?: Subject[],
+  section?: Section | null
 }) {
   const [searchLrn, setSearchLrn] = useState("");
   const [isSearching, setIsSearching] = useState(false);
@@ -7797,6 +7831,46 @@ function AddLearnerModal({
             </div>
 
             <EligibilityForm form={form} setForm={setForm} />
+
+            {section && (
+              <div className="space-y-4 border-t border-slate-100 pt-6">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2 uppercase tracking-widest"><BookOpen size={16} className="text-indigo-600"/> Enrolled Subjects</h3>
+                  <p className="text-xs text-slate-500 mt-1">Select the curriculum subjects this learner will be enrolled in.</p>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-56 overflow-y-auto custom-scrollbar p-1">
+                  {globalSubjects.filter(s => Number(s.gradeLevel) === Number(section.gradeLevel)).map(subj => {
+                     const isEnrolled = (form.enrolledSubjectIds || []).includes(subj.id);
+                     return (
+                       <label key={subj.id} className={`flex items-start gap-3 p-3 rounded-xl border ${isEnrolled ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-slate-200 hover:border-slate-300'} cursor-pointer transition-all select-none`}>
+                         <div className="pt-0.5">
+                           <input 
+                             type="checkbox"
+                             checked={isEnrolled}
+                             onChange={(e) => {
+                               const ids = new Set(form.enrolledSubjectIds || []);
+                               if (e.target.checked) ids.add(subj.id);
+                               else ids.delete(subj.id);
+                               setForm({...form, enrolledSubjectIds: Array.from(ids)});
+                             }}
+                             className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300"
+                           />
+                         </div>
+                         <div>
+                            <p className="text-sm font-bold text-slate-900 leading-tight">{subj.name}</p>
+                            <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">{subj.group}</p>
+                         </div>
+                       </label>
+                     );
+                  })}
+                  {globalSubjects.filter(s => Number(s.gradeLevel) === Number(section.gradeLevel)).length === 0 && (
+                     <div className="col-span-1 border border-dashed border-slate-300 rounded-xl p-4 text-center">
+                        <p className="text-xs text-slate-500 uppercase tracking-widest font-bold">No subjects configured for this Grade Level</p>
+                     </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="pt-4 flex justify-end gap-3 mt-4">
@@ -8003,7 +8077,9 @@ function AddLearnerView({
   section,
   currentUser,
   onViewAnecdotals,
-  isSectionAdviser = false
+  isSectionAdviser = false,
+  globalSubjects = [],
+  unenrolledStudents = []
 }: {
   form: any,
   setForm: any,
@@ -8029,7 +8105,9 @@ function AddLearnerView({
   section?: Section | null,
   currentUser?: any,
   onViewAnecdotals?: (s: Student) => void,
-  isSectionAdviser?: boolean
+  isSectionAdviser?: boolean,
+  globalSubjects?: Subject[],
+  unenrolledStudents?: Student[]
 }) {
   const [showAddModal, setShowAddModal] = useState(false);
   const studentsMale = useMemo(() => {
@@ -8475,6 +8553,8 @@ function AddLearnerView({
             onCancel={() => setShowAddModal(false)}
             isActiveSY={isActiveSY}
             students={students}
+            globalSubjects={globalSubjects}
+            section={section}
           />
         )}
         {editingId && (
@@ -8491,6 +8571,8 @@ function AddLearnerView({
             calendar={schoolCalendar}
             schoolYear={schoolYear}
             isActiveSY={isActiveSY}
+            globalSubjects={globalSubjects}
+            section={section}
           />
         )}
         {deleteTarget && (
@@ -8805,6 +8887,38 @@ function AddLearnerView({
       </div>
 
       <div className="flex flex-col gap-8">
+        {unenrolledStudents && unenrolledStudents.length > 0 && (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 shadow-xs">
+            <div className="flex items-center gap-3 mb-2 text-amber-800 font-extrabold text-sm uppercase tracking-wider">
+              <AlertTriangle size={18} className="text-amber-600 animate-pulse" />
+              <span>{unenrolledStudents.length} {unenrolledStudents.length === 1 ? 'Learner' : 'Learners'} Pending Subject Assignment</span>
+            </div>
+            <p className="text-amber-700/95 text-xs font-semibold leading-relaxed mb-4">
+              The following learners have been added to the system but are currently not enrolled in any curriculum subjects. 
+              Please click <strong className="font-bold">"Enroll Subjects"</strong> to choose their courses so they appear in performance lists, assessments, active gradebooks, and report cards.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {unenrolledStudents.map(s => (
+                <div key={s.id} className="bg-white border border-amber-200/50 rounded-xl p-4 flex justify-between items-center shadow-xs hover:border-amber-300 transition-all">
+                  <div className="space-y-0.5">
+                    <p className="font-extrabold text-slate-800 text-xs sm:text-sm">{s.name}</p>
+                    <p className="text-[10px] text-slate-500 font-mono">LRN: {s.lrn || 'N/A'}</p>
+                  </div>
+                  <button 
+                    onClick={() => {
+                      if (!isActiveSY) return;
+                      onEdit(s);
+                    }}
+                    disabled={!isActiveSY}
+                    className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-extrabold rounded-lg text-[10px] uppercase tracking-wider transition-all"
+                  >
+                    Enroll Subjects
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         {/* Male Panel */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
           <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-blue-50/20">
@@ -10720,7 +10834,9 @@ function EditLearnerModal({
   onUpdateAttendance,
   calendar,
   schoolYear,
-  isActiveSY
+  isActiveSY,
+  globalSubjects = [],
+  section
 }: { 
   form: any, 
   setForm: any, 
@@ -10730,7 +10846,9 @@ function EditLearnerModal({
   onUpdateAttendance?: (month: string, field: 'present' | 'absent', value: number) => void,
   calendar?: any[],
   schoolYear?: string,
-  isActiveSY?: boolean
+  isActiveSY?: boolean,
+  globalSubjects?: Subject[],
+  section?: Section | null
 }) {
   const [activeTab, setActiveTab] = useState<'basic' | 'attendance'>('basic');
 
@@ -11134,6 +11252,46 @@ function EditLearnerModal({
             </div>
 
             <EligibilityForm form={form} setForm={setForm} />
+
+            {section && (
+              <div className="space-y-4 border-t border-slate-100 pt-6">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2 uppercase tracking-widest"><BookOpen size={16} className="text-indigo-600"/> Enrolled Subjects</h3>
+                  <p className="text-xs text-slate-500 mt-1">Select the curriculum subjects this learner will be enrolled in.</p>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-56 overflow-y-auto custom-scrollbar p-1">
+                  {globalSubjects.filter(s => Number(s.gradeLevel) === Number(section.gradeLevel)).map(subj => {
+                     const isEnrolled = (form.enrolledSubjectIds || []).includes(subj.id);
+                     return (
+                       <label key={subj.id} className={`flex items-start gap-3 p-3 rounded-xl border ${isEnrolled ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-slate-200 hover:border-slate-300'} cursor-pointer transition-all select-none`}>
+                         <div className="pt-0.5">
+                           <input 
+                             type="checkbox"
+                             checked={isEnrolled}
+                             onChange={(e) => {
+                               const ids = new Set(form.enrolledSubjectIds || []);
+                               if (e.target.checked) ids.add(subj.id);
+                               else ids.delete(subj.id);
+                               setForm({...form, enrolledSubjectIds: Array.from(ids)});
+                             }}
+                             className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300"
+                           />
+                         </div>
+                         <div>
+                            <p className="text-sm font-bold text-slate-900 leading-tight">{subj.name}</p>
+                            <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">{subj.group}</p>
+                         </div>
+                       </label>
+                     );
+                  })}
+                  {globalSubjects.filter(s => Number(s.gradeLevel) === Number(section.gradeLevel)).length === 0 && (
+                     <div className="col-span-1 border border-dashed border-slate-300 rounded-xl p-4 text-center">
+                        <p className="text-xs text-slate-500 uppercase tracking-widest font-bold">No subjects configured for this Grade Level</p>
+                     </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="pt-4 flex justify-end gap-3 mt-4">
@@ -13717,32 +13875,36 @@ function SubjectsView({
         </div>
         
         {canModifySubjects && (
-          <button 
-            onClick={() => {
-              if (selectedSection && selectedSection.gradeLevel >= 11) {
-                // We'll open a multi-select modal
-                setPresetSelectedSubjects(selectedSection.globalSubjectIds || []);
-                setIsAddingPreset(true); // Re-use this flag for the modal
-                setIsModalOpen(true);
-              } else {
-                setEditingId(null);
-                setIsModalOpen(true);
-              }
-            }}
-            className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 w-full md:w-auto relative z-10 shrink-0"
-          >
-            {selectedSection && selectedSection.gradeLevel >= 11 ? (
-               <><BookOpen size={16} /> Select from Curriculum</>
-            ) : (
-               <><Plus size={16} /> Add Subject</>
-            )}
-          </button>
+          <>
+            {!selectedSection ? (
+              <button 
+                onClick={() => {
+                  setEditingId(null);
+                  setIsModalOpen(true);
+                }}
+                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 w-full md:w-auto relative z-10 shrink-0"
+              >
+                <Plus size={16} /> Add Subject
+              </button>
+            ) : Number(selectedSection.gradeLevel) >= 11 ? (
+              <button 
+                onClick={() => {
+                  setPresetSelectedSubjects(selectedSection.globalSubjectIds || []);
+                  setIsAddingPreset(true); // Re-use this flag for the modal
+                  setIsModalOpen(true);
+                }}
+                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 w-full md:w-auto relative z-10 shrink-0"
+              >
+                <BookOpen size={16} /> Select from Curriculum
+              </button>
+            ) : null}
+          </>
         )}
       </div>
 
       <div className="max-w-7xl mx-auto px-8 md:px-12 py-10 space-y-8">
         {/* CURRICULUM PRESETS */}
-        {subjects.length === 0 && (
+        {subjects.length === 0 && !selectedSection && (
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Curriculum Presets</h2>
@@ -14079,7 +14241,7 @@ function SubjectsView({
               </div>
               <form onSubmit={async (e) => {
                 e.preventDefault();
-                if (selectedSection && selectedSection.gradeLevel >= 11 && editingId && onUpdateSection) {
+                if (selectedSection && editingId && onUpdateSection) {
                   // Save teacher assignment
                   onUpdateSection(selectedSection.id, {
                     subjectTeachers: {
@@ -14112,7 +14274,7 @@ function SubjectsView({
                                <input type="checkbox" checked={isSelected} onChange={(e) => {
                                  if (e.target.checked) setPresetSelectedSubjects(prev => [...prev, gs.id]);
                                  else setPresetSelectedSubjects(prev => prev.filter(id => id !== gs.id));
-                               }} className="mt-1 w-4 h-4 text-indigo-600 rounded border-slate-300" />
+                                }} className="mt-1 w-4 h-4 text-indigo-600 rounded border-slate-300" />
                                <div>
                                  <p className="font-bold text-slate-900 text-sm">{gs.name}</p>
                                  <p className="text-xs text-slate-500 font-medium">{gs.group}</p>
@@ -14124,14 +14286,14 @@ function SubjectsView({
                             <div className="p-8 text-center bg-white">
                                <p className="text-sm font-medium text-slate-500">No subjects configured in the Global Curriculum for Grade {selectedSection.gradeLevel}.</p>
                             </div>
-                         )}
+                          )}
                        </div>
                     </div>
                   ) : (
                   <>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5 md:gap-6">
-                    {/* Grade 11/12 Editing: ONLY Teacher */}
-                    {(selectedSection && selectedSection.gradeLevel >= 11 && editingId) ? (
+                    {/* Grade level Section Editing: ONLY Teacher */}
+                    {(selectedSection && editingId) ? (
                       <div className="space-y-1.5 md:col-span-2">
                         <label className="text-xs font-bold text-slate-700">Assign Subject Teacher</label>
                         {teacherCandidates.length > 0 ? (
@@ -14385,11 +14547,11 @@ function SubjectsView({
                   </button>
                   <button 
                     type="submit"
-                    disabled={(selectedSection && selectedSection.gradeLevel >= 11 && !editingId) ? false : (form.wwWeight + form.ptWeight + form.taWeight !== 100 || !isActiveSY)}
+                    disabled={(selectedSection && editingId) ? !isActiveSY : (selectedSection && selectedSection.gradeLevel >= 11 && !editingId) ? false : (form.wwWeight + form.ptWeight + form.taWeight !== 100 || !isActiveSY)}
                     className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold rounded-xl shadow-sm transition-all flex items-center justify-center gap-2"
                   >
                     {editingId ? <Check size={18} /> : <Plus size={18} />}
-                    {editingId ? 'Save Changes' : (selectedSection && selectedSection.gradeLevel >= 11 ? 'Save Selected Subjects' : 'Add Subject')}
+                    {editingId ? (selectedSection ? 'Assign Teacher' : 'Save Changes') : (selectedSection && selectedSection.gradeLevel >= 11 ? 'Save Selected Subjects' : 'Add Subject')}
                   </button>
                 </div>
               </form>
@@ -14490,20 +14652,23 @@ function SubjectsView({
                               setEditingId(subject.id);
                               setIsModalOpen(true);
                             }}
-                            className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 border border-transparent hover:border-indigo-100 rounded-md transition-all"
-                            title="Edit Subject"
+                            className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 border border-transparent hover:border-indigo-100 rounded-md transition-all flex items-center gap-1 text-xs"
+                            title={selectedSection ? "Assign Teacher" : "Edit Subject"}
                           >
-                            <Edit2 size={14} />
+                            <Edit2 size={13} />
+                            {selectedSection && <span className="font-bold px-1 whitespace-nowrap">Assign Teacher</span>}
                           </button>
-                          <button 
-                            onClick={() => {
-                              onDeleteSubject(subject.id);
-                            }}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-100 rounded-md transition-all"
-                            title="Remove Subject"
-                          >
-                            <Trash2 size={14} />
-                          </button>
+                          {!selectedSection && (
+                            <button 
+                              onClick={() => {
+                                onDeleteSubject(subject.id);
+                              }}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-100 rounded-md transition-all"
+                              title="Remove Subject"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          )}
                         </div>
                       </td>
                     )}

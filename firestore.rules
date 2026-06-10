@@ -261,5 +261,10 @@ service cloud.firestore {
       allow create: if isSignedIn();
       allow update, delete: if isAdmin() || isSystemAdmin(); // Allow admins to clear logs
     }
+    // 8. Global Subjects Rules
+    match /global_subjects/{subjectId} {
+      allow read: if isSignedIn();
+      allow write: if isTeacher() || isAdmin() || isSystemAdmin();
+    }
   }
 }
