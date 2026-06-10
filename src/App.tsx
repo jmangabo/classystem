@@ -12296,7 +12296,7 @@ function GradebookView({
   subjects, 
   selectedSubjectId, 
   onSelectSubject,
-  students,
+  students: rawStudents,
   onUpdateGrades,
   onBulkUpdate,
   onUpdateSubject,
@@ -12332,6 +12332,12 @@ function GradebookView({
   const selectedSubject = subjects.find(s => s.id === selectedSubjectId) || 
                           subjects.find(s => s.name === selectedSubjectId) || 
                           subjects[0];
+
+  const students = useMemo(() => {
+    const isSHS = selectedSection && Number(selectedSection.gradeLevel) > 10;
+    if (!isSHS || !selectedSubject) return rawStudents;
+    return rawStudents.filter(s => s.enrolledSubjectIds?.includes(selectedSubject.id));
+  }, [rawStudents, selectedSection, selectedSubject]);
 
   const teacherAssignedSubjects = useMemo(() => {
     const email = (currentUser?.email || "").trim().toLowerCase();
@@ -18592,6 +18598,10 @@ function SummarySheetView({
   const otherStudents = sortedStudents.filter(s => s.sex?.toLowerCase() !== 'male' && s.sex?.toLowerCase() !== 'female');
   
   const getSubjectTermGrade = (student: Student, subject: Subject, term: TermNumber) => {
+    const isSHS = selectedSection && Number(selectedSection.gradeLevel) > 10;
+    if (isSHS && (!student.enrolledSubjectIds || !student.enrolledSubjectIds.includes(subject.id))) {
+      return -2; // Not enrolled
+    }
     if (subject.offeredTerms && subject.offeredTerms.length > 0 && !subject.offeredTerms.includes(term)) {
       return -1; // Not offered this term
     }
@@ -18599,6 +18609,10 @@ function SummarySheetView({
   };
 
   const getSubjectFinalGrade = (student: Student, subject: Subject) => {
+    const isSHS = selectedSection && Number(selectedSection.gradeLevel) > 10;
+    if (isSHS && (!student.enrolledSubjectIds || !student.enrolledSubjectIds.includes(subject.id))) {
+      return -2; // Not enrolled
+    }
     let terms = termsToShow;
     if (subject.offeredTerms && subject.offeredTerms.length > 0) {
       terms = termsToShow.filter(t => subject.offeredTerms!.includes(t));
@@ -18612,6 +18626,16 @@ function SummarySheetView({
     if (col.type === 'subject') {
       return getSubjectTermGrade(student, col.subject, term);
     } else if (col.type === 'mapeh') {
+      const isSHS = selectedSection && Number(selectedSection.gradeLevel) > 10;
+      if (isSHS) {
+        if (col.subject && (!student.enrolledSubjectIds || !student.enrolledSubjectIds.includes(col.subject.id))) {
+          return -2;
+        }
+        if (col.subjects && col.subjects.length > 0) {
+          const hasAnyEnrolled = col.subjects.some((s: Subject) => student.enrolledSubjectIds?.includes(s.id));
+          if (!hasAnyEnrolled) return -2;
+        }
+      }
       if (col.subjects && col.subjects.length > 0) {
         const grades = col.subjects.map((s: Subject) => getSubjectTermGrade(student, s, term));
         const valid = grades.filter((g: number) => g > 0);
@@ -18630,6 +18654,16 @@ function SummarySheetView({
     if (col.type === 'subject') {
       return getSubjectFinalGrade(student, col.subject);
     } else if (col.type === 'mapeh') {
+      const isSHS = selectedSection && Number(selectedSection.gradeLevel) > 10;
+      if (isSHS) {
+        if (col.subject && (!student.enrolledSubjectIds || !student.enrolledSubjectIds.includes(col.subject.id))) {
+          return -2;
+        }
+        if (col.subjects && col.subjects.length > 0) {
+          const hasAnyEnrolled = col.subjects.some((s: Subject) => student.enrolledSubjectIds?.includes(s.id));
+          if (!hasAnyEnrolled) return -2;
+        }
+      }
       if (col.subjects && col.subjects.length > 0) {
         const grades = col.subjects.map((s: Subject) => getSubjectFinalGrade(student, s));
         const valid = grades.filter((g: number) => g > 0);
@@ -18660,6 +18694,11 @@ function SummarySheetView({
            return false;
         }
 
+        const isSHS = selectedSection && Number(selectedSection.gradeLevel) > 10;
+        if (isSHS && (!student.enrolledSubjectIds || !student.enrolledSubjectIds.includes(s.id))) {
+           return false;
+        }
+
         if (s.offeredTerms && s.offeredTerms.length > 0) {
           if (term === 'final') {
             return termsToShow.some(t => s.offeredTerms!.includes(t));
@@ -18667,6 +18706,16 @@ function SummarySheetView({
           return s.offeredTerms.includes(term as TermNumber);
         }
         return true;
+      }
+      const isSHS = selectedSection && Number(selectedSection.gradeLevel) > 10;
+      if (isSHS) {
+         if (c.subject && (!student.enrolledSubjectIds || !student.enrolledSubjectIds.includes(c.subject.id))) {
+            return false;
+         }
+         if (c.subjects && c.subjects.length > 0) {
+            const hasAnyEnrolled = c.subjects.some((s: Subject) => student.enrolledSubjectIds?.includes(s.id));
+            if (!hasAnyEnrolled) return false;
+         }
       }
       return true;
     });
@@ -18679,7 +18728,7 @@ function SummarySheetView({
       if (valid.length < relevantColumns.length) return 0;
       return valid.reduce((a, b) => a + b, 0) / relevantColumns.length;
     } else {
-      const offeredGrades = grades.filter(g => g !== -1);
+      const offeredGrades = grades.filter(g => g !== -1 && g !== -2);
       if (offeredGrades.length === 0) return 0;
       const sum = offeredGrades.filter(g => g > 0).reduce((a, b) => a + b, 0);
       return sum / offeredGrades.length;
@@ -19188,15 +19237,16 @@ function SummarySheetView({
                             {qGrades.map((g, i) => {
                               const q = termsToShow[i];
                               const isNotOffered = c.type === 'subject' && c.subject?.offeredTerms && !c.subject.offeredTerms.includes(q);
+                              const isNotEnrolled = g === -2;
                               const isFailing = g > 0 && g < 75;
                               return (
-                                <td key={q} className={`p-1.5 text-center text-[10px] border-b border-r border-slate-100 ${isNotOffered ? 'bg-slate-50/50 text-slate-300' : isFailing ? 'bg-red-50 text-red-600 font-semibold' : g === -1 ? 'text-slate-300' : 'text-slate-700'}`} style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>
-                                  {isNotOffered ? '-' : (g === -1 ? '-' : (useDescriptiveGrading && isGrade1To3 && g > 0 ? (<span className="text-slate-700 font-semibold">{getDescriptiveGrade(g)}</span>) : g || ''))}
+                                <td key={q} className={`p-1.5 text-center text-[10px] border-b border-r border-slate-100 ${isNotOffered ? 'bg-slate-50/50 text-slate-300' : isNotEnrolled ? 'bg-slate-100/50 text-slate-400 italic' : isFailing ? 'bg-red-50 text-red-600 font-semibold' : g === -1 ? 'text-slate-300' : 'text-slate-700'}`} style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>
+                                  {isNotOffered ? '-' : isNotEnrolled ? 'N/A' : (g === -1 ? '-' : (useDescriptiveGrading && isGrade1To3 && g > 0 ? (<span className="text-slate-700 font-semibold">{getDescriptiveGrade(g)}</span>) : g || ''))}
                                 </td>
                               );
                             })}
-                            <td className={`p-1.5 text-center text-[10px] font-bold border-b border-r border-slate-100 bg-slate-50/30 ${fin >= 90 ? 'bg-emerald-50 text-emerald-700' : fin > 0 && fin < 75 ? 'bg-red-50 text-red-600' : fin > 0 ? 'text-slate-800' : 'text-slate-400'}`} style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>
-                              {useDescriptiveGrading && isGrade1To3 && fin ? getDescriptiveGrade(fin) : fin || '-'}
+                            <td className={`p-1.5 text-center text-[10px] font-bold border-b border-r border-slate-100 bg-slate-50/30 ${fin === -2 ? 'bg-slate-100/50 text-slate-400 italic font-normal' : fin >= 90 ? 'bg-emerald-50 text-emerald-700' : fin > 0 && fin < 75 ? 'bg-red-50 text-red-600' : fin > 0 ? 'text-slate-800' : 'text-slate-400'}`} style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>
+                              {fin === -2 ? 'N/A' : (useDescriptiveGrading && isGrade1To3 && fin ? getDescriptiveGrade(fin) : fin || '-')}
                             </td>
                           </React.Fragment>
                         );
@@ -19259,15 +19309,16 @@ function SummarySheetView({
                             {qGrades.map((g, i) => {
                               const q = termsToShow[i];
                               const isNotOffered = c.type === 'subject' && c.subject?.offeredTerms && !c.subject.offeredTerms.includes(q);
+                              const isNotEnrolled = g === -2;
                               const isFailing = g > 0 && g < 75;
                               return (
-                                <td key={q} className={`p-1.5 text-center text-[10px] border-b border-r border-slate-100 ${isNotOffered ? 'bg-slate-50/50 text-slate-300' : isFailing ? 'bg-red-50 text-red-600 font-semibold' : g === -1 ? 'text-slate-300' : 'text-slate-700'}`} style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>
-                                  {isNotOffered ? '-' : (g === -1 ? '-' : (useDescriptiveGrading && isGrade1To3 && g > 0 ? (<span className="text-slate-700 font-semibold">{getDescriptiveGrade(g)}</span>) : g || ''))}
+                                <td key={q} className={`p-1.5 text-center text-[10px] border-b border-r border-slate-100 ${isNotOffered ? 'bg-slate-50/50 text-slate-300' : isNotEnrolled ? 'bg-slate-100/50 text-slate-400 italic' : isFailing ? 'bg-red-50 text-red-600 font-semibold' : g === -1 ? 'text-slate-300' : 'text-slate-700'}`} style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>
+                                  {isNotOffered ? '-' : isNotEnrolled ? 'N/A' : (g === -1 ? '-' : (useDescriptiveGrading && isGrade1To3 && g > 0 ? (<span className="text-slate-700 font-semibold">{getDescriptiveGrade(g)}</span>) : g || ''))}
                                 </td>
                               );
                             })}
-                            <td className={`p-1.5 text-center text-[10px] font-bold border-b border-r border-slate-100 bg-slate-50/30 ${fin >= 90 ? 'bg-emerald-50 text-emerald-700' : fin > 0 && fin < 75 ? 'bg-red-50 text-red-600' : fin > 0 ? 'text-slate-800' : 'text-slate-400'}`} style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>
-                              {useDescriptiveGrading && isGrade1To3 && fin ? getDescriptiveGrade(fin) : fin || '-'}
+                            <td className={`p-1.5 text-center text-[10px] font-bold border-b border-r border-slate-100 bg-slate-50/30 ${fin === -2 ? 'bg-slate-100/50 text-slate-400 italic font-normal' : fin >= 90 ? 'bg-emerald-50 text-emerald-700' : fin > 0 && fin < 75 ? 'bg-red-50 text-red-600' : fin > 0 ? 'text-slate-800' : 'text-slate-400'}`} style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>
+                              {fin === -2 ? 'N/A' : (useDescriptiveGrading && isGrade1To3 && fin ? getDescriptiveGrade(fin) : fin || '-')}
                             </td>
                           </React.Fragment>
                         );
@@ -19328,15 +19379,16 @@ function SummarySheetView({
                             {qGrades.map((g, i) => {
                               const q = termsToShow[i];
                               const isNotOffered = c.type === 'subject' && c.subject?.offeredTerms && !c.subject.offeredTerms.includes(q);
+                              const isNotEnrolled = g === -2;
                               const isFailing = g > 0 && g < 75;
                               return (
-                                <td key={q} className={`p-1.5 text-center text-[10px] border-b border-r border-slate-100 ${isNotOffered ? 'bg-slate-50/50 text-slate-300' : isFailing ? 'bg-red-50 text-red-600 font-semibold' : g === -1 ? 'text-slate-300' : 'text-slate-700'}`} style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>
-                                  {isNotOffered ? '-' : (g === -1 ? '-' : (useDescriptiveGrading && isGrade1To3 && g > 0 ? (<span className="text-slate-700 font-semibold">{getDescriptiveGrade(g)}</span>) : g || ''))}
+                                <td key={q} className={`p-1.5 text-center text-[10px] border-b border-r border-slate-100 ${isNotOffered ? 'bg-slate-50/50 text-slate-300' : isNotEnrolled ? 'bg-slate-100/50 text-slate-400 italic' : isFailing ? 'bg-red-50 text-red-600 font-semibold' : g === -1 ? 'text-slate-300' : 'text-slate-700'}`} style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>
+                                  {isNotOffered ? '-' : isNotEnrolled ? 'N/A' : (g === -1 ? '-' : (useDescriptiveGrading && isGrade1To3 && g > 0 ? (<span className="text-slate-700 font-semibold">{getDescriptiveGrade(g)}</span>) : g || ''))}
                                 </td>
                               );
                             })}
-                            <td className={`p-1.5 text-center text-[10px] font-bold border-b border-r border-slate-100 bg-slate-50/30 ${fin >= 90 ? 'bg-emerald-50 text-emerald-700' : fin > 0 && fin < 75 ? 'bg-red-50 text-red-600' : fin > 0 ? 'text-slate-800' : 'text-slate-400'}`} style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>
-                              {useDescriptiveGrading && isGrade1To3 && fin ? getDescriptiveGrade(fin) : fin || '-'}
+                            <td className={`p-1.5 text-center text-[10px] font-bold border-b border-r border-slate-100 bg-slate-50/30 ${fin === -2 ? 'bg-slate-100/50 text-slate-400 italic font-normal' : fin >= 90 ? 'bg-emerald-50 text-emerald-700' : fin > 0 && fin < 75 ? 'bg-red-50 text-red-600' : fin > 0 ? 'text-slate-800' : 'text-slate-400'}`} style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}>
+                              {fin === -2 ? 'N/A' : (useDescriptiveGrading && isGrade1To3 && fin ? getDescriptiveGrade(fin) : fin || '-')}
                             </td>
                           </React.Fragment>
                         );
