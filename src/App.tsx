@@ -6168,6 +6168,71 @@ function SectionsView({
                 </div>
               )}
 
+              {(user?.role === 'admin' || user?.role === 'system_admin' || user?.role === 'school_head' || isAuthorizedCashier) && (
+                <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto shrink-0 mt-6 xl:mt-0 mb-8">
+                  {onShowFinancialStatement && (user?.role === 'system_admin' || user?.role === 'school_head' || isAuthorizedCashier) && (
+                    <button 
+                      onClick={onShowFinancialStatement}
+                      className="flex items-center justify-center gap-2 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 font-bold text-sm px-5 py-2.5 rounded-xl transition-all shadow-sm w-full sm:w-auto"
+                    >
+                      <BarChart2 size={16} className="text-emerald-600" />
+                      <span>Financial Statement</span>
+                    </button>
+                  )}
+                  {onShowSF4 && (user?.role === 'system_admin' || user?.role === 'school_head') && (
+                    <button 
+                      onClick={onShowSF4}
+                      className="flex items-center justify-center gap-2 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 font-bold text-sm px-5 py-2.5 rounded-xl transition-all shadow-sm w-full sm:w-auto"
+                    >
+                      <FileText size={16} className="text-amber-600" />
+                      <span>School Form 4</span>
+                    </button>
+                  )}
+                  {(user?.role === 'admin' || user?.role === 'system_admin') && onManageStudentList && (
+                    <button 
+                      onClick={onManageStudentList}
+                      className="flex items-center justify-center gap-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-sm px-5 py-2.5 rounded-xl transition-all shadow-sm w-full sm:w-auto"
+                    >
+                      <TableIcon size={16} className="text-indigo-600" />
+                      <span>Student List</span>
+                    </button>
+                  )}
+                  {user?.role === 'system_admin' && (
+                    <>
+                      <button 
+                        onClick={() => onSetActiveTab('subjects')}
+                        className="flex items-center justify-center gap-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-sm px-5 py-2.5 rounded-xl transition-all shadow-sm w-full sm:w-auto"
+                      >
+                        <BookOpen size={16} className="text-indigo-600" />
+                        <span>Subject Menu</span>
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={downloadDashboardCSVTemplate}
+                        className="flex items-center justify-center gap-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-650 font-bold text-sm px-5 py-2.5 rounded-xl transition-all shadow-sm w-full sm:w-auto cursor-pointer"
+                      >
+                        <Download size={16} className="text-indigo-600" />
+                        <span>Download CSV Template</span>
+                      </button>
+                      <label 
+                        className={`flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 border border-indigo-700 text-white font-bold text-sm px-5 py-2.5 rounded-xl transition-all shadow-md hover:-translate-y-0.5 active:translate-y-0 cursor-pointer w-full sm:w-auto animate-in duration-200 fade-in shadow-indigo-600/20 ${
+                          isUploadingDashboard ? 'opacity-50 cursor-not-allowed' : ''
+                        }`}
+                      >
+                        <FileUp size={16} className="text-white" />
+                        <span>Bulk Upload (CSV) SHS Only</span>
+                        <input 
+                          type="file" 
+                          accept=".csv" 
+                          className="hidden" 
+                          onChange={handleDashboardFileUpload}
+                          disabled={isUploadingDashboard}
+                        />
+                      </label>
+                    </>
+                  )}
+                </div>
+              )}
               {activeSchool && (user?.role === 'system_admin' || user?.role === 'admin' || user?.role === 'school_head') && (
                 <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-6 mb-8 animate-in fade-in duration-200">
                   <div className="flex items-center gap-4">
@@ -6383,71 +6448,6 @@ function SectionsView({
               </div>
             </div>
             
-            {(user?.role === 'admin' || user?.role === 'system_admin' || user?.role === 'school_head' || isAuthorizedCashier) && (
-              <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto shrink-0 mt-6 xl:mt-0">
-                {onShowFinancialStatement && (user?.role === 'system_admin' || user?.role === 'school_head' || isAuthorizedCashier) && (
-                  <button 
-                    onClick={onShowFinancialStatement}
-                    className="flex items-center justify-center gap-2 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 font-bold text-sm px-5 py-2.5 rounded-xl transition-all shadow-sm w-full sm:w-auto"
-                  >
-                    <BarChart2 size={16} className="text-emerald-600" />
-                    <span>Financial Statement</span>
-                  </button>
-                )}
-                {onShowSF4 && (user?.role === 'system_admin' || user?.role === 'school_head') && (
-                  <button 
-                    onClick={onShowSF4}
-                    className="flex items-center justify-center gap-2 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 font-bold text-sm px-5 py-2.5 rounded-xl transition-all shadow-sm w-full sm:w-auto"
-                  >
-                    <FileText size={16} className="text-amber-600" />
-                    <span>School Form 4</span>
-                  </button>
-                )}
-                {(user?.role === 'admin' || user?.role === 'system_admin') && onManageStudentList && (
-                  <button 
-                    onClick={onManageStudentList}
-                    className="flex items-center justify-center gap-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-sm px-5 py-2.5 rounded-xl transition-all shadow-sm w-full sm:w-auto"
-                  >
-                    <TableIcon size={16} className="text-indigo-600" />
-                    <span>Student List</span>
-                  </button>
-                )}
-                {user?.role === 'system_admin' && (
-                  <>
-                    <button 
-                      onClick={() => onSetActiveTab('subjects')}
-                      className="flex items-center justify-center gap-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-sm px-5 py-2.5 rounded-xl transition-all shadow-sm w-full sm:w-auto"
-                    >
-                      <BookOpen size={16} className="text-indigo-600" />
-                      <span>Subject Menu</span>
-                    </button>
-                    <button 
-                      type="button"
-                      onClick={downloadDashboardCSVTemplate}
-                      className="flex items-center justify-center gap-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-650 font-bold text-sm px-5 py-2.5 rounded-xl transition-all shadow-sm w-full sm:w-auto cursor-pointer"
-                    >
-                      <Download size={16} className="text-indigo-600" />
-                      <span>Download CSV Template</span>
-                    </button>
-                    <label 
-                      className={`flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 border border-indigo-700 text-white font-bold text-sm px-5 py-2.5 rounded-xl transition-all shadow-md hover:-translate-y-0.5 active:translate-y-0 cursor-pointer w-full sm:w-auto animate-in duration-200 fade-in shadow-indigo-600/20 ${
-                        isUploadingDashboard ? 'opacity-50 cursor-not-allowed' : ''
-                      }`}
-                    >
-                      <FileUp size={16} className="text-white" />
-                      <span>Bulk Upload (CSV) SHS Only</span>
-                      <input 
-                        type="file" 
-                        accept=".csv" 
-                        className="hidden" 
-                        onChange={handleDashboardFileUpload}
-                        disabled={isUploadingDashboard}
-                      />
-                    </label>
-                  </>
-                )}
-              </div>
-            )}
           </div>
 
           {user?.role === 'system_admin' && subjects.length > 0 && (
