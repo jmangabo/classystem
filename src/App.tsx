@@ -1706,6 +1706,12 @@ export default function App() {
       return;
     }
     
+    const isEnrolledEmpty = !learnerForm.enrolledSubjectIds || learnerForm.enrolledSubjectIds.length === 0;
+    if (isEnrolledEmpty) {
+      const proceed = window.confirm("This learner is not enrolled in any subjects. They will not show up in sheets, grades, or reports until subjects are assigned. Do you want to proceed with saving anyway?");
+      if (!proceed) return;
+    }
+
     // Auto-generate full name for display convenience
     const nameParts = [
       learnerForm.lastName + (learnerForm.firstName ? "," : ""),
@@ -1770,7 +1776,9 @@ export default function App() {
           eligibility: learnerForm.eligibility || {},
           photo: learnerForm.photo || "",
           grades: {},
-          enrolledSubjectIds: resolvedEnrolledSubjectIds
+          enrolledSubjectIds: resolvedEnrolledSubjectIds,
+          gradeLevel: selectedSection.gradeLevel || "",
+          sectionName: selectedSection.name || ""
         };
         await addDoc(collection(db, `sections/${selectedSection.id}/students`), newLearner);
       }
@@ -2281,7 +2289,9 @@ export default function App() {
           isTransferredIn: learner.isTransferredIn || false,
           eligibility: learner.eligibility || {},
           grades: {},
-          enrolledSubjectIds: []
+          enrolledSubjectIds: [],
+          gradeLevel: learner.gradeLevel || selectedSection.gradeLevel || "",
+          sectionName: learner.section || selectedSection.name || ""
         });
       });
       await batch.commit();
@@ -5180,6 +5190,297 @@ function SectionsView({
   
   const [isSchoolDbFinalized, setIsSchoolDbFinalized] = useState(false);
 
+  const [isUploadingDashboard, setIsUploadingDashboard] = useState(false);
+
+  const downloadDashboardCSVTemplate = () => {
+    const headers = "LastName,FirstName,MiddleName,NameExt,LRN,Email,Birthdate,Age,Sex,GradeLevel,Section,DateOfFirstAttendance,Weight_kg,Height_cm,EligibilityType,GenAvg,Citation,ElemSchoolName,ElemSchoolId,ElemSchoolAddress,PEPTRating,PEPTDate,ALSRating,ALSCenterInfo,OthersSpecify";
+    const example1 = "Dela Cruz,Juan,,Jr,123456789012,juan.delacruz@email.com,2010-01-15,12,Male,7,Einstein,2023-06-05,45,150,Elementary School Completer,85.50,,,Rizal Elem School,123456,,,,,";
+    const example2 = "Santos,Maria,G,,987654321098,maria.santos@email.com,2011-03-20,11,Female,7,Einstein,2023-06-05,42,148,PEPT Passer.,,,,,,,80.20,2022-05-15,,,";
+    const csvContent = `${headers}\n${example1}\n${example2}`;
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", "bulk_enrollment_dashboard_template.csv");
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+  const [uploadSuccessDashboard, setUploadSuccessDashboard] = useState(false);
+  const [pendingLearnersDashboard, setPendingLearnersDashboard] = useState<any[]>([]);
+  const [showSelectionModalDashboard, setShowSelectionModalDashboard] = useState(false);
+  const [selectedIndicesDashboard, setSelectedIndicesDashboard] = useState<Set<number>>(new Set());
+  const [bulkFirstAttendanceDateDashboard, setBulkFirstAttendanceDateDashboard] = useState("");
+
+  const handleDashboardFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploadingDashboard(true);
+    setUploadSuccessDashboard(false);
+    
+    const reader = new window.FileReader();
+    reader.onload = async (event) => {
+      const text = event.target?.result as string;
+      const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      const learners: any[] = [];
+
+      // Determine helper mappings
+      let lastNameColIdx = 0;
+      let firstNameColIdx = 1;
+      let middleNameColIdx = 2;
+      let extensionColIdx = 3;
+      let lrnColIdx = 4;
+      let emailColIdx = 5;
+      let birthdateColIdx = 6;
+      let ageColIdx = 7;
+      let sexColIdx = 8;
+      let gradeLevelColIdx = -1;
+      let sectionColIdx = -1;
+      let dateColIdx = 9;
+      let weightColIdx = 10;
+      let heightColIdx = 11;
+      let eligibilityTypeColIdx = 12;
+      let genAvgColIdx = 13;
+      let citationColIdx = 14;
+      let elemSchoolNameColIdx = 15;
+      let elemSchoolIdColIdx = 16;
+      let elemSchoolAddressColIdx = 17;
+      let peptRatingColIdx = 18;
+      let peptDateColIdx = 19;
+      let alsRatingColIdx = 20;
+      let alsCenterInfoColIdx = 21;
+      let othersSpecifyColIdx = 22;
+
+      const firstLine = lines[0];
+      if (firstLine && (firstLine.toLowerCase().includes('lastname') || firstLine.toLowerCase().includes('lrn') || firstLine.toLowerCase().includes('name'))) {
+        const headerParts: string[] = [];
+        let p = '', inQuote = false;
+        for (let i = 0; i < firstLine.length; i++) {
+          let c = firstLine[i];
+          if (c === '"' && firstLine[i+1] === '"') {
+            p += '"'; i++;
+          } else if (c === '"') {
+            inQuote = !inQuote;
+          } else if (c === ',' && !inQuote) {
+            headerParts.push(p.trim().toLowerCase()); p = '';
+          } else {
+            p += c;
+          }
+        }
+        headerParts.push(p.trim().toLowerCase());
+
+        lastNameColIdx = headerParts.indexOf("lastname");
+        firstNameColIdx = headerParts.indexOf("firstname");
+        middleNameColIdx = headerParts.indexOf("middlename");
+        extensionColIdx = headerParts.indexOf("nameext");
+        if (extensionColIdx === -1) extensionColIdx = headerParts.indexOf("ext");
+        if (extensionColIdx === -1) extensionColIdx = headerParts.indexOf("extension");
+        lrnColIdx = headerParts.indexOf("lrn");
+        emailColIdx = headerParts.indexOf("email");
+        birthdateColIdx = headerParts.indexOf("birthdate");
+        ageColIdx = headerParts.indexOf("age");
+        sexColIdx = headerParts.indexOf("sex");
+        gradeLevelColIdx = headerParts.indexOf("gradelevel");
+        sectionColIdx = headerParts.indexOf("section");
+        dateColIdx = headerParts.indexOf("dateoffirstattendance");
+        weightColIdx = headerParts.indexOf("weight_kg");
+        if (weightColIdx === -1) weightColIdx = headerParts.indexOf("weight");
+        heightColIdx = headerParts.indexOf("height_cm");
+        if (heightColIdx === -1) heightColIdx = headerParts.indexOf("height");
+        eligibilityTypeColIdx = headerParts.indexOf("eligibilitytype");
+        genAvgColIdx = headerParts.indexOf("genavg");
+        citationColIdx = headerParts.indexOf("citation");
+        elemSchoolNameColIdx = headerParts.indexOf("elemschoolname");
+        elemSchoolIdColIdx = headerParts.indexOf("elemschoolid");
+        elemSchoolAddressColIdx = headerParts.indexOf("elemschooladdress");
+        peptRatingColIdx = headerParts.indexOf("peptrating");
+        peptDateColIdx = headerParts.indexOf("peptdate");
+        alsRatingColIdx = headerParts.indexOf("alsrating");
+        alsCenterInfoColIdx = headerParts.indexOf("alscenterinfo");
+        othersSpecifyColIdx = headerParts.indexOf("othersspecify");
+      }
+
+      // Fallbacks
+      if (lastNameColIdx === -1) lastNameColIdx = 0;
+      if (firstNameColIdx === -1) firstNameColIdx = 1;
+      if (middleNameColIdx === -1) middleNameColIdx = 2;
+      if (extensionColIdx === -1) extensionColIdx = 3;
+      if (lrnColIdx === -1) lrnColIdx = 4;
+      if (emailColIdx === -1) emailColIdx = 5;
+      if (birthdateColIdx === -1) birthdateColIdx = 6;
+      if (ageColIdx === -1) ageColIdx = 7;
+      if (sexColIdx === -1) sexColIdx = 8;
+
+      if (gradeLevelColIdx !== -1 && sectionColIdx !== -1) {
+        if (dateColIdx === -1) dateColIdx = 11;
+        if (weightColIdx === -1) weightColIdx = 12;
+        if (heightColIdx === -1) heightColIdx = 13;
+        if (eligibilityTypeColIdx === -1) eligibilityTypeColIdx = 14;
+        if (genAvgColIdx === -1) genAvgColIdx = 15;
+        if (citationColIdx === -1) citationColIdx = 16;
+        if (elemSchoolNameColIdx === -1) elemSchoolNameColIdx = 17;
+        if (elemSchoolIdColIdx === -1) elemSchoolIdColIdx = 18;
+        if (elemSchoolAddressColIdx === -1) elemSchoolAddressColIdx = 19;
+        if (peptRatingColIdx === -1) peptRatingColIdx = 20;
+        if (peptDateColIdx === -1) peptDateColIdx = 21;
+        if (alsRatingColIdx === -1) alsRatingColIdx = 22;
+        if (alsCenterInfoColIdx === -1) alsCenterInfoColIdx = 23;
+        if (othersSpecifyColIdx === -1) othersSpecifyColIdx = 24;
+      } else {
+        if (dateColIdx === -1) dateColIdx = 9;
+        if (weightColIdx === -1) weightColIdx = 10;
+        if (heightColIdx === -1) heightColIdx = 11;
+        if (eligibilityTypeColIdx === -1) eligibilityTypeColIdx = 12;
+        if (genAvgColIdx === -1) genAvgColIdx = 13;
+        if (citationColIdx === -1) citationColIdx = 14;
+        if (elemSchoolNameColIdx === -1) elemSchoolNameColIdx = 15;
+        if (elemSchoolIdColIdx === -1) elemSchoolIdColIdx = 16;
+        if (elemSchoolAddressColIdx === -1) elemSchoolAddressColIdx = 17;
+        if (peptRatingColIdx === -1) peptRatingColIdx = 18;
+        if (peptDateColIdx === -1) peptDateColIdx = 19;
+        if (alsRatingColIdx === -1) alsRatingColIdx = 20;
+        if (alsCenterInfoColIdx === -1) alsCenterInfoColIdx = 21;
+        if (othersSpecifyColIdx === -1) othersSpecifyColIdx = 22;
+      }
+
+      lines.forEach((line, index) => {
+        const trimmedLine = line.trim();
+        if (!trimmedLine) return;
+        
+        // Skip header if it matches keywords
+        if (index === 0 && (trimmedLine.toLowerCase().includes('name') || trimmedLine.toLowerCase().includes('lrn') || trimmedLine.toLowerCase().includes('lastname'))) return; 
+        
+        const parts: string[] = [];
+        let p = '', inQuote = false;
+        for (let i = 0; i < trimmedLine.length; i++) {
+          let c = trimmedLine[i];
+          if (c === '"' && trimmedLine[i+1] === '"') {
+            p += '"'; i++;
+          } else if (c === '"') {
+            inQuote = !inQuote;
+          } else if (c === ',' && !inQuote) {
+            parts.push(p.trim()); p = '';
+          } else {
+            p += c;
+          }
+        }
+        parts.push(p.trim());
+
+        if (parts.length >= 5) {
+          const lastName = parts[lastNameColIdx] || "";
+          const firstName = parts[firstNameColIdx] || "";
+          const middleName = parts[middleNameColIdx] || "";
+          const extension = parts[extensionColIdx] || "";
+          const lrn = parts[lrnColIdx] || "";
+          const email = parts[emailColIdx] || "";
+          const birthdate = parts[birthdateColIdx] || "";
+          const age = parts[ageColIdx] || "";
+          const sexInput = parts[sexColIdx] || "Male";
+          const dateInput = parts[dateColIdx] || "";
+          const weight = parts[weightColIdx] || "";
+          const height = parts[heightColIdx] || "";
+          
+          const eligibilityTypeRaw = parts[eligibilityTypeColIdx] || "";
+          let eligibilityType: 'Elementary School Completer' | 'PEPT Passer' | 'ALS A & E Passer' | 'Others' = 'Elementary School Completer';
+          if (eligibilityTypeRaw.toLowerCase().includes('pept')) eligibilityType = 'PEPT Passer';
+          else if (eligibilityTypeRaw.toLowerCase().includes('als')) eligibilityType = 'ALS A & E Passer';
+          else if (eligibilityTypeRaw.toLowerCase().includes('other')) eligibilityType = 'Others';
+
+          const eligibility = {
+            type: eligibilityType,
+            genAvg: parts[genAvgColIdx] || "",
+            citation: parts[citationColIdx] || "",
+            elemSchoolName: parts[elemSchoolNameColIdx] || "",
+            elemSchoolId: parts[elemSchoolIdColIdx] || "",
+            elemSchoolAddress: parts[elemSchoolAddressColIdx] || "",
+            peptRating: parts[peptRatingColIdx] || "",
+            peptDate: parts[peptDateColIdx] || "",
+            alsRating: parts[alsRatingColIdx] || "",
+            alsCenterInfo: parts[alsCenterInfoColIdx] || "",
+            othersSpecify: parts[othersSpecifyColIdx] || ""
+          };
+
+          // Generate full name automatically
+          const nameParts = [
+            lastName + (firstName ? "," : ""),
+            firstName,
+            middleName,
+            extension
+          ].filter(Boolean);
+          const name = nameParts.join(" ").trim();
+
+          if (lastName && firstName && lrn) {
+            const { bmi, category } = computeBMI(parseFloat(weight) || 0, parseFloat(height) || 0);
+            
+            // Robust sex detection
+            let finalSex: 'Male' | 'Female' = 'Male';
+            const sValue = sexInput.toLowerCase();
+            if (sValue.startsWith('f') || sValue.includes('girl') || sValue.includes('female')) {
+              finalSex = 'Female';
+            }
+
+            learners.push({
+              lastName,
+              firstName,
+              middleName,
+              extension,
+              name,
+              lrn,
+              email,
+              birthdate,
+              age,
+              sex: finalSex,
+              dateOfFirstAttendance: dateInput,
+              weight: parseFloat(weight) || 0,
+              height: parseFloat(height) || 0,
+              bmi,
+              gradeLevel: gradeLevelColIdx !== -1 ? parts[gradeLevelColIdx] || "" : "",
+              section: sectionColIdx !== -1 ? parts[sectionColIdx] || "" : "",
+              nutritionalStatus: {
+                bmiCategory: category
+              },
+              eligibility
+            });
+          }
+        }
+      });
+
+      if (learners.length > 0) {
+        setPendingLearnersDashboard(learners);
+        // Default select only those matching actual sections in the list
+        const validIndices = new Set<number>();
+        learners.forEach((l, idx) => {
+          const hasSection = sections.some(sec => {
+            const csvSecName = (l.section || "").trim().toLowerCase();
+            const dbSecName = (sec.name || "").trim().toLowerCase();
+            const csvGrade = (l.gradeLevel || "").trim();
+            const dbGrade = String(sec.gradeLevel || "").trim();
+            return csvSecName === dbSecName && (csvGrade === "" || csvGrade === dbGrade);
+          });
+          if (hasSection) {
+            validIndices.add(idx);
+          }
+        });
+        setSelectedIndicesDashboard(validIndices);
+        setShowSelectionModalDashboard(true);
+      } else {
+        alert("No valid learners parsed from CSV. Please verify columns.");
+      }
+      setIsUploadingDashboard(false);
+      // Reset input element value
+      e.target.value = "";
+    };
+    reader.onerror = () => {
+      alert("Error reading file.");
+      setIsUploadingDashboard(false);
+    };
+    reader.readAsText(file);
+  };
+
   useEffect(() => {
     if (!user?.schoolId) return;
     const q = query(collection(db, "schools"), where("schoolId", "==", user.schoolId));
@@ -6114,13 +6415,38 @@ function SectionsView({
                   </button>
                 )}
                 {user?.role === 'system_admin' && (
-                  <button 
-                    onClick={() => onSetActiveTab('subjects')}
-                    className="flex items-center justify-center gap-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-sm px-5 py-2.5 rounded-xl transition-all shadow-sm w-full sm:w-auto"
-                  >
-                    <BookOpen size={16} className="text-indigo-600" />
-                    <span>Subject Menu</span>
-                  </button>
+                  <>
+                    <button 
+                      onClick={() => onSetActiveTab('subjects')}
+                      className="flex items-center justify-center gap-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-sm px-5 py-2.5 rounded-xl transition-all shadow-sm w-full sm:w-auto"
+                    >
+                      <BookOpen size={16} className="text-indigo-600" />
+                      <span>Subject Menu</span>
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={downloadDashboardCSVTemplate}
+                      className="flex items-center justify-center gap-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-650 font-bold text-sm px-5 py-2.5 rounded-xl transition-all shadow-sm w-full sm:w-auto cursor-pointer"
+                    >
+                      <Download size={16} className="text-indigo-600" />
+                      <span>Download CSV Template</span>
+                    </button>
+                    <label 
+                      className={`flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 border border-indigo-700 text-white font-bold text-sm px-5 py-2.5 rounded-xl transition-all shadow-md hover:-translate-y-0.5 active:translate-y-0 cursor-pointer w-full sm:w-auto animate-in duration-200 fade-in shadow-indigo-600/20 ${
+                        isUploadingDashboard ? 'opacity-50 cursor-not-allowed' : ''
+                      }`}
+                    >
+                      <FileUp size={16} className="text-white" />
+                      <span>Bulk Upload (CSV) SHS Only</span>
+                      <input 
+                        type="file" 
+                        accept=".csv" 
+                        className="hidden" 
+                        onChange={handleDashboardFileUpload}
+                        disabled={isUploadingDashboard}
+                      />
+                    </label>
+                  </>
                 )}
               </div>
             )}
@@ -7083,6 +7409,290 @@ function SectionsView({
         onClose={onCloseFeedback}
         user={user}
       />
+
+      <AnimatePresence>
+        {showSelectionModalDashboard && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] border border-slate-100"
+            >
+              {/* Header */}
+              <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 z-10">
+                <div>
+                  <h3 className="text-lg font-black text-slate-900 tracking-tight flex items-center gap-2">
+                    <UserCheck className="text-indigo-600" size={22} />
+                    Review and Enroll Learners
+                  </h3>
+                  <p className="text-xs font-semibold text-slate-500 mt-1">
+                    Matching parsed CSV rows against registered active academic sections
+                  </p>
+                </div>
+                <button 
+                  onClick={() => {
+                    setShowSelectionModalDashboard(false);
+                    setPendingLearnersDashboard([]);
+                  }} 
+                  className="w-8 h-8 rounded-lg bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-900 transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              {/* Toolbar */}
+              <div className="px-6 py-3 bg-slate-50/50 border-b border-slate-100 flex flex-wrap gap-4 items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-bold text-slate-600">
+                    Selected: {selectedIndicesDashboard.size} of {pendingLearnersDashboard.length} Row(s)
+                  </span>
+                  <div className="flex gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const valid = new Set<number>();
+                        pendingLearnersDashboard.forEach((l, idx) => {
+                          const matchedSec = sections.some(sec => {
+                            const csvSecName = (l.section || "").trim().toLowerCase();
+                            const dbSecName = (sec.name || "").trim().toLowerCase();
+                            const csvGrade = (l.gradeLevel || "").trim();
+                            const dbGrade = String(sec.gradeLevel || "").trim();
+                            return csvSecName === dbSecName && (csvGrade === "" || csvGrade === dbGrade);
+                          });
+                          if (matchedSec) {
+                            valid.add(idx);
+                          }
+                        });
+                        setSelectedIndicesDashboard(valid);
+                      }}
+                      className="text-[10px] uppercase tracking-wider font-extrabold text-indigo-600 hover:text-indigo-800 transition-colors cursor-pointer"
+                    >
+                      Select All Valid
+                    </button>
+                    <span className="text-slate-300">|</span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedIndicesDashboard(new Set())}
+                      className="text-[10px] uppercase tracking-wider font-extrabold text-slate-500 hover:text-slate-700 transition-colors cursor-pointer"
+                    >
+                      Deselect All
+                    </button>
+                  </div>
+                </div>
+
+                {/* Bulk Attendance Date Overrider */}
+                <div className="flex items-center gap-2">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">First Attendance Date:</label>
+                  <input
+                    type="date"
+                    value={bulkFirstAttendanceDateDashboard}
+                    onChange={(e) => setBulkFirstAttendanceDateDashboard(e.target.value)}
+                    className="border border-slate-200 rounded-lg px-2 py-1 text-xs outline-none focus:border-indigo-500 bg-white"
+                  />
+                </div>
+              </div>
+
+              {/* Table Body */}
+              <div className="flex-1 overflow-y-auto p-6 custom-scrollbar min-h-0 bg-white">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-100 text-[10px] font-black uppercase tracking-wider text-slate-400 bg-slate-50/50 sticky top-0 backdrop-blur-md">
+                      <th className="py-3 px-4 w-12 text-center">Enr</th>
+                      <th className="py-3 px-4">Student Name (LRN)</th>
+                      <th className="py-3 px-4">Gender & Age</th>
+                      <th className="py-3 px-4">Parsed Dest Section</th>
+                      <th className="py-3 px-4">Enrollment Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50 text-xs">
+                    {pendingLearnersDashboard.map((l, index) => {
+                      const matchedSection = sections.find(sec => {
+                        const csvSecName = (l.section || "").trim().toLowerCase();
+                        const dbSecName = (sec.name || "").trim().toLowerCase();
+                        const csvGrade = (l.gradeLevel || "").trim();
+                        const dbGrade = String(sec.gradeLevel || "").trim();
+                        return csvSecName === dbSecName && (csvGrade === "" || csvGrade === dbGrade);
+                      });
+
+                      const isSelected = selectedIndicesDashboard.has(index);
+
+                      return (
+                        <tr 
+                          key={index} 
+                          className={`hover:bg-indigo-50/20 transition-colors ${
+                            !matchedSection ? 'bg-rose-50/10' : ''
+                          }`}
+                        >
+                          <td className="py-3.5 px-4 text-center">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              disabled={!matchedSection}
+                              onChange={() => {
+                                const next = new Set(selectedIndicesDashboard);
+                                if (isSelected) {
+                                  next.delete(index);
+                                } else {
+                                  next.add(index);
+                                }
+                                setSelectedIndicesDashboard(next);
+                              }}
+                              className="size-4 rounded-md text-indigo-600 focus:ring-indigo-500 border-slate-300 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+                            />
+                          </td>
+                          <td className="py-3.5 px-4 font-semibold text-slate-800">
+                            <div>{l.name}</div>
+                            <div className="text-[10px] text-slate-400 font-mono mt-0.5">LRN: {l.lrn}</div>
+                          </td>
+                          <td className="py-3.5 px-4 text-slate-500 font-semibold">
+                            {l.sex} ({l.age || 'N/A'} yrs)
+                          </td>
+                          <td className="py-3.5 px-4">
+                            <span className="font-semibold text-slate-700">
+                              {l.gradeLevel ? `Grade ${l.gradeLevel} - ` : ''}{l.section}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-4">
+                            {matchedSection ? (
+                              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-black uppercase text-emerald-700 bg-emerald-50 border border-emerald-100">
+                                <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                Valid Section Match
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-black uppercase text-rose-700 bg-rose-50 border border-rose-100" title="Please configure a section with this name and grade level to enroll this student">
+                                <span className="size-1.5 rounded-full bg-rose-500" />
+                                Section Not Found
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Actions Footer */}
+              <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex items-center justify-between sticky bottom-0 z-10">
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest max-w-[50%] leading-relaxed">
+                  Notice: Invalid (Not Found) sections are unselectable. Make sure sections exist before running bulk uploads.
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowSelectionModalDashboard(false);
+                      setPendingLearnersDashboard([]);
+                    }}
+                    className="px-5 py-2.5 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl font-bold text-xs uppercase tracking-wider cursor-pointer transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isUploadingDashboard || selectedIndicesDashboard.size === 0}
+                    onClick={async () => {
+                      let selection = pendingLearnersDashboard.filter((_, i) => selectedIndicesDashboard.has(i));
+                      if (bulkFirstAttendanceDateDashboard) {
+                        selection = selection.map(l => ({ ...l, dateOfFirstAttendance: bulkFirstAttendanceDateDashboard }));
+                      }
+                      if (selection.length > 0) {
+                        setIsUploadingDashboard(true);
+                        try {
+                          // Group learners by matched section
+                          const grouped: { [sectionId: string]: any[] } = {};
+                          selection.forEach(learner => {
+                            const matchedSec = sections.find(sec => {
+                              const csvSecName = (learner.section || "").trim().toLowerCase();
+                              const dbSecName = (sec.name || "").trim().toLowerCase();
+                              const csvGrade = (learner.gradeLevel || "").trim();
+                              const dbGrade = String(sec.gradeLevel || "").trim();
+                              return csvSecName === dbSecName && (csvGrade === "" || csvGrade === dbGrade);
+                            });
+                            if (matchedSec) {
+                              if (!grouped[matchedSec.id]) {
+                                grouped[matchedSec.id] = [];
+                              }
+                              grouped[matchedSec.id].push({
+                                ...learner,
+                                sectionId: matchedSec.id,
+                                sectionName: matchedSec.name,
+                                gradeLevel: matchedSec.gradeLevel
+                              });
+                            }
+                          });
+
+                          // Process and write batches
+                          for (const [secId, list] of Object.entries(grouped)) {
+                            const batch = writeBatch(db);
+                            list.forEach(learner => {
+                              const docRef = doc(collection(db, `sections/${secId}/students`));
+                              batch.set(docRef, {
+                                sectionId: secId,
+                                name: learner.name,
+                                lastName: learner.lastName || "",
+                                firstName: learner.firstName || "",
+                                middleName: learner.middleName || "",
+                                extension: learner.extension || "",
+                                studentNumber: learner.lrn || Date.now().toString(),
+                                lrn: learner.lrn,
+                                email: learner.email || "",
+                                age: parseInt(learner.age) || 0,
+                                birthdate: learner.birthdate || "",
+                                sex: learner.sex,
+                                weight: learner.weight || 0,
+                                height: learner.height || 0,
+                                bmi: learner.bmi || 0,
+                                nutritionalStatus: learner.nutritionalStatus || {},
+                                dateOfFirstAttendance: learner.dateOfFirstAttendance || "",
+                                isTransferredIn: learner.isTransferredIn || false,
+                                eligibility: learner.eligibility || {},
+                                grades: {},
+                                enrolledSubjectIds: [],
+                                gradeLevel: learner.gradeLevel || "",
+                                sectionName: learner.sectionName || ""
+                              });
+                            });
+                            await batch.commit();
+                          }
+
+                          setUploadSuccessDashboard(true);
+                          setTimeout(() => setUploadSuccessDashboard(false), 5000);
+                          setShowSelectionModalDashboard(false);
+                          setPendingLearnersDashboard([]);
+                          setBulkFirstAttendanceDateDashboard("");
+                          alert("All learners successfully uploaded and assigned to their respective sections!");
+                        } catch (err) {
+                          console.error(err);
+                          alert("Error during bulk upload. Please check console.");
+                        } finally {
+                          setIsUploadingDashboard(false);
+                        }
+                      }
+                    }}
+                    className={`flex items-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs uppercase tracking-wider cursor-pointer transition-all shadow-md shadow-indigo-600/20 active:scale-95 whitespace-nowrap ${
+                      (isUploadingDashboard || selectedIndicesDashboard.size === 0) ? 'opacity-50 cursor-not-allowed shadow-none' : ''
+                    }`}
+                  >
+                    {isUploadingDashboard ? (
+                      <>
+                        <Loader2 size={14} className="animate-spin" />
+                        <span>Enrolling...</span>
+                      </>
+                    ) : (
+                      <>
+                        <UserCheck size={14} />
+                        <span>Confirm Enrollment ({selectedIndicesDashboard.size})</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -7328,7 +7938,8 @@ function AddLearnerModal({
   isActiveSY,
   students,
   globalSubjects = [],
-  section
+  section,
+  onTriggerBulkUpload
 }: { 
   form: any, 
   setForm: any, 
@@ -7337,7 +7948,8 @@ function AddLearnerModal({
   isActiveSY?: boolean,
   students?: any[],
   globalSubjects?: Subject[],
-  section?: Section | null
+  section?: Section | null,
+  onTriggerBulkUpload?: () => void
 }) {
   const [searchLrn, setSearchLrn] = useState("");
   const [isSearching, setIsSearching] = useState(false);
@@ -7466,12 +8078,24 @@ function AddLearnerModal({
             <h2 className="text-xl font-bold text-slate-800">Add New Learner</h2>
             <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">Register a student to this section</p>
           </div>
-          <button 
-            onClick={onCancel}
-            className="p-2 hover:bg-slate-200 rounded-full text-slate-400 transition-colors"
-          >
-            <X size={20} />
-          </button>
+          <div className="flex items-center gap-4">
+            {isActiveSY && onTriggerBulkUpload && (
+              <button
+                type="button"
+                onClick={onTriggerBulkUpload}
+                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-all shadow-md active:scale-95 cursor-pointer shadow-indigo-600/20"
+              >
+                <FileUp size={14} />
+                <span>Bulk Upload (CSV) SHS Only</span>
+              </button>
+            )}
+            <button 
+              onClick={onCancel}
+              className="p-2 hover:bg-slate-200 rounded-full text-slate-400 transition-colors"
+            >
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
         <div className="overflow-y-auto p-8">
@@ -8146,6 +8770,7 @@ function AddLearnerView({
   const maleCount = studentsMale.length;
   const femaleCount = studentsFemale.length;
   const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadSuccess, setUploadSuccess] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Student | null>(null);
   const [deleteAllType, setDeleteAllType] = useState<'all' | 'unassigned' | null>(null);
@@ -8384,14 +9009,133 @@ function AddLearnerView({
     const reader = new window.FileReader();
     reader.onload = async (event) => {
       const text = event.target?.result as string;
-      const lines = text.split(/\r?\n/);
+      const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
       const learners: any[] = [];
+
+      // Determine helper mappings
+      let lastNameColIdx = 0;
+      let firstNameColIdx = 1;
+      let middleNameColIdx = 2;
+      let extensionColIdx = 3;
+      let lrnColIdx = 4;
+      let emailColIdx = 5;
+      let birthdateColIdx = 6;
+      let ageColIdx = 7;
+      let sexColIdx = 8;
+      let gradeLevelColIdx = -1;
+      let sectionColIdx = -1;
+      let dateColIdx = 9;
+      let weightColIdx = 10;
+      let heightColIdx = 11;
+      let eligibilityTypeColIdx = 12;
+      let genAvgColIdx = 13;
+      let citationColIdx = 14;
+      let elemSchoolNameColIdx = 15;
+      let elemSchoolIdColIdx = 16;
+      let elemSchoolAddressColIdx = 17;
+      let peptRatingColIdx = 18;
+      let peptDateColIdx = 19;
+      let alsRatingColIdx = 20;
+      let alsCenterInfoColIdx = 21;
+      let othersSpecifyColIdx = 22;
+
+      const firstLine = lines[0];
+      if (firstLine && (firstLine.toLowerCase().includes('lastname') || firstLine.toLowerCase().includes('lrn') || firstLine.toLowerCase().includes('name'))) {
+        const headerParts: string[] = [];
+        let p = '', inQuote = false;
+        for (let i = 0; i < firstLine.length; i++) {
+          let c = firstLine[i];
+          if (c === '"' && firstLine[i+1] === '"') {
+            p += '"'; i++;
+          } else if (c === '"') {
+            inQuote = !inQuote;
+          } else if (c === ',' && !inQuote) {
+            headerParts.push(p.trim().toLowerCase()); p = '';
+          } else {
+            p += c;
+          }
+        }
+        headerParts.push(p.trim().toLowerCase());
+
+        lastNameColIdx = headerParts.indexOf("lastname");
+        firstNameColIdx = headerParts.indexOf("firstname");
+        middleNameColIdx = headerParts.indexOf("middlename");
+        extensionColIdx = headerParts.indexOf("nameext");
+        if (extensionColIdx === -1) extensionColIdx = headerParts.indexOf("ext");
+        if (extensionColIdx === -1) extensionColIdx = headerParts.indexOf("extension");
+        lrnColIdx = headerParts.indexOf("lrn");
+        emailColIdx = headerParts.indexOf("email");
+        birthdateColIdx = headerParts.indexOf("birthdate");
+        ageColIdx = headerParts.indexOf("age");
+        sexColIdx = headerParts.indexOf("sex");
+        gradeLevelColIdx = headerParts.indexOf("gradelevel");
+        sectionColIdx = headerParts.indexOf("section");
+        dateColIdx = headerParts.indexOf("dateoffirstattendance");
+        weightColIdx = headerParts.indexOf("weight_kg");
+        if (weightColIdx === -1) weightColIdx = headerParts.indexOf("weight");
+        heightColIdx = headerParts.indexOf("height_cm");
+        if (heightColIdx === -1) heightColIdx = headerParts.indexOf("height");
+        eligibilityTypeColIdx = headerParts.indexOf("eligibilitytype");
+        genAvgColIdx = headerParts.indexOf("genavg");
+        citationColIdx = headerParts.indexOf("citation");
+        elemSchoolNameColIdx = headerParts.indexOf("elemschoolname");
+        elemSchoolIdColIdx = headerParts.indexOf("elemschoolid");
+        elemSchoolAddressColIdx = headerParts.indexOf("elemschooladdress");
+        peptRatingColIdx = headerParts.indexOf("peptrating");
+        peptDateColIdx = headerParts.indexOf("peptdate");
+        alsRatingColIdx = headerParts.indexOf("alsrating");
+        alsCenterInfoColIdx = headerParts.indexOf("alscenterinfo");
+        othersSpecifyColIdx = headerParts.indexOf("othersspecify");
+      }
+
+      // Fallbacks
+      if (lastNameColIdx === -1) lastNameColIdx = 0;
+      if (firstNameColIdx === -1) firstNameColIdx = 1;
+      if (middleNameColIdx === -1) middleNameColIdx = 2;
+      if (extensionColIdx === -1) extensionColIdx = 3;
+      if (lrnColIdx === -1) lrnColIdx = 4;
+      if (emailColIdx === -1) emailColIdx = 5;
+      if (birthdateColIdx === -1) birthdateColIdx = 6;
+      if (ageColIdx === -1) ageColIdx = 7;
+      if (sexColIdx === -1) sexColIdx = 8;
+
+      if (gradeLevelColIdx !== -1 && sectionColIdx !== -1) {
+        if (dateColIdx === -1) dateColIdx = 11;
+        if (weightColIdx === -1) weightColIdx = 12;
+        if (heightColIdx === -1) heightColIdx = 13;
+        if (eligibilityTypeColIdx === -1) eligibilityTypeColIdx = 14;
+        if (genAvgColIdx === -1) genAvgColIdx = 15;
+        if (citationColIdx === -1) citationColIdx = 16;
+        if (elemSchoolNameColIdx === -1) elemSchoolNameColIdx = 17;
+        if (elemSchoolIdColIdx === -1) elemSchoolIdColIdx = 18;
+        if (elemSchoolAddressColIdx === -1) elemSchoolAddressColIdx = 19;
+        if (peptRatingColIdx === -1) peptRatingColIdx = 20;
+        if (peptDateColIdx === -1) peptDateColIdx = 21;
+        if (alsRatingColIdx === -1) alsRatingColIdx = 22;
+        if (alsCenterInfoColIdx === -1) alsCenterInfoColIdx = 23;
+        if (othersSpecifyColIdx === -1) othersSpecifyColIdx = 24;
+      } else {
+        if (dateColIdx === -1) dateColIdx = 9;
+        if (weightColIdx === -1) weightColIdx = 10;
+        if (heightColIdx === -1) heightColIdx = 11;
+        if (eligibilityTypeColIdx === -1) eligibilityTypeColIdx = 12;
+        if (genAvgColIdx === -1) genAvgColIdx = 13;
+        if (citationColIdx === -1) citationColIdx = 14;
+        if (elemSchoolNameColIdx === -1) elemSchoolNameColIdx = 15;
+        if (elemSchoolIdColIdx === -1) elemSchoolIdColIdx = 16;
+        if (elemSchoolAddressColIdx === -1) elemSchoolAddressColIdx = 17;
+        if (peptRatingColIdx === -1) peptRatingColIdx = 18;
+        if (peptDateColIdx === -1) peptDateColIdx = 19;
+        if (alsRatingColIdx === -1) alsRatingColIdx = 20;
+        if (alsCenterInfoColIdx === -1) alsCenterInfoColIdx = 21;
+        if (othersSpecifyColIdx === -1) othersSpecifyColIdx = 22;
+      }
 
       lines.forEach((line, index) => {
         const trimmedLine = line.trim();
         if (!trimmedLine) return;
         
-        // Skip header if it contains keywords
+        // Skip header if it matches keywords
         if (index === 0 && (trimmedLine.toLowerCase().includes('name') || trimmedLine.toLowerCase().includes('lrn') || trimmedLine.toLowerCase().includes('lastname'))) return; 
         
         const parts: string[] = [];
@@ -8411,25 +9155,20 @@ function AddLearnerView({
         parts.push(p.trim());
 
         if (parts.length >= 5) {
-          // Expected Format:
-          // LastName(0), FirstName(1), MiddleName(2), NameExt(3), LRN(4), Email(5), Birthdate(6), Age(7), Sex(8), DateOfFirstAttendance(9),
-          // Weight_kg(10), Height_cm(11), EligibilityType(12), GenAvg(13), Citation(14), ElemSchoolName(15), ElemSchoolId(16), ElemSchoolAddress(17),
-          // PEPTRating(18), PEPTDate(19), ALSRating(20), ALSCenterInfo(21), OthersSpecify(22)
+          const lastName = parts[lastNameColIdx] || "";
+          const firstName = parts[firstNameColIdx] || "";
+          const middleName = parts[middleNameColIdx] || "";
+          const extension = parts[extensionColIdx] || "";
+          const lrn = parts[lrnColIdx] || "";
+          const email = parts[emailColIdx] || "";
+          const birthdate = parts[birthdateColIdx] || "";
+          const age = parts[ageColIdx] || "";
+          const sexInput = parts[sexColIdx] || "Male";
+          const dateInput = parts[dateColIdx] || "";
+          const weight = parts[weightColIdx] || "";
+          const height = parts[heightColIdx] || "";
           
-          const lastName = parts[0] || "";
-          const firstName = parts[1] || "";
-          const middleName = parts[2] || "";
-          const extension = parts[3] || "";
-          const lrn = parts[4] || "";
-          const email = parts[5] || "";
-          const birthdate = parts[6] || "";
-          const age = parts[7] || "";
-          const sexInput = parts[8] || "Male";
-          const dateInput = parts[9] || "";
-          const weight = parts[10] || "";
-          const height = parts[11] || "";
-          
-          const eligibilityTypeRaw = parts[12] || "";
+          const eligibilityTypeRaw = parts[eligibilityTypeColIdx] || "";
           let eligibilityType: 'Elementary School Completer' | 'PEPT Passer' | 'ALS A & E Passer' | 'Others' = 'Elementary School Completer';
           if (eligibilityTypeRaw.toLowerCase().includes('pept')) eligibilityType = 'PEPT Passer';
           else if (eligibilityTypeRaw.toLowerCase().includes('als')) eligibilityType = 'ALS A & E Passer';
@@ -8437,16 +9176,16 @@ function AddLearnerView({
 
           const eligibility = {
             type: eligibilityType,
-            genAvg: parts[13] || "",
-            citation: parts[14] || "",
-            elemSchoolName: parts[15] || "",
-            elemSchoolId: parts[16] || "",
-            elemSchoolAddress: parts[17] || "",
-            peptRating: parts[18] || "",
-            peptDate: parts[19] || "",
-            alsRating: parts[20] || "",
-            alsCenterInfo: parts[21] || "",
-            othersSpecify: parts[22] || ""
+            genAvg: parts[genAvgColIdx] || "",
+            citation: parts[citationColIdx] || "",
+            elemSchoolName: parts[elemSchoolNameColIdx] || "",
+            elemSchoolId: parts[elemSchoolIdColIdx] || "",
+            elemSchoolAddress: parts[elemSchoolAddressColIdx] || "",
+            peptRating: parts[peptRatingColIdx] || "",
+            peptDate: parts[peptDateColIdx] || "",
+            alsRating: parts[alsRatingColIdx] || "",
+            alsCenterInfo: parts[alsCenterInfoColIdx] || "",
+            othersSpecify: parts[othersSpecifyColIdx] || ""
           };
 
           // Generate full name automatically
@@ -8483,6 +9222,8 @@ function AddLearnerView({
               weight: parseFloat(weight) || 0,
               height: parseFloat(height) || 0,
               bmi,
+              gradeLevel: gradeLevelColIdx !== -1 ? parts[gradeLevelColIdx] || "" : "",
+              section: sectionColIdx !== -1 ? parts[sectionColIdx] || "" : "",
               nutritionalStatus: {
                 bmiCategory: category
               },
@@ -8504,9 +9245,9 @@ function AddLearnerView({
   };
 
   const downloadCSVTemplate = () => {
-    const headers = "LastName,FirstName,MiddleName,NameExt,LRN,Email,Birthdate,Age,Sex,DateOfFirstAttendance,Weight_kg,Height_cm,EligibilityType,GenAvg,Citation,ElemSchoolName,ElemSchoolId,ElemSchoolAddress,PEPTRating,PEPTDate,ALSRating,ALSCenterInfo,OthersSpecify";
-    const example1 = "Dela Cruz,Juan,,Jr,123456789012,juan.delacruz@email.com,2010-01-15,12,Male,2023-06-05,45,150,Elementary School Completer,85.50,,,Rizal Elem School,123456,,,,,";
-    const example2 = "Santos,Maria,G,,987654321098,maria.santos@email.com,2011-03-20,11,Female,2023-06-05,42,148,PEPT Passer.,,,,,,,80.20,2022-05-15,,,";
+    const headers = "LastName,FirstName,MiddleName,NameExt,LRN,Email,Birthdate,Age,Sex,GradeLevel,Section,DateOfFirstAttendance,Weight_kg,Height_cm,EligibilityType,GenAvg,Citation,ElemSchoolName,ElemSchoolId,ElemSchoolAddress,PEPTRating,PEPTDate,ALSRating,ALSCenterInfo,OthersSpecify";
+    const example1 = "Dela Cruz,Juan,,Jr,123456789012,juan.delacruz@email.com,2010-01-15,12,Male,7,Einstein,2023-06-05,45,150,Elementary School Completer,85.50,,,Rizal Elem School,123456,,,,,";
+    const example2 = "Santos,Maria,G,,987654321098,maria.santos@email.com,2011-03-20,11,Female,7,Einstein,2023-06-05,42,148,PEPT Passer.,,,,,,,80.20,2022-05-15,,,";
     const csvContent = `${headers}\n${example1}\n${example2}`;
     
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -8518,6 +9259,7 @@ function AddLearnerView({
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -8555,6 +9297,12 @@ function AddLearnerView({
             students={students}
             globalSubjects={globalSubjects}
             section={section}
+            onTriggerBulkUpload={() => {
+              setShowAddModal(false);
+              setTimeout(() => {
+                fileInputRef.current?.click();
+              }, 150);
+            }}
           />
         )}
         {editingId && (
@@ -8710,16 +9458,24 @@ function AddLearnerView({
                       }`}>
                         {selectedIndices.has(idx) ? <Check size={14} strokeWidth={4} /> : <div className="w-2 h-2 bg-slate-300 rounded-full" />}
                       </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                           <span className={`text-[13px] font-bold ${selectedIndices.has(idx) ? 'text-indigo-900' : 'text-slate-600'}`}>{l.name}</span>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                             <span className={`text-[13px] font-bold ${selectedIndices.has(idx) ? 'text-indigo-900' : 'text-slate-600'}`}>{l.name}</span>
+                          </div>
+                          <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                            <span className="text-[10px] font-mono text-slate-400 font-medium uppercase tracking-tighter">{l.lrn}</span>
+                            <div className="w-1 h-1 bg-slate-200 rounded-full" />
+                            <span className={`text-[10px] font-black uppercase tracking-widest ${l.sex === 'Male' ? 'text-blue-500' : 'text-rose-500'}`}>{l.sex}</span>
+                            {l.gradeLevel && l.section && (
+                              <>
+                                <div className="w-1 h-1 bg-slate-200 rounded-full" />
+                                <span className="text-[10px] text-indigo-600 font-extrabold bg-indigo-50/80 border border-indigo-150 px-1.5 py-0.5 rounded-full uppercase scale-90 origin-left">
+                                  Grade {l.gradeLevel} - {l.section}
+                                </span>
+                              </>
+                            )}
+                          </div>
                         </div>
-                        <div className="flex items-center gap-3 mt-0.5">
-                          <span className="text-[10px] font-mono text-slate-400 font-medium uppercase tracking-tighter">{l.lrn}</span>
-                          <div className="w-1 h-1 bg-slate-200 rounded-full" />
-                          <span className={`text-[10px] font-black uppercase tracking-widest ${l.sex === 'Male' ? 'text-blue-500' : 'text-rose-500'}`}>{l.sex}</span>
-                        </div>
-                      </div>
                     </div>
                   ))}
                 </div>
@@ -8775,52 +9531,57 @@ function AddLearnerView({
           <div>
             <div className="flex flex-wrap items-center gap-3 mt-2">
               {isActiveSY && (
-                <>
-                  <button 
-                    onClick={() => {
-                      setForm({
-                        lastName: "",
-                        firstName: "",
-                        middleName: "",
-                        extension: "",
-                        name: "",
-                        lrn: "",
-                        email: "",
-                        age: "",
-                        sex: "Male",
-                        dateOfFirstAttendance: "",
-                        weight: "",
-                        height: "",
-                        isTransferredIn: false,
-                        attendance: {}
-                      });
-                      setShowAddModal(true);
-                    }}
-                    className="flex items-center gap-2 px-4 py-2 bg-rose-500 border border-rose-600 text-white rounded-xl hover:bg-rose-600 transition-all text-xs font-bold shadow-lg shadow-rose-200 active:scale-95"
-                  >
-                    <UserPlus size={16} />
-                    Add New Learner
-                  </button>
-                  <label className="flex items-center gap-2 px-4 py-2 bg-indigo-600 border border-indigo-100 text-white rounded-xl transition-all text-xs font-bold shadow-lg shadow-indigo-600/20 active:scale-95 cursor-pointer hover:bg-indigo-700">
-                    <FileUp size={16} />
-                    Bulk Upload (CSV)
-                    <input 
-                      type="file" 
-                      accept=".csv" 
-                      className="hidden" 
-                      onChange={handleFileUpload}
-                      disabled={isUploading}
-                    />
-                  </label>
-                </>
+                <button 
+                  onClick={() => {
+                    setForm({
+                      lastName: "",
+                      firstName: "",
+                      middleName: "",
+                      extension: "",
+                      name: "",
+                      lrn: "",
+                      email: "",
+                      age: "",
+                      sex: "Male",
+                      dateOfFirstAttendance: "",
+                      weight: "",
+                      height: "",
+                      isTransferredIn: false,
+                      attendance: {}
+                    });
+                    setShowAddModal(true);
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 bg-rose-500 border border-rose-600 text-white rounded-xl hover:bg-rose-600 transition-all text-xs font-bold shadow-lg shadow-rose-200 active:scale-95"
+                >
+                  <UserPlus size={16} />
+                  Add New Learner
+                </button>
               )}
-              <button 
-                onClick={downloadCSVTemplate}
-                className="flex items-center gap-2 px-4 py-2 bg-slate-100 border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-200 transition-all text-xs font-bold active:scale-95"
-              >
-                <Download size={16} />
-                Download CSV Template
-              </button>
+
+              {isActiveSY && (
+                <label className="flex items-center gap-2 px-4 py-2 bg-indigo-600 border border-indigo-700 text-white rounded-xl transition-all text-xs font-bold shadow-lg shadow-indigo-600/20 active:scale-95 cursor-pointer hover:bg-indigo-700">
+                  <FileUp size={16} />
+                  <span>Bulk Upload (CSV) SHS Only</span>
+                  <input 
+                    ref={fileInputRef}
+                    type="file" 
+                    accept=".csv" 
+                    className="hidden" 
+                    onChange={handleFileUpload}
+                    disabled={isUploading}
+                  />
+                </label>
+              )}
+
+              {isActiveSY && (
+                <button 
+                  onClick={downloadCSVTemplate}
+                  className="flex items-center gap-2 px-4 py-2 bg-slate-100 border border-slate-200 text-slate-650 rounded-xl hover:bg-slate-250 transition-all text-xs font-bold active:scale-95 cursor-pointer"
+                >
+                  <Download size={16} className="text-indigo-600" />
+                  Download CSV Template
+                </button>
+              )}
               {(isSectionAdviser || isSystemAdmin) && students.length > 0 && (
                 <button
                   type="button"
