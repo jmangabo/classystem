@@ -658,6 +658,29 @@ const MONTH_INDICES: { [key: string]: number } = {
   'July': 6, 'August': 7, 'September': 8, 'October': 9, 'November': 10, 'December': 11
 };
 
+export async function fetchSubjectsForSection(
+  secId: string,
+  gradeLevel: number,
+  globalIds: string[] = [],
+  globalSubjectsList: Subject[] = []
+) {
+  try {
+    const { collection } = await import("firebase/firestore");
+    const secSubjectsSnap = await getDocs(collection(db, `sections/${secId}/subjects`));
+    const secSubjs = secSubjectsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Subject));
+
+    const matchedGlobals = globalSubjectsList.filter(s => 
+      Number(s.gradeLevel) === Number(gradeLevel) || 
+      globalIds.includes(s.id)
+    );
+
+    return [...matchedGlobals, ...secSubjs];
+  } catch (error) {
+    console.error("Error fetching subjects dynamically in global helper:", error);
+    return globalSubjectsList.filter(s => Number(s.gradeLevel) === Number(gradeLevel) || globalIds.includes(s.id));
+  }
+}
+
 export default function App() {
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
@@ -1723,8 +1746,9 @@ export default function App() {
       return;
     }
     
+    const isK10 = Number(selectedSection.gradeLevel) <= 10;
     const isEnrolledEmpty = !learnerForm.enrolledSubjectIds || learnerForm.enrolledSubjectIds.length === 0;
-    if (isEnrolledEmpty) {
+    if (!isK10 && isEnrolledEmpty) {
       const proceed = window.confirm("This learner is not enrolled in any subjects. They will not show up in sheets, grades, or reports until subjects are assigned. Do you want to proceed with saving anyway?");
       if (!proceed) return;
     }
@@ -1739,6 +1763,17 @@ export default function App() {
     const fullName = nameParts.join(" ").trim();
     
     try {
+      let resolvedEnrolledSubjectIds = learnerForm.enrolledSubjectIds || [];
+      if (isK10) {
+        const connectedSubjects = await fetchSubjectsForSection(
+          selectedSection.id,
+          Number(selectedSection.gradeLevel),
+          selectedSection.globalSubjectIds || [],
+          globalSubjects
+        );
+        resolvedEnrolledSubjectIds = connectedSubjects.map(s => s.id);
+      }
+
       if (editingId) {
         const { bmi, category } = computeBMI(parseFloat(learnerForm.weight) || 0, parseFloat(learnerForm.height) || 0);
         await setDoc(doc(db, `sections/${selectedSection.id}/students`, editingId), {
@@ -1752,13 +1787,12 @@ export default function App() {
             ...learnerForm.nutritionalStatus,
             bmiCategory: category
           },
-          studentNumber: learnerForm.lrn
+          studentNumber: learnerForm.lrn,
+          enrolledSubjectIds: resolvedEnrolledSubjectIds
         }, { merge: true });
         setEditingId(null);
       } else {
         const { bmi, category } = computeBMI(parseFloat(learnerForm.weight) || 0, parseFloat(learnerForm.height) || 0);
-        // By user request, we do not automatically enroll the subjects. Only use what is explicitly checked in the form, default to empty.
-        const resolvedEnrolledSubjectIds = learnerForm.enrolledSubjectIds || [];
 
         const newLearner = {
           sectionId: selectedSection.id,
@@ -2281,6 +2315,22 @@ export default function App() {
     
     // Firestore batches have a 500 operation limit
     const CHUNK_SIZE = 450;
+    const isK10 = Number(selectedSection.gradeLevel) <= 10;
+    let autoSubjectIds: string[] = [];
+    if (isK10) {
+      try {
+        const connectedSubjects = await fetchSubjectsForSection(
+          selectedSection.id,
+          Number(selectedSection.gradeLevel),
+          selectedSection.globalSubjectIds || [],
+          globalSubjects
+        );
+        autoSubjectIds = connectedSubjects.map(s => s.id);
+      } catch (err) {
+        console.error("Failed to dynamically resolve bulk upload subjects:", err);
+      }
+    }
+
     const processBatch = async (chunk: any[]) => {
       const batch = writeBatch(db);
       chunk.forEach(learner => {
@@ -2306,7 +2356,7 @@ export default function App() {
           isTransferredIn: learner.isTransferredIn || false,
           eligibility: learner.eligibility || {},
           grades: {},
-          enrolledSubjectIds: [],
+          enrolledSubjectIds: isK10 ? autoSubjectIds : [],
           gradeLevel: learner.gradeLevel || selectedSection.gradeLevel || "",
           sectionName: learner.section || selectedSection.name || ""
         });
@@ -7731,6 +7781,23 @@ function SectionsView({
 
                           // Process and write batches
                           for (const [secId, list] of Object.entries(grouped)) {
+                            const sec = sections.find(s => s.id === secId);
+                            const isK10 = sec && Number(sec.gradeLevel) <= 10;
+                            let autoSubjectIds: string[] = [];
+                            if (isK10 && sec) {
+                              try {
+                                const connectedSubjects = await fetchSubjectsForSection(
+                                  secId,
+                                  Number(sec.gradeLevel),
+                                  sec.globalSubjectIds || [],
+                                  globalSubjects || []
+                                );
+                                autoSubjectIds = connectedSubjects.map(s => s.id);
+                              } catch (err) {
+                                console.error("Failed to dynamically fetch subjects during dashboard bulk upload:", err);
+                              }
+                            }
+
                             const batch = writeBatch(db);
                             list.forEach(learner => {
                               const docRef = doc(collection(db, `sections/${secId}/students`));
@@ -7755,7 +7822,7 @@ function SectionsView({
                                 isTransferredIn: learner.isTransferredIn || false,
                                 eligibility: learner.eligibility || {},
                                 grades: {},
-                                enrolledSubjectIds: [],
+                                enrolledSubjectIds: isK10 ? autoSubjectIds : [],
                                 gradeLevel: learner.gradeLevel || "",
                                 sectionName: learner.sectionName || ""
                               });
@@ -8562,7 +8629,7 @@ function AddLearnerModal({
 
             <EligibilityForm form={form} setForm={setForm} />
 
-            {section && (
+            {section && Number(section.gradeLevel) > 10 && (
               <div className="space-y-4 border-t border-slate-100 pt-6">
                 <div>
                   <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2 uppercase tracking-widest"><BookOpen size={16} className="text-indigo-600"/> Enrolled Subjects</h3>
@@ -8598,6 +8665,20 @@ function AddLearnerModal({
                         <p className="text-xs text-slate-500 uppercase tracking-widest font-bold">No subjects configured for this Grade Level</p>
                      </div>
                   )}
+                </div>
+              </div>
+            )}
+
+            {section && Number(section.gradeLevel) <= 10 && (
+              <div className="space-y-4 border-t border-slate-100 pt-6">
+                <div className="bg-indigo-50 border border-indigo-100/50 rounded-2xl p-4 text-slate-800 flex flex-col gap-1.5">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-indigo-800 flex items-center gap-2">
+                    <BookOpen size={14} />
+                    Automatic Subject Enrollment
+                  </h4>
+                  <p className="text-xs text-indigo-700 leading-relaxed font-semibold">
+                    This learner belongs to a K–10 grade level ({section.gradeLevel === 0 ? "Kindergarten" : `Grade ${section.gradeLevel}`}). Consistent with school policy, this learner will automatically inherit all academic subjects configured inside this section.
+                  </p>
                 </div>
               </div>
             )}
@@ -12120,7 +12201,7 @@ function EditLearnerModal({
 
             <EligibilityForm form={form} setForm={setForm} />
 
-            {section && (
+            {section && Number(section.gradeLevel) > 10 && (
               <div className="space-y-4 border-t border-slate-100 pt-6">
                 <div>
                   <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2 uppercase tracking-widest"><BookOpen size={16} className="text-indigo-600"/> Enrolled Subjects</h3>
@@ -12156,6 +12237,20 @@ function EditLearnerModal({
                         <p className="text-xs text-slate-500 uppercase tracking-widest font-bold">No subjects configured for this Grade Level</p>
                      </div>
                   )}
+                </div>
+              </div>
+            )}
+
+            {section && Number(section.gradeLevel) <= 10 && (
+              <div className="space-y-4 border-t border-slate-100 pt-6">
+                <div className="bg-indigo-50 border border-indigo-100/50 rounded-2xl p-4 text-slate-800 flex flex-col gap-1.5">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-indigo-800 flex items-center gap-2">
+                    <BookOpen size={14} />
+                    Automatic Subject Enrollment
+                  </h4>
+                  <p className="text-xs text-indigo-700 leading-relaxed font-semibold">
+                    This learner belongs to a K–10 grade level ({section.gradeLevel === 0 ? "Kindergarten" : `Grade ${section.gradeLevel}`}). Consistent with school policy, this learner will automatically inherit all academic subjects configured inside this section.
+                  </p>
                 </div>
               </div>
             )}
@@ -13427,104 +13522,112 @@ function GradebookView({
       )}
 
       {/* Assigned Subjects Card Selector - Styled exactly like the admin / dashboard user assignments */}
-      {subjects && subjects.length > 0 && (
-        <div className="mx-6 md:mx-8 mt-6">
-          <div className="flex items-center justify-between border-b border-slate-200/80 pb-2 mb-4">
-            <h4 className="text-xs font-black uppercase tracking-[0.15em] text-slate-500 flex items-center gap-2">
-              <span className="w-1.5 h-3 bg-indigo-600 rounded-sm" />
-              Assigned Academic Subjects
-            </h4>
-            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 bg-slate-100 px-2.5 py-0.5 rounded-full">
-              {subjects.length} Load{subjects.length !== 1 ? 's' : ''}
-            </span>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {subjects.map(sub => {
-              const offered = sub.offeredTerms && sub.offeredTerms.length > 0 ? sub.offeredTerms : ([1, 2, 3, 4] as TermNumber[]);
-              const isSelected = sub.id === selectedSubject.id;
-              const isSubjectFullyComplete = offered.every(t => sub.finalizedTerms?.includes(t));
-              
-              return (
-                <div 
-                  key={sub.id} 
-                  className={`p-4 rounded-2xl border transition-all duration-200 flex flex-col justify-between gap-3 bg-white ${
-                    isSelected 
-                      ? 'border-indigo-600 ring-1 ring-indigo-600 shadow-sm' 
-                      : 'border-slate-200 hover:border-indigo-300 hover:shadow-2xs'
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <h6 className={`font-extrabold text-xs truncate ${isSelected ? 'text-indigo-600' : 'text-slate-900'}`} title={sub.name}>
-                        {sub.name}
-                      </h6>
-                      <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-0.5 flex items-center gap-1.5">
-                        <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-indigo-500 animate-pulse' : 'bg-slate-300'}`} />
-                        {isSelected ? 'Active Subject' : 'Academic Class Load'}
-                      </p>
+      {subjects && subjects.length > 0 && (() => {
+        const displayedSubjects = (currentUser?.role === 'system_admin' || currentUser?.role === 'admin' || currentUser?.role === 'school_head')
+          ? subjects
+          : subjects.filter(sub => sub.teacherEmail === currentUser?.email);
+          
+        if (displayedSubjects.length === 0) return null;
+          
+        return (
+          <div className="mx-6 md:mx-8 mt-6">
+            <div className="flex items-center justify-between border-b border-slate-200/80 pb-2 mb-4">
+              <h4 className="text-xs font-black uppercase tracking-[0.15em] text-slate-500 flex items-center gap-2">
+                <span className="w-1.5 h-3 bg-indigo-600 rounded-sm" />
+                Assigned Academic Subjects
+              </h4>
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 bg-slate-100 px-2.5 py-0.5 rounded-full">
+                {displayedSubjects.length} Load{displayedSubjects.length !== 1 ? 's' : ''}
+              </span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {displayedSubjects.map(sub => {
+                const offered = sub.offeredTerms && sub.offeredTerms.length > 0 ? sub.offeredTerms : ([1, 2, 3, 4] as TermNumber[]);
+                const isSelected = sub.id === selectedSubject.id;
+                const isSubjectFullyComplete = offered.every(t => sub.finalizedTerms?.includes(t));
+                
+                return (
+                  <div 
+                    key={sub.id} 
+                    className={`p-4 rounded-2xl border transition-all duration-200 flex flex-col justify-between gap-3 bg-white ${
+                      isSelected 
+                        ? 'border-indigo-600 ring-1 ring-indigo-600 shadow-sm' 
+                        : 'border-slate-200 hover:border-indigo-300 hover:shadow-2xs'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <h6 className={`font-extrabold text-xs truncate ${isSelected ? 'text-indigo-600' : 'text-slate-900'}`} title={sub.name}>
+                          {sub.name}
+                        </h6>
+                        <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-0.5 flex items-center gap-1.5">
+                          <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-indigo-500 animate-pulse' : 'bg-slate-300'}`} />
+                          {isSelected ? 'Active Subject' : 'Academic Class Load'}
+                        </p>
+                      </div>
+                      {isSubjectFullyComplete ? (
+                        <span className="inline-flex text-[8px] font-black uppercase tracking-widest bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-md shrink-0 border border-emerald-200">
+                          Done
+                        </span>
+                      ) : (
+                        <span className="inline-flex text-[8px] font-black uppercase tracking-widest bg-amber-100 text-amber-800 px-2 py-0.5 rounded-md shrink-0 border border-amber-200">
+                          Pending
+                        </span>
+                      )}
                     </div>
-                    {isSubjectFullyComplete ? (
-                      <span className="inline-flex text-[8px] font-black uppercase tracking-widest bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-md shrink-0 border border-emerald-200">
-                        Done
-                      </span>
-                    ) : (
-                      <span className="inline-flex text-[8px] font-black uppercase tracking-widest bg-amber-100 text-amber-800 px-2 py-0.5 rounded-md shrink-0 border border-amber-200">
-                        Pending
-                      </span>
-                    )}
-                  </div>
 
-                  <div className="grid grid-cols-4 gap-1.5 pt-2 border-t border-slate-100">
-                    {([1, 2, 3, 4] as TermNumber[]).map(term => {
-                      const isOffered = offered.includes(term);
-                      if (!isOffered) {
+                    <div className="grid grid-cols-4 gap-1.5 pt-2 border-t border-slate-100">
+                      {([1, 2, 3, 4] as TermNumber[]).map(term => {
+                        const isOffered = offered.includes(term);
+                        if (!isOffered) {
+                          return (
+                            <div 
+                              key={term} 
+                              className="bg-slate-50 border border-slate-100 text-slate-300 rounded-lg py-1 text-center text-[10px] font-bold uppercase cursor-not-allowed select-none"
+                              title="Not Offered"
+                            >
+                              T{term}
+                            </div>
+                          );
+                        }
+                        
+                        const isFinalized = sub.finalizedTerms?.includes(term);
+                        const isCurrentTermActive = isSelected && activeTerm === term;
+
                         return (
-                          <div 
-                            key={term} 
-                            className="bg-slate-50 border border-slate-100 text-slate-300 rounded-lg py-1 text-center text-[10px] font-bold uppercase cursor-not-allowed select-none"
-                            title="Not Offered"
+                          <button
+                            key={term}
+                            onClick={() => {
+                              onSelectSubject(sub.id);
+                              onTermChange(term);
+                            }}
+                            className={`py-1 rounded-lg text-[10px] font-extrabold text-center uppercase tracking-wider transition-all cursor-pointer border ${
+                              isCurrentTermActive
+                                ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm hover:bg-indigo-700'
+                                : isFinalized
+                                  ? 'bg-emerald-50 border-emerald-250 text-emerald-700 hover:bg-emerald-100'
+                                  : 'bg-amber-50 border-amber-250 text-amber-700 hover:bg-amber-100'
+                            }`}
+                            title={
+                              isCurrentTermActive 
+                                ? `Term ${term} - Currently Active` 
+                                : isFinalized 
+                                  ? `Term ${term} Finalized - click to select` 
+                                  : `Term ${term} Pending - click to select`
+                            }
                           >
                             T{term}
-                          </div>
+                          </button>
                         );
-                      }
-                      
-                      const isFinalized = sub.finalizedTerms?.includes(term);
-                      const isCurrentTermActive = isSelected && activeTerm === term;
-
-                      return (
-                        <button
-                          key={term}
-                          onClick={() => {
-                            onSelectSubject(sub.id);
-                            onTermChange(term);
-                          }}
-                          className={`py-1 rounded-lg text-[10px] font-extrabold text-center uppercase tracking-wider transition-all cursor-pointer border ${
-                            isCurrentTermActive
-                              ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm hover:bg-indigo-700'
-                              : isFinalized
-                                ? 'bg-emerald-50 border-emerald-250 text-emerald-700 hover:bg-emerald-100'
-                                : 'bg-amber-50 border-amber-250 text-amber-700 hover:bg-amber-100'
-                          }`}
-                          title={
-                            isCurrentTermActive 
-                              ? `Term ${term} - Currently Active` 
-                              : isFinalized 
-                                ? `Term ${term} Finalized - click to select` 
-                                : `Term ${term} Pending - click to select`
-                          }
-                        >
-                          T{term}
-                        </button>
-                      );
-                    })}
+                      })}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {!isSubjectTermFinalized && isActiveTermReady && onToggleFinalizeSubjectTerm && (
         <div className="mx-8 mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
