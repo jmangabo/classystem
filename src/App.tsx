@@ -2568,6 +2568,11 @@ export default function App() {
       alert("Target Grade Level is missing.");
       return;
     }
+    const grade = parseInt(String(s.gradeLevel));
+    if (isNaN(grade) || grade < 0 || grade > 12) {
+      alert("Subjects in the Global Subjects Directory can only be added for Kindergarten (0) to Grade 12.");
+      return;
+    }
     
     try {
       await addDoc(collection(db, `global_subjects`), {
@@ -14701,7 +14706,7 @@ function SubjectsView({
         
         {canModifySubjects && (
           <>
-            {!selectedSection ? (
+            {!selectedSection || Number(selectedSection.gradeLevel) < 11 ? (
               <button 
                 onClick={() => {
                   setEditingId(null);
@@ -14711,7 +14716,7 @@ function SubjectsView({
               >
                 <Plus size={16} /> Add Subject
               </button>
-            ) : Number(selectedSection.gradeLevel) >= 11 ? (
+            ) : (
               <button 
                 onClick={() => {
                   setPresetSelectedSubjects(selectedSection.globalSubjectIds || []);
@@ -14722,7 +14727,7 @@ function SubjectsView({
               >
                 <BookOpen size={16} /> Select from Curriculum
               </button>
-            ) : null}
+            )}
           </>
         )}
       </div>
@@ -14741,8 +14746,8 @@ function SubjectsView({
                     className="w-full sm:w-64 bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
                   >
                     <option value="" disabled>Select target grade level...</option>
-                    {[11, 12].map(g => (
-                      <option key={g} value={g}>Grade {g}</option>
+                    {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(g => (
+                      <option key={g} value={g}>{g === 0 ? "Kindergarten" : `Grade ${g}`}</option>
                     ))}
                   </select>
                 </div>
@@ -15164,8 +15169,8 @@ function SubjectsView({
                           className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none text-sm font-medium text-slate-900"
                         >
                           <option value="" disabled>Select a grade level...</option>
-                          {[11, 12].map(g => (
-                            <option key={g} value={g}>Grade {g}</option>
+                          {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(g => (
+                            <option key={g} value={g}>{g === 0 ? "Kindergarten" : `Grade ${g}`}</option>
                           ))}
                         </select>
                         <p className="text-[10px] text-slate-500 mt-1">This subject will automatically be added to all sections of this grade level.</p>
