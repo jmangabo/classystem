@@ -6384,7 +6384,7 @@ function SectionsView({
             </div>
             
             {(user?.role === 'admin' || user?.role === 'system_admin' || user?.role === 'school_head' || isAuthorizedCashier) && (
-              <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto shrink-0">
+              <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto shrink-0 mt-6 xl:mt-0">
                 {onShowFinancialStatement && (user?.role === 'system_admin' || user?.role === 'school_head' || isAuthorizedCashier) && (
                   <button 
                     onClick={onShowFinancialStatement}
@@ -6641,9 +6641,11 @@ function SectionsView({
           </AnimatePresence>
 
           <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm transition-all mt-8">
-            <button 
-              type="button"
+            <div
+              role="button"
+              tabIndex={0}
               onClick={() => setIsListOpen(!isListOpen)}
+              onKeyDown={(e) => { if (e.key === 'Enter') setIsListOpen(!isListOpen); }}
               className="w-full px-6 py-4 flex items-center justify-between bg-slate-50 hover:bg-slate-100/70 border-b border-slate-100 transition-colors text-left font-sans cursor-pointer"
             >
               <div className="flex items-center gap-2.5">
@@ -6675,7 +6677,7 @@ function SectionsView({
                   {isListOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                 </div>
               </div>
-            </button>
+            </div>
 
             <AnimatePresence initial={false}>
               {isListOpen && (
