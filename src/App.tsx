@@ -728,6 +728,7 @@ export default function App() {
 
   const [students, setStudents] = useState<Student[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [sectionSubjects, setSectionSubjects] = useState<Subject[]>([]);
   const [globalSubjects, setGlobalSubjects] = useState<Subject[]>([]);
   
   useEffect(() => {
@@ -1299,8 +1300,18 @@ export default function App() {
       (err) => handleFirestoreError(err, 'list', `sections/${selectedSection.id}/students`)
     );
 
+    const sectionSubjectsUnsub = onSnapshot(
+      collection(db, `sections/${selectedSection.id}/subjects`),
+      (snapshot) => {
+        const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Subject));
+        setSectionSubjects(list);
+      },
+      (err) => handleFirestoreError(err, 'list', `sections/${selectedSection.id}/subjects`)
+    );
+
     return () => {
       studentsUnsub();
+      sectionSubjectsUnsub();
     };
   }, [selectedSection?.id, userProfile?.role, sections]);
 
@@ -1313,19 +1324,25 @@ export default function App() {
     const secTeachers = selectedSection.subjectTeachers || {};
     const enrolledIds = new Set(students.flatMap(s => s.enrolledSubjectIds || []));
     
-    const list = globalSubjects
-      .filter(s => 
-        Number(s.gradeLevel) === Number(selectedSection.gradeLevel) || 
-        globalIds.includes(s.id) ||
-        enrolledIds.has(s.id)
-      )
-      .map(s => ({
+    const list = [
+      ...globalSubjects
+        .filter(s => 
+          Number(s.gradeLevel) === Number(selectedSection.gradeLevel) || 
+          globalIds.includes(s.id) ||
+          enrolledIds.has(s.id)
+        )
+        .map(s => ({
+          ...s,
+          sectionId: selectedSection.id,
+          teacherEmail: secTeachers[s.id] || ''
+        })),
+      ...sectionSubjects.map(s => ({
         ...s,
-        sectionId: selectedSection.id,
-        teacherEmail: secTeachers[s.id] || ''
-      }));
+        teacherEmail: secTeachers[s.id] || s.teacherEmail
+      }))
+    ];
     setSubjects(list as Subject[]);
-  }, [selectedSection, globalSubjects, students]);
+  }, [selectedSection, globalSubjects, students, sectionSubjects]);
 
   useEffect(() => {
     if (!selectedSection) return;
@@ -2564,7 +2581,7 @@ export default function App() {
   }
 
   const handleAddSubjectGlobal = async (s: Omit<Subject, 'id'>) => {
-    if (!s.gradeLevel) {
+    if (s.gradeLevel === undefined || s.gradeLevel === null) {
       alert("Target Grade Level is missing.");
       return;
     }
@@ -2575,10 +2592,22 @@ export default function App() {
     }
     
     try {
-      await addDoc(collection(db, `global_subjects`), {
+      const docRef = await addDoc(collection(db, `global_subjects`), {
         ...s,
         teacherEmail: s.teacherEmail ? s.teacherEmail.trim().toLowerCase() : ""
       });
+
+      if (grade >= 0 && grade <= 10) {
+        const relevantSections = sections.filter(sec => parseInt(String(sec.gradeLevel)) === grade);
+        for (const sec of relevantSections) {
+          await addDoc(collection(db, `sections/${sec.id}/subjects`), {
+            ...s,
+            sectionId: sec.id,
+            schoolId: sec.schoolId || userProfile?.schoolId || "",
+            teacherEmail: s.teacherEmail ? s.teacherEmail.trim().toLowerCase() : ""
+          });
+        }
+      }
     } catch (error) {
       handleFirestoreError(error, 'create', `global_subjects`);
     }
@@ -2767,6 +2796,13 @@ export default function App() {
     }
     try {
       await deleteDoc(doc(db, `sections/${selectedSection.id}/subjects`, id));
+      
+      // If this subject is part of the global subjects chosen for this section, remove it
+      if (selectedSection.globalSubjectIds?.includes(id)) {
+        await updateDoc(doc(db, "sections", selectedSection.id), {
+          globalSubjectIds: selectedSection.globalSubjectIds.filter(gid => gid !== id)
+        });
+      }
     } catch (error) {
       handleFirestoreError(error, 'delete', `sections/${selectedSection.id}/subjects/${id}`);
     }
@@ -3262,6 +3298,7 @@ export default function App() {
                   isSectionAdviser={isSectionAdviser}
                   globalSubjects={globalSubjects}
                   onUpdateSection={handleUpdateSection}
+                  onBack={() => setActiveTab('dashboard')}
                 />
               </motion.div>
             )}
@@ -6225,7 +6262,7 @@ function SectionsView({
                         }`}
                       >
                         <FileUp size={16} className="text-white" />
-                        <span>Bulk Upload (CSV) SHS Only</span>
+                        <span>Bulk Upload (CSV)</span>
                         <input 
                           type="file" 
                           accept=".csv" 
@@ -8155,7 +8192,7 @@ function AddLearnerModal({
                 className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-all shadow-md active:scale-95 cursor-pointer shadow-indigo-600/20"
               >
                 <FileUp size={14} />
-                <span>Bulk Upload (CSV) SHS Only</span>
+                <span>Bulk Upload (CSV)</span>
               </button>
             )}
             <button 
@@ -9630,7 +9667,7 @@ function AddLearnerView({
               {isActiveSY && (
                 <label className="flex items-center gap-2 px-4 py-2 bg-indigo-600 border border-indigo-700 text-white rounded-xl transition-all text-xs font-bold shadow-lg shadow-indigo-600/20 active:scale-95 cursor-pointer hover:bg-indigo-700">
                   <FileUp size={16} />
-                  <span>Bulk Upload (CSV) SHS Only</span>
+                  <span>Bulk Upload (CSV)</span>
                   <input 
                     ref={fileInputRef}
                     type="file" 
@@ -14567,7 +14604,8 @@ function SubjectsView({
   allSections,
   isSectionAdviser = false,
   globalSubjects = [],
-  onUpdateSection
+  onUpdateSection,
+  onBack
 }: { 
   subjects: Subject[], 
   onAddSubject: (s: Omit<Subject, 'id'>) => Promise<void>,
@@ -14579,7 +14617,8 @@ function SubjectsView({
   allSections?: Section[],
   isSectionAdviser?: boolean,
   globalSubjects?: Subject[],
-  onUpdateSection?: (id: string, data: any) => void
+  onUpdateSection?: (id: string, data: any) => void,
+  onBack?: () => void
 }) {
   const [isAddingPreset, setIsAddingPreset] = useState(false);
   const [presetQueue, setPresetQueue] = useState<'matatag' | 'non-matatag' | 'ssh-shs' | 'shs-core' | null>(null);
@@ -14600,7 +14639,7 @@ function SubjectsView({
   const [form, setForm] = useState<Omit<Subject, 'id'>>({
     group: 'SHS Core Subjects, Other SHS Academic Electives',
     name: '',
-    gradeLevel: selectedSection?.gradeLevel || "",
+    gradeLevel: selectedSection?.gradeLevel !== undefined ? selectedSection.gradeLevel : "",
     subjectType: 'CORE',
     teacherEmail: currentUser?.email || '',
     wwWeight: 25,
@@ -14655,7 +14694,7 @@ function SubjectsView({
     setForm({
       group: 'SHS Core Subjects, Other SHS Academic Electives',
       name: '',
-      gradeLevel: selectedSection?.gradeLevel || "",
+      gradeLevel: selectedSection?.gradeLevel !== undefined ? selectedSection.gradeLevel : "",
       subjectType: 'CORE',
       teacherEmail: currentUser?.email || '',
       wwWeight: 25,
@@ -14687,20 +14726,30 @@ function SubjectsView({
     <div className="w-full space-y-0 pb-12 bg-slate-50 min-h-screen">
       <div className="bg-white border-b border-slate-200 px-8 py-8 md:px-12 md:py-10 flex flex-col md:flex-row justify-between items-start md:items-end gap-6 shadow-sm sticky top-0 z-40 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-50 rounded-full blur-3xl opacity-50 -mr-20 -mt-20 pointer-events-none"></div>
-        <div className="flex items-start gap-5 relative z-10">
-          <div className="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center border border-indigo-100 shadow-sm shrink-0">
-            <BookOpen size={24} />
-          </div>
-          <div>
-            <div className="flex items-center gap-3 mb-1">
-              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-                Curriculum Configuration
-              </h1>
-              <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md border border-slate-200 uppercase tracking-widest font-semibold">Settings</span>
+        <div className="flex flex-col items-start gap-4 relative z-10">
+          {onBack && (
+            <button 
+              onClick={onBack}
+              className="flex items-center gap-2 text-slate-500 hover:text-indigo-600 font-semibold text-xs tracking-wide transition-colors"
+            >
+              <ArrowLeft size={16} /> Back
+            </button>
+          )}
+          <div className="flex items-start gap-5">
+            <div className="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center border border-indigo-100 shadow-sm shrink-0">
+              <BookOpen size={24} />
             </div>
-            <p className="text-slate-500 text-sm max-w-xl">
-               Manage subjects, grading criteria, and curriculum presets for <strong className="text-slate-700 font-semibold">{selectedSection?.name || 'this section'}</strong>.
-            </p>
+            <div>
+              <div className="flex items-center gap-3 mb-1">
+                <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+                  Curriculum Configuration
+                </h1>
+                <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md border border-slate-200 uppercase tracking-widest font-semibold">Settings</span>
+              </div>
+              <p className="text-slate-500 text-sm max-w-xl">
+                 Manage subjects, grading criteria, and curriculum presets for <strong className="text-slate-700 font-semibold">{selectedSection?.name || 'this section'}</strong>.
+              </p>
+            </div>
           </div>
         </div>
         
@@ -14710,6 +14759,7 @@ function SubjectsView({
               <button 
                 onClick={() => {
                   setEditingId(null);
+                  setIsAddingPreset(false);
                   setIsModalOpen(true);
                 }}
                 className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 w-full md:w-auto relative z-10 shrink-0"
@@ -14734,7 +14784,7 @@ function SubjectsView({
 
       <div className="max-w-7xl mx-auto px-8 md:px-12 py-10 space-y-8">
         {/* CURRICULUM PRESETS */}
-        {subjects.length === 0 && !selectedSection && (
+        {subjects.length === 0 && (!selectedSection || Number(selectedSection.gradeLevel) < 11) && (
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Curriculum Presets</h2>
@@ -15082,7 +15132,7 @@ function SubjectsView({
                   resetForm();
                   return;
                 }
-                if (selectedSection && selectedSection.gradeLevel >= 11 && !editingId && onUpdateSection) {
+                if (isAddingPreset && selectedSection && !editingId && onUpdateSection) {
                   // Save selected subjects
                   onUpdateSection(selectedSection.id, {
                     globalSubjectIds: presetSelectedSubjects
@@ -15093,7 +15143,7 @@ function SubjectsView({
                 await handleSubmit(e);
               }} className="flex flex-col max-h-[85vh]">
                 <div className="p-6 md:p-8 space-y-6 overflow-y-auto custom-scrollbar flex-1">
-                  {(selectedSection && selectedSection.gradeLevel >= 11 && !editingId) ? (
+                  {(isAddingPreset && selectedSection && !editingId) ? (
                     <div className="space-y-4">
                        <p className="text-sm text-slate-600 mb-4 tracking-tight">Select which subjects from the Curriculum Configuration are part of this section.</p>
                        <div className="space-y-2 border border-slate-200 rounded-2xl overflow-hidden bg-slate-50">
@@ -15162,9 +15212,9 @@ function SubjectsView({
                         <label className="text-xs font-bold text-slate-700">Target Grade Level <span className="text-rose-500">*</span></label>
                         <select 
                           required
-                          value={form.gradeLevel || ''}
+                          value={form.gradeLevel !== undefined && form.gradeLevel !== "" ? form.gradeLevel : ""}
                           onChange={e => {
-                            setForm({...form, gradeLevel: e.target.value});
+                            setForm({...form, gradeLevel: Number(e.target.value)});
                           }}
                           className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none text-sm font-medium text-slate-900"
                         >
@@ -15377,11 +15427,11 @@ function SubjectsView({
                   </button>
                   <button 
                     type="submit"
-                    disabled={(selectedSection && editingId) ? !isActiveSY : (selectedSection && selectedSection.gradeLevel >= 11 && !editingId) ? false : (form.wwWeight + form.ptWeight + form.taWeight !== 100 || !isActiveSY)}
+                    disabled={(selectedSection && editingId) ? !isActiveSY : (isAddingPreset && selectedSection && !editingId) ? false : ((form.wwWeight || 0) + (form.ptWeight || 0) + (form.taWeight || 0) !== 100 || !isActiveSY)}
                     className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold rounded-xl shadow-sm transition-all flex items-center justify-center gap-2"
                   >
                     {editingId ? <Check size={18} /> : <Plus size={18} />}
-                    {editingId ? (selectedSection ? 'Assign Teacher' : 'Save Changes') : (selectedSection && selectedSection.gradeLevel >= 11 ? 'Save Selected Subjects' : 'Add Subject')}
+                    {editingId ? (selectedSection ? 'Assign Teacher' : 'Save Changes') : (isAddingPreset && selectedSection ? 'Save Selected Subjects' : 'Add Subject')}
                   </button>
                 </div>
               </form>
@@ -15486,19 +15536,18 @@ function SubjectsView({
                             title={selectedSection ? "Assign Teacher" : "Edit Subject"}
                           >
                             <Edit2 size={13} />
-                            {selectedSection && <span className="font-bold px-1 whitespace-nowrap">Assign Teacher</span>}
+                            {selectedSection ? <span className="font-bold px-1 whitespace-nowrap">Assign Teacher</span> : <span className="font-bold px-1 whitespace-nowrap">Edit</span>}
                           </button>
-                          {!selectedSection && (
-                            <button 
-                              onClick={() => {
-                                onDeleteSubject(subject.id);
-                              }}
-                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-100 rounded-md transition-all"
-                              title="Remove Subject"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          )}
+                          <button 
+                            onClick={() => {
+                              onDeleteSubject(subject.id);
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-100 rounded-md transition-all flex items-center gap-1 text-xs"
+                            title="Remove Subject"
+                          >
+                            <Trash2 size={13} />
+                            <span className="font-bold px-1 whitespace-nowrap">Delete</span>
+                          </button>
                         </div>
                       </td>
                     )}

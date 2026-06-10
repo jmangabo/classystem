@@ -1,0 +1,223 @@
+14590-  selectedSection,
+14591-  currentUser,
+14592-  globalSettings,
+14593-  allSections,
+14594-  isSectionAdviser = false,
+14595-  globalSubjects = [],
+14596-  onUpdateSection
+14597-}: { 
+14598-  subjects: Subject[], 
+14599-  onAddSubject: (s: Omit<Subject, 'id'>) => Promise<void>,
+14600-  onEditSubject: (id: string, s: Omit<Subject, 'id'>) => Promise<void>,
+14601-  onDeleteSubject: (id: string) => Promise<void>,
+14602-  selectedSection: Section | null,
+14603-  currentUser: UserProfile | null,
+14604-  globalSettings?: any,
+14605-  allSections?: Section[],
+14606-  isSectionAdviser?: boolean,
+14607-  globalSubjects?: Subject[],
+14608-  onUpdateSection?: (id: string, data: any) => void
+14609-}) {
+14610:  const [isAddingPreset, setIsAddingPreset] = useState(false);
+14611-  const [presetQueue, setPresetQueue] = useState<'matatag' | 'non-matatag' | 'ssh-shs' | 'shs-core' | null>(null);
+14612-  const [globalPresetGradeLevel, setGlobalPresetGradeLevel] = useState<string>('');
+14613-  const [presetSelectedSubjects, setPresetSelectedSubjects] = useState<string[]>([]);
+14614-  
+14615-  const effectiveGradeLevel = selectedSection?.gradeLevel || globalPresetGradeLevel;
+14616-  const [presetSubjectGroup, setPresetSubjectGroup] = useState<Subject['group']>('Revised K-10 Curriculum');
+14617-  const [isModalOpen, setIsModalOpen] = useState(false);
+14618-  const isMainAdmin = currentUser?.email === 'jessiemangabo@gmail.com';
+14619-  const isAdmin = currentUser?.role === 'system_admin' || currentUser?.role === 'admin';
+14620-  const isActiveSY = isMainAdmin || (
+14621-    !!globalSettings?.activeSchoolYear && 
+14622-    !globalSettings?.finalizedSchoolYears?.includes(globalSettings?.activeSchoolYear) && 
+14623-    !selectedSection?.isFinalized
+14624-  );
+14625-  const canModifySubjects = isActiveSY && (isAdmin || isSectionAdviser);
+14626-  const [form, setForm] = useState<Omit<Subject, 'id'>>({
+14627-    group: 'SHS Core Subjects, Other SHS Academic Electives',
+14628-    name: '',
+14629-    gradeLevel: selectedSection?.gradeLevel !== undefined ? selectedSection.gradeLevel : "",
+14630-    subjectType: 'CORE',
+--
+14767-              {!selectedSection && allSections && (
+14768-                <div className="w-full sm:w-auto">
+14769-                  <select
+14770-                    value={globalPresetGradeLevel}
+14771-                    onChange={(e) => setGlobalPresetGradeLevel(e.target.value)}
+14772-                    className="w-full sm:w-64 bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
+14773-                  >
+14774-                    <option value="" disabled>Select target grade level...</option>
+14775-                    {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(g => (
+14776-                      <option key={g} value={g}>{g === 0 ? "Kindergarten" : `Grade ${g}`}</option>
+14777-                    ))}
+14778-                  </select>
+14779-                </div>
+14780-              )}
+14781-            </div>
+14782-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+14783-              {Number(effectiveGradeLevel) >= 7 && Number(effectiveGradeLevel) <= 10 && (
+14784-                <>
+14785-                  <button 
+14786-                    type="button"
+14787:                    disabled={isAddingPreset || !isActiveSY}
+14788-                    onClick={() => {
+14789-                      if (!effectiveGradeLevel) {
+14790-                        alert("No section selected. Please select a target grade level first.");
+14791-                        return;
+14792-                      }
+14793-                      setPresetSubjectGroup('Revised K-10 Curriculum');
+14794-                      setPresetSelectedSubjects([...MATATAG_SUBJECTS]);
+14795-                      setPresetQueue('matatag');
+14796-                    }}
+14797-                    className="flex items-center justify-between p-6 bg-white border border-slate-200 rounded-2xl hover:border-indigo-300 hover:shadow-md transition-all group disabled:opacity-50 text-left relative overflow-hidden"
+14798-                  >
+14799-                    <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50/50 rounded-bl-full -z-10 group-hover:bg-indigo-100/50 transition-colors"></div>
+14800-                    <div className="flex items-center gap-4">
+14801-                      <div className="w-12 h-12 bg-indigo-50 border border-indigo-100/50 rounded-xl flex items-center justify-center text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-colors shrink-0">
+14802:                        {isAddingPreset ? <Loader2 className="animate-spin" size={24} /> : <Zap size={24} />}
+14803-                      </div>
+14804-                      <div>
+14805-                        <h4 className="text-sm font-bold text-slate-900 tracking-tight">MATATAG</h4>
+14806-                        <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">Pre-set subject list with 10 core areas</p>
+14807-                      </div>
+14808-                    </div>
+14809-                  </button>
+14810-
+14811-                  <button 
+14812-                    type="button"
+14813:                    disabled={isAddingPreset || !isActiveSY}
+14814-                    onClick={() => {
+14815-                      if (!effectiveGradeLevel) {
+14816-                        alert("No section selected. Please select a target grade level first.");
+14817-                        return;
+14818-                      }
+14819-                      setPresetSubjectGroup('SHS Core Subjects, Other SHS Academic Electives');
+14820-                      setPresetSelectedSubjects([...NON_MATATAG_SUBJECTS]);
+14821-                      setPresetQueue('non-matatag');
+14822-                    }}
+14823-                    className="flex items-center justify-between p-6 bg-white border border-slate-200 rounded-2xl hover:border-emerald-300 hover:shadow-md transition-all group disabled:opacity-50 text-left relative overflow-hidden"
+14824-                  >
+14825-                    <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-50/50 rounded-bl-full -z-10 group-hover:bg-emerald-100/50 transition-colors"></div>
+14826-                    <div className="flex items-center gap-4">
+14827-                      <div className="w-12 h-12 bg-emerald-50 border border-emerald-100/50 rounded-xl flex items-center justify-center text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition-colors shrink-0">
+14828:                        {isAddingPreset ? <Loader2 className="animate-spin" size={24} /> : <Layout size={24} />}
+14829-                      </div>
+14830-                      <div>
+14831-                        <h4 className="text-sm font-bold text-slate-900 tracking-tight">Non-MATATAG</h4>
+14832-                        <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">Traditional K-12 subject split</p>
+14833-                      </div>
+14834-                    </div>
+14835-                  </button>
+14836-                </>
+14837-              )}
+14838-
+14839-              {Number(effectiveGradeLevel) >= 11 && (
+14840-                <button 
+14841-                  type="button"
+14842:                  disabled={isAddingPreset || !isActiveSY}
+14843-                  onClick={() => {
+14844-                    if (!effectiveGradeLevel) {
+14845-                      alert("No section selected. Please select a target grade level first.");
+14846-                      return;
+14847-                    }
+14848-                    setPresetSubjectGroup('SHS Core Subjects, Other SHS Academic Electives');
+14849-                    setPresetSelectedSubjects([...SHS_CORE_SUBJECTS]);
+14850-                    setPresetQueue('shs-core');
+14851-                  }}
+14852-                  className="flex items-center justify-between p-6 bg-white border border-slate-200 rounded-2xl hover:border-blue-300 hover:shadow-md transition-all group disabled:opacity-50 text-left relative overflow-hidden"
+14853-                >
+14854-                  <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50/50 rounded-bl-full -z-10 group-hover:bg-blue-100/50 transition-colors"></div>
+14855-                  <div className="flex items-center gap-4">
+14856-                    <div className="w-12 h-12 bg-blue-50 border border-blue-100/50 rounded-xl flex items-center justify-center text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors shrink-0">
+14857:                      {isAddingPreset ? <Loader2 className="animate-spin" size={24} /> : <BookOpen size={24} />}
+14858-                    </div>
+14859-                    <div>
+14860-                      <h4 className="text-sm font-bold text-slate-900 tracking-tight">SHS Core</h4>
+14861-                      <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">Standard SHS curriculum (15 subjects)</p>
+14862-                    </div>
+14863-                  </div>
+14864-                </button>
+14865-              )}
+14866-
+14867-              {Number(effectiveGradeLevel) === 11 && (
+14868-                <button 
+14869-                  type="button"
+14870:                  disabled={isAddingPreset || !isActiveSY}
+14871-                  onClick={() => {
+14872-                    if (!effectiveGradeLevel) {
+14873-                      alert("No section selected. Please select a target grade level first.");
+14874-                      return;
+14875-                    }
+14876-                    setPresetSubjectGroup('SHS Core Subjects, Other SHS Academic Electives');
+14877-                    setPresetSelectedSubjects([...STRENGTHENED_SHS_SUBJECTS]);
+14878-                    setPresetQueue('ssh-shs');
+14879-                  }}
+14880-                  className="flex items-center justify-between p-6 bg-white border border-slate-200 rounded-2xl hover:border-orange-300 hover:shadow-md transition-all group disabled:opacity-50 text-left relative overflow-hidden"
+14881-                >
+14882-                  <div className="absolute top-0 right-0 w-32 h-32 bg-orange-50/50 rounded-bl-full -z-10 group-hover:bg-orange-100/50 transition-colors"></div>
+14883-                  <div className="flex items-center gap-4">
+14884-                    <div className="w-12 h-12 bg-orange-50 border border-orange-100/50 rounded-xl flex items-center justify-center text-orange-600 group-hover:bg-orange-600 group-hover:text-white transition-colors shrink-0">
+14885:                      {isAddingPreset ? <Loader2 className="animate-spin" size={24} /> : <GraduationCap size={24} />}
+14886-                    </div>
+14887-                    <div>
+14888-                      <h4 className="text-sm font-bold text-slate-900 tracking-tight">Strengthened SHS</h4>
+14889-                      <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">Grade 11 Strengthening Program</p>
+14890-                    </div>
+14891-                  </div>
+14892-                </button>
+14893-              )}
+14894-            </div>
+14895-          </div>
+14896-        )}
+14897-
+14898-      <AnimatePresence>
+14899-        {presetQueue && (
+14900-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+14901-            <motion.div 
+14902-              initial={{ opacity: 0 }}
+14903-              animate={{ opacity: 1 }}
+14904-              exit={{ opacity: 0 }}
+14905-              onClick={() => setPresetQueue(null)}
+--
+15036-                        await onAddSubject({
+15037-                          group: presetSubjectGroup,
+15038-                          name,
+15039-                          gradeLevel: effectiveGradeLevel || 1,
+15040-                          subjectType: 'CORE',
+15041-                          teacherEmail: selectedSection ? (presetTeacherEmail || currentUser?.email || '') : '',
+15042-                          wwWeight: 25,
+15043-                          ptWeight: 50,
+15044-                          taWeight: 25,
+15045-                          order: order !== -1 ? order : 999
+15046-                        } as Omit<Subject, 'id'>);
+15047-                      }
+15048-                      alert(`${type === 'matatag' ? 'MATATAG' : type === 'shs-core' ? 'SHS Core' : type === 'ssh-shs' ? 'Strengthened SHS' : 'Non-MATATAG'} subjects added successfully.`);
+15049-                    } catch (err: any) {
+15050-                      console.error("Preset error:", err);
+15051-                      alert("Failed to add subjects: " + err.message);
+15052-                    } finally {
+15053-                      setIsAddingPreset(false);
+15054-                    }
+15055-                  }}
+15056:                  disabled={isAddingPreset || presetSelectedSubjects.length === 0}
+15057-                  className="flex-1 px-5 py-2.5 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 transition-colors flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+15058-                >
+15059-                  Continue & Add ({presetSelectedSubjects.length})
+15060-                </button>
+15061-              </div>
+15062-            </motion.div>
+15063-          </div>
+15064-        )}
+15065-      </AnimatePresence>
+15066-
+15067-      <AnimatePresence>
+15068-        {isModalOpen && (
+15069-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+15070-            <motion.div 
+15071-              initial={{ opacity: 0 }}
+15072-              animate={{ opacity: 1 }}
+15073-              exit={{ opacity: 0 }}
+15074-              onClick={resetForm}
+15075-              className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+15076-            />
