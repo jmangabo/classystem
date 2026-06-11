@@ -15,9 +15,13 @@ import {
   DocumentReference, 
   Query, 
   DocumentSnapshot, 
-  QuerySnapshot
+  QuerySnapshot,
+  setLogLevel
 } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
+
+// Silence benign connection retry warnings in sandboxed environments
+setLogLevel('error');
 
 const app = initializeApp(firebaseConfig);
 
@@ -104,10 +108,10 @@ if (typeof window !== 'undefined') {
 
 export const auth = getAuth(app);
 
-// Critical connection test - wrapped in a function that doesn't block top-level
+// Critical connection test - wrapped in a function that doesn't block top-level and is slightly delayed
 async function testConnection() {
   try {
-    // We only try once on startup
+    // We only try once on startup after a small delay
     await getDocFromServer(doc(db, 'test', 'connection'));
     console.log("Firestore connected successfully.");
   } catch (error: any) {
@@ -119,7 +123,11 @@ async function testConnection() {
   }
 }
 
-testConnection();
+if (typeof window !== 'undefined') {
+  setTimeout(testConnection, 2000);
+} else {
+  testConnection();
+}
 
 export interface FirestoreErrorInfo {
   error: string;

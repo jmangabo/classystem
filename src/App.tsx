@@ -789,6 +789,11 @@ export default function App() {
   const [statusChangeDate, setStatusChangeDate] = useState(new Date().toISOString().split('T')[0]);
   const [statusChangeReason, setStatusChangeReason] = useState("");
 
+  const [enrollAllModalOpen, setEnrollAllModalOpen] = useState(false);
+  const [enrollAllProcessing, setEnrollAllProcessing] = useState(false);
+  const [enrollAllSuccessMsg, setEnrollAllSuccessMsg] = useState("");
+  const [enrollAllErrorMsg, setEnrollAllErrorMsg] = useState("");
+
   const [isEditingCourse, setIsEditingCourse] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [course, setCourse] = useState<Course>({
@@ -1842,6 +1847,15 @@ export default function App() {
     } catch (error) {
       handleFirestoreError(error, 'write', `sections/${selectedSection.id}/students`);
     }
+  };
+
+  const handleEnrollAllLearners = async () => {
+    if (!selectedSection) return;
+    if (unenrolledStudents.length === 0) {
+      setEnrollAllErrorMsg("No pending learners to enroll.");
+      return;
+    }
+    setEnrollAllModalOpen(true);
   };
 
   const handleToggleSF9Download = async (studentId: string, value: boolean) => {
@@ -3293,6 +3307,7 @@ export default function App() {
                   onSave={handleSaveLearner}
                   students={filteredStudents}
                   unenrolledStudents={unenrolledStudents}
+                  onEnrollAllLearners={handleEnrollAllLearners}
                   onEdit={handleEditClick}
                   onDelete={handleDeleteLearner}
                   onDeleteMany={handleDeleteManyLearners}
@@ -3526,6 +3541,120 @@ export default function App() {
         onClose={() => setShowFeedbackModal(false)}
         user={userProfile}
       />
+
+      <AnimatePresence>
+        {enrollAllModalOpen && (
+          <EnrollAllConfirmationModal
+            learnerCount={unenrolledStudents.length}
+            onConfirm={async () => {
+              setEnrollAllProcessing(true);
+              setEnrollAllErrorMsg("");
+              try {
+                const connectedSubjects = await fetchSubjectsForSection(
+                  selectedSection!.id,
+                  Number(selectedSection!.gradeLevel),
+                  selectedSection!.globalSubjectIds || [],
+                  globalSubjects
+                );
+                const allSubjectIds = connectedSubjects.map(s => s.id);
+                
+                if (allSubjectIds.length === 0) {
+                  setEnrollAllErrorMsg("This section does not have any curriculum subjects configured. Please configure or add subjects first.");
+                  setEnrollAllProcessing(false);
+                  return;
+                }
+
+                const batch = writeBatch(db);
+                unenrolledStudents.forEach(student => {
+                  batch.set(
+                    doc(db, `sections/${selectedSection!.id}/students`, student.id),
+                    { enrolledSubjectIds: allSubjectIds },
+                    { merge: true }
+                  );
+                });
+                await batch.commit();
+                setEnrollAllSuccessMsg(`Successfully enrolled all ${unenrolledStudents.length} pending learner(s) in ${allSubjectIds.length} subjects!`);
+                setEnrollAllModalOpen(false);
+              } catch (error: any) {
+                console.error("Enroll All Learners Error:", error);
+                setEnrollAllErrorMsg(error?.message || "Failed to complete enrollment batch.");
+              } finally {
+                setEnrollAllProcessing(false);
+              }
+            }}
+            onCancel={() => setEnrollAllModalOpen(false)}
+            isProcessing={enrollAllProcessing}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {enrollAllSuccessMsg && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
+            onClick={() => setEnrollAllSuccessMsg("")}
+          >
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-8 flex flex-col items-center text-center border border-slate-150"
+            >
+              <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mb-6">
+                <CheckCircle size={32} />
+              </div>
+              <h2 className="text-xl font-extrabold text-slate-900 mb-2">Enrollment Completed</h2>
+              <p className="text-sm text-slate-500 font-semibold leading-relaxed mb-6">
+                {enrollAllSuccessMsg}
+              </p>
+              <button 
+                onClick={() => setEnrollAllSuccessMsg("")}
+                className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white font-extrabold rounded-xl text-xs uppercase tracking-wider transition-all shadow-md"
+              >
+                Okay, Awesome
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {enrollAllErrorMsg && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
+            onClick={() => setEnrollAllErrorMsg("")}
+          >
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-8 flex flex-col items-center text-center border border-slate-150"
+            >
+              <div className="w-16 h-16 bg-rose-50 text-rose-600 rounded-full flex items-center justify-center mb-6">
+                <AlertCircle size={32} />
+              </div>
+              <h2 className="text-xl font-extrabold text-slate-900 mb-2">Enrollment Failed</h2>
+              <p className="text-sm text-slate-500 font-semibold leading-relaxed mb-6">
+                {enrollAllErrorMsg}
+              </p>
+              <button 
+                onClick={() => setEnrollAllErrorMsg("")}
+                className="w-full py-3 px-4 bg-rose-600 hover:bg-rose-700 active:scale-[0.98] text-white font-extrabold rounded-xl text-xs uppercase tracking-wider transition-all shadow-md"
+              >
+                Close
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {selectedStudentForReport && selectedSection && (
@@ -8111,6 +8240,7 @@ function AddLearnerModal({
   isActiveSY,
   students,
   globalSubjects = [],
+  subjects = [],
   section,
   onTriggerBulkUpload
 }: { 
@@ -8121,12 +8251,20 @@ function AddLearnerModal({
   isActiveSY?: boolean,
   students?: any[],
   globalSubjects?: Subject[],
+  subjects?: Subject[],
   section?: Section | null,
   onTriggerBulkUpload?: () => void
 }) {
   const [searchLrn, setSearchLrn] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [searchMsg, setSearchMsg] = useState({ type: '', text: '' });
+
+  const sectionSubjectsList = useMemo(() => {
+    if (subjects && subjects.length > 0) {
+      return subjects.filter(sub => sub.sectionId === section?.id);
+    }
+    return globalSubjects.filter(sub => Number(sub.gradeLevel) === Number(section?.gradeLevel));
+  }, [subjects, globalSubjects, section]);
 
   const photoInputRef = useRef<HTMLInputElement>(null);
 
@@ -8636,7 +8774,7 @@ function AddLearnerModal({
                   <p className="text-xs text-slate-500 mt-1">Select the curriculum subjects this learner will be enrolled in.</p>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-56 overflow-y-auto custom-scrollbar p-1">
-                  {globalSubjects.filter(s => Number(s.gradeLevel) === Number(section.gradeLevel)).map(subj => {
+                  {sectionSubjectsList.map(subj => {
                      const isEnrolled = (form.enrolledSubjectIds || []).includes(subj.id);
                      return (
                        <label key={subj.id} className={`flex items-start gap-3 p-3 rounded-xl border ${isEnrolled ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-slate-200 hover:border-slate-300'} cursor-pointer transition-all select-none`}>
@@ -8655,14 +8793,14 @@ function AddLearnerModal({
                          </div>
                          <div>
                             <p className="text-sm font-bold text-slate-900 leading-tight">{subj.name}</p>
-                            <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">{subj.group}</p>
+                            <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">{subj.group || (subj.subjectType === 'CORE' ? 'Core Course' : 'Applied/Specialized')}</p>
                          </div>
                        </label>
                      );
                   })}
-                  {globalSubjects.filter(s => Number(s.gradeLevel) === Number(section.gradeLevel)).length === 0 && (
+                  {sectionSubjectsList.length === 0 && (
                      <div className="col-span-1 border border-dashed border-slate-300 rounded-xl p-4 text-center">
-                        <p className="text-xs text-slate-500 uppercase tracking-widest font-bold">No subjects configured for this Grade Level</p>
+                        <p className="text-xs text-slate-500 uppercase tracking-widest font-bold">No subjects configured for this Section / Grade Level</p>
                      </div>
                   )}
                 </div>
@@ -8890,7 +9028,9 @@ function AddLearnerView({
   onViewAnecdotals,
   isSectionAdviser = false,
   globalSubjects = [],
-  unenrolledStudents = []
+  unenrolledStudents = [],
+  onEnrollAllLearners,
+  subjects = []
 }: {
   form: any,
   setForm: any,
@@ -8918,7 +9058,9 @@ function AddLearnerView({
   onViewAnecdotals?: (s: Student) => void,
   isSectionAdviser?: boolean,
   globalSubjects?: Subject[],
-  unenrolledStudents?: Student[]
+  unenrolledStudents?: Student[],
+  onEnrollAllLearners?: () => Promise<void>,
+  subjects?: Subject[]
 }) {
   const [showAddModal, setShowAddModal] = useState(false);
   const studentsMale = useMemo(() => {
@@ -9033,6 +9175,37 @@ function AddLearnerView({
                 </div>
               ) : null}
             </div>
+            {Number(section?.gradeLevel) > 10 && (
+              <div className="flex flex-wrap items-center gap-1.5 mt-2 bg-white/40 p-2 rounded-lg border border-slate-100/50">
+                <span className={`text-[9px] font-black uppercase tracking-widest text-${variant}-600`}>
+                  Enrolled Subjects ({s.enrolledSubjectIds?.length || 0}):
+                </span>
+                {(() => {
+                  const studentSubjIds = s.enrolledSubjectIds || [];
+                  const enrolled = studentSubjIds.map(id => {
+                    return (subjects || []).find(subj => subj.id === id) || (globalSubjects || []).find(subj => subj.id === id);
+                  }).filter(Boolean) as Subject[];
+                  
+                  if (enrolled.length === 0) {
+                    return (
+                      <span className="text-[10px] text-amber-600 font-bold italic">
+                        Not enrolled in any subjects
+                      </span>
+                    );
+                  }
+                  
+                  return enrolled.map(subj => (
+                    <span 
+                      key={subj.id} 
+                      className={`text-[9px] font-bold bg-white border border-${variant}-150/60 text-slate-700 px-2 py-0.5 rounded-full shadow-2xs`}
+                      title={subj.name}
+                    >
+                      {subj.name}
+                    </span>
+                  ));
+                })()}
+              </div>
+            )}
           </div>
         </div>
         
@@ -9483,6 +9656,7 @@ function AddLearnerView({
             isActiveSY={isActiveSY}
             students={students}
             globalSubjects={globalSubjects}
+            subjects={subjects}
             section={section}
             onTriggerBulkUpload={() => {
               setShowAddModal(false);
@@ -9507,6 +9681,7 @@ function AddLearnerView({
             schoolYear={schoolYear}
             isActiveSY={isActiveSY}
             globalSubjects={globalSubjects}
+            subjects={subjects}
             section={section}
           />
         )}
@@ -9837,9 +10012,19 @@ function AddLearnerView({
       <div className="flex flex-col gap-8">
         {unenrolledStudents && unenrolledStudents.length > 0 && (
           <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 shadow-xs">
-            <div className="flex items-center gap-3 mb-2 text-amber-800 font-extrabold text-sm uppercase tracking-wider">
-              <AlertTriangle size={18} className="text-amber-600 animate-pulse" />
-              <span>{unenrolledStudents.length} {unenrolledStudents.length === 1 ? 'Learner' : 'Learners'} Pending Subject Assignment</span>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3 border-b border-amber-200/50 pb-3">
+              <div className="flex items-center gap-3 text-amber-800 font-extrabold text-sm uppercase tracking-wider">
+                <AlertTriangle size={18} className="text-amber-600 animate-pulse" />
+                <span>{unenrolledStudents.length} {unenrolledStudents.length === 1 ? 'Learner' : 'Learners'} Pending Subject Assignment</span>
+              </div>
+              <button
+                onClick={onEnrollAllLearners}
+                disabled={!isActiveSY}
+                className="flex items-center justify-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-extrabold rounded-xl text-xs uppercase tracking-wider transition-all shadow-md active:scale-95"
+              >
+                <Sparkles size={14} />
+                <span>Enroll All Learners</span>
+              </button>
             </div>
             <p className="text-amber-700/95 text-xs font-semibold leading-relaxed mb-4">
               The following learners have been added to the system but are currently not enrolled in any curriculum subjects. 
@@ -11773,6 +11958,78 @@ function DeleteConfirmationModal({
   );
 }
 
+function EnrollAllConfirmationModal({
+  learnerCount,
+  onConfirm,
+  onCancel,
+  isProcessing
+}: {
+  learnerCount: number,
+  onConfirm: () => void,
+  onCancel: () => void,
+  isProcessing: boolean
+}) {
+  return (
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md"
+      onClick={isProcessing ? undefined : onCancel}
+    >
+      <motion.div 
+        initial={{ scale: 0.95, opacity: 0, y: 20 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.95, opacity: 0, y: 20 }}
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col items-center text-center"
+      >
+        <div className="p-8">
+          <div className="w-16 h-16 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center mb-6">
+            <Sparkles size={32} className={isProcessing ? "animate-spin" : "animate-bounce"} />
+          </div>
+          <h2 className="text-xl font-extrabold text-slate-900 mb-2">Enroll All Learners?</h2>
+          <p className="text-sm text-slate-600 leading-relaxed font-semibold">
+            Are you sure you want to enroll all <span className="text-amber-600 font-extrabold">{learnerCount}</span> pending learner(s) in all of this section's curriculum subjects?
+          </p>
+          <div className="mt-4 p-3 bg-slate-50 rounded-xl text-left border border-slate-100">
+            <p className="text-[11px] text-slate-500 leading-normal font-semibold">
+              💡 <strong className="font-bold">Note:</strong> This will register them to all standard subjects associated with your active grade level, instantly integrating them into the active gradebooks, SF2 lists, and report card views.
+            </p>
+          </div>
+        </div>
+        
+        <div className="w-full grid grid-cols-2 border-t border-slate-100">
+          <button 
+            onClick={onCancel}
+            disabled={isProcessing}
+            className="py-4 text-xs font-extrabold text-slate-400 hover:bg-slate-50 disabled:opacity-50 transition-colors border-r border-slate-100 uppercase tracking-wider"
+          >
+            Cancel
+          </button>
+          <button 
+            onClick={onConfirm}
+            disabled={isProcessing}
+            className="py-4 text-xs font-extrabold text-indigo-600 hover:bg-indigo-50 disabled:opacity-50 transition-colors flex items-center justify-center gap-2 uppercase tracking-wider"
+          >
+            {isProcessing ? (
+              <>
+                <svg className="animate-spin h-4 w-4 text-indigo-600" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+                <span>Enrolling...</span>
+              </>
+            ) : (
+              <span>Yes, Enroll All</span>
+            )}
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
 function EditLearnerModal({ 
   form, 
   setForm, 
@@ -11784,6 +12041,7 @@ function EditLearnerModal({
   schoolYear,
   isActiveSY,
   globalSubjects = [],
+  subjects = [],
   section
 }: { 
   form: any, 
@@ -11796,9 +12054,17 @@ function EditLearnerModal({
   schoolYear?: string,
   isActiveSY?: boolean,
   globalSubjects?: Subject[],
+  subjects?: Subject[],
   section?: Section | null
 }) {
   const [activeTab, setActiveTab] = useState<'basic' | 'attendance'>('basic');
+
+  const sectionSubjectsList = useMemo(() => {
+    if (subjects && subjects.length > 0) {
+      return subjects.filter(sub => sub.sectionId === section?.id);
+    }
+    return globalSubjects.filter(sub => Number(sub.gradeLevel) === Number(section?.gradeLevel));
+  }, [subjects, globalSubjects, section]);
 
   const photoInputRef = useRef<HTMLInputElement>(null);
 
@@ -12208,7 +12474,7 @@ function EditLearnerModal({
                   <p className="text-xs text-slate-500 mt-1">Select the curriculum subjects this learner will be enrolled in.</p>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-56 overflow-y-auto custom-scrollbar p-1">
-                  {globalSubjects.filter(s => Number(s.gradeLevel) === Number(section.gradeLevel)).map(subj => {
+                  {sectionSubjectsList.map(subj => {
                      const isEnrolled = (form.enrolledSubjectIds || []).includes(subj.id);
                      return (
                        <label key={subj.id} className={`flex items-start gap-3 p-3 rounded-xl border ${isEnrolled ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-slate-200 hover:border-slate-300'} cursor-pointer transition-all select-none`}>
@@ -12227,14 +12493,14 @@ function EditLearnerModal({
                          </div>
                          <div>
                             <p className="text-sm font-bold text-slate-900 leading-tight">{subj.name}</p>
-                            <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">{subj.group}</p>
+                            <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">{subj.group || (subj.subjectType === 'CORE' ? 'Core Course' : 'Applied/Specialized')}</p>
                          </div>
                        </label>
                      );
                   })}
-                  {globalSubjects.filter(s => Number(s.gradeLevel) === Number(section.gradeLevel)).length === 0 && (
+                  {sectionSubjectsList.length === 0 && (
                      <div className="col-span-1 border border-dashed border-slate-300 rounded-xl p-4 text-center">
-                        <p className="text-xs text-slate-500 uppercase tracking-widest font-bold">No subjects configured for this Grade Level</p>
+                        <p className="text-xs text-slate-500 uppercase tracking-widest font-bold">No subjects configured for this Section / Grade Level</p>
                      </div>
                   )}
                 </div>
