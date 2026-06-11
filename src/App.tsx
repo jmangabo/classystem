@@ -3206,6 +3206,7 @@ export default function App() {
                 <DashboardView 
                   students={enrolledStudents}
                   subjects={subjects}
+                  sections={sections}
                   currentUser={userProfile}
                   globalSettings={globalSettings}
                   onNavigate={(tab) => setActiveTab(tab as any)}
@@ -5409,6 +5410,52 @@ function SectionsView({
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
   const [confirmFinalizeConfig, setConfirmFinalizeConfig] = useState<{ subjectId: string, term: number, finalize: boolean } | null>(null);
   const [isOverviewOpen, setIsOverviewOpen] = useState(true);
+  const [collapsedAdminGrades, setCollapsedAdminGrades] = useState<Set<number>>(new Set());
+  
+  const adminGroupedOverview = useMemo(() => {
+    const groups: {
+      [gradeLevel: number]: {
+        [sectionId: string]: {
+          sectionName: string;
+          sectionObj: Section | undefined;
+          subjects: Subject[];
+        }
+      }
+    } = {};
+
+    subjects.forEach(sub => {
+      const sectionObj = sections.find(s => s.id === sub.sectionId);
+      let gradeLevel = sub.gradeLevel;
+      let sectionId = sub.sectionId || 'unknown';
+      let sectionName = 'Unassigned Section';
+
+      if (sectionObj) {
+        gradeLevel = sectionObj.gradeLevel;
+        sectionName = sectionObj.name;
+      }
+
+      if (!groups[gradeLevel]) {
+        groups[gradeLevel] = {};
+      }
+
+      if (!groups[gradeLevel][sectionId]) {
+        groups[gradeLevel][sectionId] = {
+          sectionName,
+          sectionObj,
+          subjects: []
+        };
+      }
+
+      groups[gradeLevel][sectionId].subjects.push(sub);
+    });
+
+    return groups;
+  }, [subjects, sections]);
+
+  const adminSortedGradeLevels = useMemo(() => {
+    return Object.keys(adminGroupedOverview).map(Number).sort((a, b) => a - b);
+  }, [adminGroupedOverview]);
+
   const [isListOpen, setIsListOpen] = useState(true);
   
   const [isSchoolDbFinalized, setIsSchoolDbFinalized] = useState(false);
@@ -6702,52 +6749,119 @@ function SectionsView({
                     className="overflow-hidden"
                   >
                     <div className="p-6">
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                        {subjects.map(sub => {
-                          const sectionObj = sections.find(s => s.id === sub.sectionId);
-                          const sectionName = sectionObj ? `${Number(sectionObj.gradeLevel) === 0 ? "Kinder" : "G" + sectionObj.gradeLevel} - ${sectionObj.name}` : 'Unknown Section';
-                          const offered = sub.offeredTerms && sub.offeredTerms.length > 0 ? sub.offeredTerms : ([1, 2, 3, 4] as any[]);
-                          const teacherName = sub.teacherEmail || 'No Teacher Assigned';
-                          
+                      <div className="space-y-4">
+                        {adminSortedGradeLevels.map(gradeLevel => {
+                          const gradeLabel = Number(gradeLevel) === 0 ? "Kindergarten" : `Grade ${gradeLevel}`;
+                          const sectionsInGrade = adminGroupedOverview[gradeLevel];
+                          const sectionIds = Object.keys(sectionsInGrade).sort((a, b) => {
+                            const nameA = sectionsInGrade[a].sectionName.toLowerCase();
+                            const nameB = sectionsInGrade[b].sectionName.toLowerCase();
+                            return nameA.localeCompare(nameB);
+                          });
+                          const isCollapsed = collapsedAdminGrades.has(Number(gradeLevel));
+
                           return (
-                            <div key={sub.id} className="bg-white p-3 rounded-xl border border-slate-200 flex flex-col justify-between gap-2.5 transition-all shadow-sm group hover:border-slate-300">
-                              <div className="flex items-start justify-between gap-2">
-                                <div className="min-w-0 flex-1">
-                                  <span className="text-[9px] font-black uppercase tracking-widest text-indigo-600">{sectionName}</span>
-                                  <h6 className="font-bold text-slate-800 text-xs truncate mt-0.5" title={sub.name}>{sub.name}</h6>
-                                  <p className="text-[9px] text-slate-500 truncate mt-0.5" title={teacherName}>{teacherName}</p>
+                            <div key={gradeLevel} className="bg-slate-50/40 rounded-2xl p-4 border border-slate-200/65 space-y-3 transition-colors hover:bg-slate-50/70">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setCollapsedAdminGrades(prev => {
+                                    const next = new Set(prev);
+                                    if (next.has(Number(gradeLevel))) next.delete(Number(gradeLevel));
+                                    else next.add(Number(gradeLevel));
+                                    return next;
+                                  });
+                                }}
+                                className="w-full flex items-center justify-between gap-3 cursor-pointer text-left focus:outline-none select-none"
+                              >
+                                <div className="flex items-center gap-2.5">
+                                  <span className="bg-indigo-600 text-white font-extrabold text-[10px] uppercase tracking-widest px-2.5 py-1 rounded shadow-xs">
+                                    {gradeLabel}
+                                  </span>
+                                  <span className="text-[10px] text-slate-500 font-extrabold uppercase tracking-widest bg-slate-100/80 px-2 py-0.5 rounded border border-slate-200/50">
+                                    {sectionIds.length} {sectionIds.length === 1 ? 'Section' : 'Sections'}
+                                  </span>
                                 </div>
-                              </div>
+                                <div className="text-slate-400 p-1 bg-white hover:bg-slate-100 rounded-lg border border-slate-200 transition-all flex items-center justify-center shadow-xs">
+                                  {isCollapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+                                </div>
+                              </button>
                               
-                              <div className="flex flex-col gap-1.5 pt-1 border-t border-slate-100/80">
-                                {offered.map(term => {
-                                  const isFinalized = sub.finalizedTerms?.includes(term);
-                                  return (
-                                    <div key={term} className="flex flex-row items-center justify-between text-xs p-1.5 rounded-lg bg-slate-50 border border-slate-100">
-                                      <span className="font-semibold text-slate-600 text-[10px] uppercase tracking-wider">Term {term}</span>
-                                      {isFinalized ? (
-                                        <div className="flex items-center gap-2">
-                                          <span className="text-[9px] font-bold text-emerald-600 uppercase flex items-center gap-1"><Check size={10} /> Finalized</span>
-                                          {onToggleFinalizeSubjectTerm && (
-                                            <button 
-                                              onClick={(e) => { 
-                                                e.stopPropagation(); 
-                                                setConfirmFinalizeConfig({ subjectId: sub.id, term, finalize: false });
-                                              }}
-                                              className="text-[9px] px-2 py-0.5 rounded border border-amber-200 bg-amber-50 text-amber-700 font-bold uppercase hover:bg-amber-100 cursor-pointer transition-colors"
-                                              title={`Unfinalize Term ${term}`}
-                                            >
-                                              Unfinalize
-                                            </button>
-                                          )}
+                              <AnimatePresence initial={false}>
+                                {!isCollapsed && (
+                                  <motion.div
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: "auto", opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                    transition={{ duration: 0.2 }}
+                                    className="overflow-hidden space-y-4 pt-1"
+                                  >
+                                    {sectionIds.map(sectionId => {
+                                      const secData = sectionsInGrade[sectionId];
+                                      return (
+                                        <div key={sectionId} className="space-y-2.5 bg-white/70 p-3.5 rounded-xl border border-slate-100">
+                                          <div className="flex items-center gap-2">
+                                            <span className="font-extrabold text-[11px] text-slate-500 uppercase tracking-widest bg-slate-50 px-2.5 py-1 rounded border border-slate-100">
+                                              Section: <span className="text-slate-800 font-extrabold">{secData.sectionName}</span>
+                                            </span>
+                                            <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">
+                                              ({secData.subjects.length} subjects)
+                                            </span>
+                                          </div>
+                                          
+                                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                                            {secData.subjects.map(sub => {
+                                              const offered = sub.offeredTerms && sub.offeredTerms.length > 0 ? sub.offeredTerms : ([1, 2, 3, 4] as any[]);
+                                              const teacherName = sub.teacherEmail || 'No Teacher Assigned';
+                                              
+                                              return (
+                                                <div key={sub.id} className="bg-white p-3 rounded-xl border border-slate-200 flex flex-col justify-between gap-2.5 transition-all shadow-xs group hover:border-indigo-200">
+                                                  <div className="flex items-start justify-between gap-2">
+                                                    <div className="min-w-0 flex-1">
+                                                      <h6 className="font-extrabold text-slate-800 text-xs truncate" title={sub.name}>{sub.name}</h6>
+                                                      <p className="text-[9px] text-slate-500 truncate mt-0.5 font-semibold" title={teacherName}>{teacherName}</p>
+                                                    </div>
+                                                  </div>
+                                                  
+                                                  <div className="flex flex-col gap-1.5 pt-1.5 border-t border-slate-100/80">
+                                                    {offered.map(term => {
+                                                      const isFinalized = sub.finalizedTerms?.includes(term);
+                                                      return (
+                                                        <div key={term} className="flex flex-row items-center justify-between text-xs p-1.5 rounded-lg bg-slate-50 border border-slate-100">
+                                                          <span className="font-semibold text-slate-600 text-[10px] uppercase tracking-wider">Term {term}</span>
+                                                          {isFinalized ? (
+                                                            <div className="flex items-center gap-1.5">
+                                                              <span className="text-[9px] font-bold text-emerald-600 uppercase flex items-center gap-1"><Check size={10} /> Finalized</span>
+                                                              {onToggleFinalizeSubjectTerm && (
+                                                                <button 
+                                                                  onClick={(e) => { 
+                                                                    e.stopPropagation(); 
+                                                                    setConfirmFinalizeConfig({ subjectId: sub.id, term, finalize: false });
+                                                                  }}
+                                                                  className="text-[9px] px-1.5 py-0.5 rounded border border-amber-200 bg-amber-50 text-amber-700 font-bold uppercase hover:bg-amber-100 cursor-pointer transition-colors"
+                                                                  title={`Unfinalize Term ${term}`}
+                                                                >
+                                                                  Unfinalize
+                                                                </button>
+                                                              )}
+                                                            </div>
+                                                          ) : (
+                                                            <span className="text-[9px] font-bold text-slate-400 uppercase">Pending</span>
+                                                          )}
+                                                        </div>
+                                                      );
+                                                    })}
+                                                  </div>
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
                                         </div>
-                                      ) : (
-                                        <span className="text-[9px] font-bold text-slate-400 uppercase">Pending</span>
-                                      )}
-                                    </div>
-                                  );
-                                })}
-                              </div>
+                                      );
+                                    })}
+                                  </motion.div>
+                                )}
+                              </AnimatePresence>
                             </div>
                           );
                         })}
@@ -14211,6 +14325,7 @@ function GradebookView({
 function DashboardView({ 
   students,
   subjects,
+  sections = [],
   currentUser,
   globalSettings,
   onNavigate,
@@ -14229,6 +14344,7 @@ function DashboardView({
 }: { 
   students: Student[],
   subjects: Subject[],
+  sections?: Section[],
   currentUser?: any,
   globalSettings?: any,
   onNavigate?: (tab: string) => void,
@@ -14247,6 +14363,51 @@ function DashboardView({
 }) {
   const totalStudents = students.length;
   const totalSubjects = subjects.length;
+  const [collapsedGrades, setCollapsedGrades] = useState<Set<number>>(new Set());
+
+  const groupedOverview = useMemo(() => {
+    const groups: {
+      [gradeLevel: number]: {
+        [sectionId: string]: {
+          sectionName: string;
+          sectionObj: Section | undefined;
+          subjects: Subject[];
+        }
+      }
+    } = {};
+
+    subjects.forEach(sub => {
+      const sectionObj = sections.find(s => s.id === sub.sectionId);
+      let gradeLevel = sub.gradeLevel;
+      let sectionId = sub.sectionId || 'unknown';
+      let sectionName = 'Unassigned Section';
+
+      if (sectionObj) {
+        gradeLevel = sectionObj.gradeLevel;
+        sectionName = sectionObj.name;
+      }
+
+      if (!groups[gradeLevel]) {
+        groups[gradeLevel] = {};
+      }
+
+      if (!groups[gradeLevel][sectionId]) {
+        groups[gradeLevel][sectionId] = {
+          sectionName,
+          sectionObj,
+          subjects: []
+        };
+      }
+
+      groups[gradeLevel][sectionId].subjects.push(sub);
+    });
+
+    return groups;
+  }, [subjects, sections]);
+
+  const sortedGradeLevels = useMemo(() => {
+    return Object.keys(groupedOverview).map(Number).sort((a, b) => a - b);
+  }, [groupedOverview]);
 
   const subDetails = useMemo(() => {
     const count = teacherCount || 0;
@@ -14633,49 +14794,119 @@ function DashboardView({
         {!isYearEndFinalized && currentUser?.role === 'system_admin' && subjects.length > 0 && (
           <div className="animate-in fade-in slide-in-from-top-2 duration-300 mt-8 mb-4">
             <h4 className="text-sm font-bold text-slate-800 mb-4 border-b border-slate-100 pb-2 font-sans uppercase tracking-tight">Section Subject Finalization Overview</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-              {subjects.map(sub => {
-                const offered = sub.offeredTerms && sub.offeredTerms.length > 0 ? sub.offeredTerms : ([1, 2, 3, 4] as TermNumber[]);
-                const teacherName = sub.teacherEmail || 'No Teacher Assigned';
-                
+            <div className="space-y-4">
+              {sortedGradeLevels.map(gradeLevel => {
+                const gradeLabel = Number(gradeLevel) === 0 ? "Kindergarten" : `Grade ${gradeLevel}`;
+                const sectionsInGrade = groupedOverview[gradeLevel];
+                const sectionIds = Object.keys(sectionsInGrade).sort((a, b) => {
+                  const nameA = sectionsInGrade[a].sectionName.toLowerCase();
+                  const nameB = sectionsInGrade[b].sectionName.toLowerCase();
+                  return nameA.localeCompare(nameB);
+                });
+                const isCollapsed = collapsedGrades.has(Number(gradeLevel));
+
                 return (
-                  <div key={sub.id} className="bg-white p-3 rounded-xl border border-slate-200 flex flex-col justify-between gap-2.5 transition-all shadow-sm group hover:border-slate-300">
-                    <div className="flex items-start justify-between gap-2">
-                       <div className="min-w-0 flex-1">
-                         <h6 className="font-bold text-slate-800 text-xs truncate" title={sub.name}>{sub.name}</h6>
-                         <p className="text-[9px] text-slate-500 truncate mt-0.5" title={teacherName}>{teacherName}</p>
-                       </div>
-                    </div>
+                  <div key={gradeLevel} className="bg-slate-50/40 rounded-2xl p-4 border border-slate-200/65 space-y-3 transition-colors hover:bg-slate-50/70">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCollapsedGrades(prev => {
+                          const next = new Set(prev);
+                          if (next.has(Number(gradeLevel))) next.delete(Number(gradeLevel));
+                          else next.add(Number(gradeLevel));
+                          return next;
+                        });
+                      }}
+                      className="w-full flex items-center justify-between gap-3 cursor-pointer text-left focus:outline-none select-none"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <span className="bg-indigo-600 text-white font-extrabold text-[10px] uppercase tracking-widest px-2.5 py-1 rounded shadow-xs">
+                          {gradeLabel}
+                        </span>
+                        <span className="text-[10px] text-slate-500 font-extrabold uppercase tracking-widest bg-slate-100/80 px-2 py-0.5 rounded border border-slate-200/50">
+                          {sectionIds.length} {sectionIds.length === 1 ? 'Section' : 'Sections'}
+                        </span>
+                      </div>
+                      <div className="text-slate-400 p-1 bg-white hover:bg-slate-100 rounded-lg border border-slate-200 transition-all flex items-center justify-center shadow-xs">
+                        {isCollapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+                      </div>
+                    </button>
                     
-                    <div className="flex flex-col gap-1.5 pt-1 border-t border-slate-100/80">
-                      {offered.map(term => {
-                        const isFinalized = sub.finalizedTerms?.includes(term);
-                        return (
-                          <div key={term} className="flex flex-row items-center justify-between text-xs p-1.5 rounded-lg bg-slate-50 border border-slate-100">
-                             <span className="font-semibold text-slate-600 text-[10px] uppercase tracking-wider">Term {term}</span>
-                             {isFinalized ? (
-                               <div className="flex items-center gap-2">
-                                  <span className="text-[9px] font-bold text-emerald-600 uppercase flex items-center gap-1"><Check size={10} /> Finalized</span>
-                                  {onToggleFinalizeSubjectTerm && (
-                                     <button 
-                                        onClick={(e) => { 
-                                          e.stopPropagation(); 
-                                          setConfirmFinalizeConfig({ subjectId: sub.id, term, finalize: false });
-                                        }}
-                                        className="text-[9px] px-2 py-0.5 rounded border border-amber-200 bg-amber-50 text-amber-700 font-bold uppercase hover:bg-amber-100 cursor-pointer transition-colors"
-                                        title={`Unfinalize Term ${term}`}
-                                     >
-                                        Unfinalize
-                                     </button>
-                                  )}
-                               </div>
-                             ) : (
-                               <span className="text-[9px] font-bold text-slate-400 uppercase">Pending</span>
-                             )}
-                          </div>
-                        );
-                      })}
-                    </div>
+                    <AnimatePresence initial={false}>
+                      {!isCollapsed && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: "auto", opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.2 }}
+                          className="overflow-hidden space-y-4 pt-1"
+                        >
+                          {sectionIds.map(sectionId => {
+                            const secData = sectionsInGrade[sectionId];
+                            return (
+                              <div key={sectionId} className="space-y-2.5 bg-white/70 p-3.5 rounded-xl border border-slate-100">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-extrabold text-[11px] text-slate-500 uppercase tracking-widest bg-slate-50 px-2.5 py-1 rounded border border-slate-100">
+                                    Section: <span className="text-slate-800 font-extrabold">{secData.sectionName}</span>
+                                  </span>
+                                  <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">
+                                    ({secData.subjects.length} subjects)
+                                  </span>
+                                </div>
+                                
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                                  {secData.subjects.map(sub => {
+                                    const offered = sub.offeredTerms && sub.offeredTerms.length > 0 ? sub.offeredTerms : ([1, 2, 3, 4] as any[]);
+                                    const teacherName = sub.teacherEmail || 'No Teacher Assigned';
+                                    
+                                    return (
+                                      <div key={sub.id} className="bg-white p-3 rounded-xl border border-slate-200 flex flex-col justify-between gap-2.5 transition-all shadow-xs group hover:border-indigo-200">
+                                        <div className="flex items-start justify-between gap-2">
+                                          <div className="min-w-0 flex-1">
+                                            <h6 className="font-extrabold text-slate-800 text-xs truncate" title={sub.name}>{sub.name}</h6>
+                                            <p className="text-[9px] text-slate-500 truncate mt-0.5 font-semibold" title={teacherName}>{teacherName}</p>
+                                          </div>
+                                        </div>
+                                        
+                                        <div className="flex flex-col gap-1.5 pt-1.5 border-t border-slate-100/80">
+                                          {offered.map(term => {
+                                            const isFinalized = sub.finalizedTerms?.includes(term);
+                                            return (
+                                              <div key={term} className="flex flex-row items-center justify-between text-xs p-1.5 rounded-lg bg-slate-50 border border-slate-100">
+                                                <span className="font-semibold text-slate-600 text-[10px] uppercase tracking-wider">Term {term}</span>
+                                                {isFinalized ? (
+                                                  <div className="flex items-center gap-1.5">
+                                                    <span className="text-[9px] font-bold text-emerald-600 uppercase flex items-center gap-1"><Check size={10} /> Finalized</span>
+                                                    {onToggleFinalizeSubjectTerm && (
+                                                      <button 
+                                                        onClick={(e) => { 
+                                                          e.stopPropagation(); 
+                                                          setConfirmFinalizeConfig({ subjectId: sub.id, term, finalize: false });
+                                                        }}
+                                                        className="text-[9px] px-1.5 py-0.5 rounded border border-amber-200 bg-amber-50 text-amber-700 font-bold uppercase hover:bg-amber-100 cursor-pointer transition-colors"
+                                                        title={`Unfinalize Term ${term}`}
+                                                      >
+                                                        Unfinalize
+                                                      </button>
+                                                    )}
+                                                  </div>
+                                                ) : (
+                                                  <span className="text-[9px] font-bold text-slate-400 uppercase">Pending</span>
+                                                )}
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
                 );
               })}
