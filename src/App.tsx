@@ -3384,6 +3384,7 @@ export default function App() {
                     setActiveTab('anecdotes');
                   }}
                   globalSubjects={globalSubjects}
+                  subjects={subjects}
                 />
               </motion.div>
             )}
@@ -9283,6 +9284,7 @@ function AddLearnerView({
   const [academicHistoryModalStudent, setAcademicHistoryModalStudent] = useState<Student | null>(null);
   const [showIDPrintModal, setShowIDPrintModal] = useState(false);
   const [idPrintPreselectedStudent, setIdPrintPreselectedStudent] = useState<Student | null>(null);
+  const [subjectEnrollTarget, setSubjectEnrollTarget] = useState<Student | null>(null);
   const isMainAdmin = currentUser?.email === 'jessiemangabo@gmail.com';
   const isSystemAdmin = currentUser?.role === 'system_admin' || currentUser?.role === 'admin' || isMainAdmin;
   const isAdviser = !!isSectionAdviser;
@@ -9348,37 +9350,7 @@ function AddLearnerView({
                 </div>
               ) : null}
             </div>
-            {Number(section?.gradeLevel) > 10 && (
-              <div className="flex flex-wrap items-center gap-1.5 mt-2 bg-white/40 p-2 rounded-lg border border-slate-100/50">
-                <span className={`text-[9px] font-black uppercase tracking-widest text-${variant}-600`}>
-                  Enrolled Subjects ({s.enrolledSubjectIds?.length || 0}):
-                </span>
-                {(() => {
-                  const studentSubjIds = s.enrolledSubjectIds || [];
-                  const enrolled = studentSubjIds.map(id => {
-                    return (subjects || []).find(subj => subj.id === id) || (globalSubjects || []).find(subj => subj.id === id);
-                  }).filter(Boolean) as Subject[];
-                  
-                  if (enrolled.length === 0) {
-                    return (
-                      <span className="text-[10px] text-amber-600 font-bold italic">
-                        Not enrolled in any subjects
-                      </span>
-                    );
-                  }
-                  
-                  return enrolled.map(subj => (
-                    <span 
-                      key={subj.id} 
-                      className={`text-[9px] font-bold bg-white border border-${variant}-150/60 text-slate-700 px-2 py-0.5 rounded-full shadow-2xs`}
-                      title={subj.name}
-                    >
-                      {subj.name}
-                    </span>
-                  ));
-                })()}
-              </div>
-            )}
+
           </div>
         </div>
         
@@ -9504,6 +9476,27 @@ function AddLearnerView({
             )}
             {isActiveSY && (
               <>
+                {(() => {
+                  const isGrade11or12 = Number(section?.gradeLevel) === 11 || Number(section?.gradeLevel) === 12;
+                  const hasSubjects = isGrade11or12 && (
+                    globalSubjects.some(sub => Number(sub.gradeLevel) === Number(section?.gradeLevel)) ||
+                    (subjects || []).some(sub => Number(sub.gradeLevel) === Number(section?.gradeLevel) && sub.sectionId === section?.id)
+                  );
+                  if (!hasSubjects) return null;
+                  return (
+                    <button 
+                      onClick={(e) => { 
+                        e.stopPropagation(); 
+                        setSubjectEnrollTarget(s);
+                      }}
+                      className="px-2.5 py-2 bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-600 hover:text-white hover:border-indigo-650 rounded-xl transition-all shadow-sm active:scale-95 flex items-center gap-1.5"
+                      title="Enroll Subjects"
+                    >
+                      <BookOpen size={13} className="shrink-0" />
+                      <span className="text-[10px] font-black uppercase tracking-wider">Enroll</span>
+                    </button>
+                  );
+                })()}
                 <button 
                   onClick={(e) => { 
                     e.stopPropagation(); 
@@ -10357,6 +10350,18 @@ function AddLearnerView({
             setShowIDPrintModal(false);
             setIdPrintPreselectedStudent(null);
           }} 
+        />
+      )}
+
+      {/* Enroll Subjects Modal */}
+      {subjectEnrollTarget && section && (
+        <EnrollSubjectsModal 
+          student={subjectEnrollTarget}
+          onClose={() => setSubjectEnrollTarget(null)}
+          globalSubjects={globalSubjects}
+          subjects={subjects}
+          section={section}
+          onSaveSuccess={() => setSubjectEnrollTarget(null)}
         />
       )}
     </div>
@@ -12205,6 +12210,210 @@ function EnrollAllConfirmationModal({
   );
 }
 
+interface EnrollSubjectsModalProps {
+  student: Student;
+  onClose: () => void;
+  globalSubjects: Subject[];
+  subjects: Subject[];
+  section: Section;
+  onSaveSuccess: () => void;
+}
+
+function EnrollSubjectsModal({
+  student,
+  onClose,
+  globalSubjects = [],
+  subjects = [],
+  section,
+  onSaveSuccess
+}: EnrollSubjectsModalProps) {
+  const [enrolledIds, setEnrolledIds] = useState<string[]>(student.enrolledSubjectIds || []);
+  const [isSaving, setIsSaving] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+
+  const sectionSubjectsList = useMemo(() => {
+    if (subjects && subjects.length > 0) {
+      return subjects.filter(sub => sub.sectionId === section?.id);
+    }
+    return globalSubjects.filter(sub => Number(sub.gradeLevel) === Number(section?.gradeLevel));
+  }, [subjects, globalSubjects, section]);
+
+  const enrolledSubjectsList = useMemo(() => {
+    return sectionSubjectsList.filter(subj => enrolledIds.includes(subj.id));
+  }, [sectionSubjectsList, enrolledIds]);
+
+  const availableSubjectsList = useMemo(() => {
+    return sectionSubjectsList.filter(subj => !enrolledIds.includes(subj.id));
+  }, [sectionSubjectsList, enrolledIds]);
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSaving(true);
+    setErrorMsg("");
+    try {
+      const studentRef = doc(db, `sections/${section.id}/students`, student.id);
+      await setDoc(studentRef, { enrolledSubjectIds: enrolledIds }, { merge: true });
+      onSaveSuccess();
+    } catch (err: any) {
+      console.error("Error updating enrolled subjects: ", err);
+      setErrorMsg("Failed to save enrollment. Please try again.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <motion.div 
+        initial={{ scale: 0.95, opacity: 0, y: 20 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.95, opacity: 0, y: 20 }}
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]"
+      >
+        <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+          <div>
+            <h2 className="text-xl font-bold text-slate-800">Enroll Academic Subjects</h2>
+            <p className="text-xs font-semibold text-indigo-600 mt-1 uppercase tracking-widest">{student.name} ({section.name})</p>
+          </div>
+          <button 
+            type="button"
+            onClick={onClose}
+            className="p-2 hover:bg-slate-200 rounded-full text-slate-400 transition-colors"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSave} className="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
+          {errorMsg && (
+            <div className="p-3 bg-rose-50 border border-rose-100 text-rose-600 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2">
+              <AlertCircle size={16} />
+              {errorMsg}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 min-h-[380px] max-h-[52vh] overflow-hidden">
+            {/* Left Panel: Currently Enrolled Subjects */}
+            <div className="flex flex-col bg-slate-50 border border-slate-200/60 rounded-2xl p-4 overflow-hidden">
+              <div className="flex items-center justify-between mb-3 shrink-0">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <h3 className="text-xs font-black text-slate-700 uppercase tracking-wider">Enrolled Subjects</h3>
+                </div>
+                <span className="px-2 py-0.5 text-[9px] font-black bg-emerald-100 text-emerald-800 rounded-lg">
+                  {enrolledSubjectsList.length} Active
+                </span>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 space-y-2">
+                {enrolledSubjectsList.map(subj => (
+                  <div 
+                    key={subj.id}
+                    className="flex items-center justify-between p-3 bg-white border border-slate-150 rounded-xl shadow-sm hover:border-emerald-250 transition-colors"
+                  >
+                    <div className="min-w-0 flex-1 pr-2">
+                      <p className="text-xs font-bold text-slate-900 leading-tight truncate">{subj.name}</p>
+                      <p className="text-[9px] text-emerald-600 font-extrabold uppercase tracking-wide mt-1">
+                        {subj.group || (subj.subjectType === 'CORE' ? 'Core Course' : 'Applied/Specialized')}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setEnrolledIds(enrolledIds.filter(id => id !== subj.id))}
+                      className="p-1.5 hover:bg-rose-50 text-rose-500 hover:text-rose-600 rounded-lg transition-colors border border-transparent hover:border-rose-100 active:scale-95 shrink-0"
+                      title="Remove enrolment"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                ))}
+                
+                {enrolledSubjectsList.length === 0 && (
+                  <div className="flex flex-col items-center justify-center py-16 text-center text-slate-400 h-full">
+                    <BookOpen className="text-slate-300 mb-2" size={24} />
+                    <p className="text-[10px] font-black uppercase tracking-wider">No subjects enrolled</p>
+                    <p className="text-[9px] text-slate-400 mt-1 max-w-[170px] leading-normal font-semibold">Select from available grade subjects on the right side.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Right Panel: Available Subjects */}
+            <div className="flex flex-col bg-white border border-slate-200/60 rounded-2xl p-4 overflow-hidden">
+              <div className="flex items-center justify-between mb-3 shrink-0">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-indigo-500" />
+                  <h3 className="text-xs font-black text-slate-700 uppercase tracking-wider">Available Subjects</h3>
+                </div>
+                <span className="px-2 py-0.5 text-[9px] font-black bg-indigo-100 text-indigo-800 rounded-lg">
+                  {availableSubjectsList.length} Left
+                </span>
+              </div>
+
+              <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 space-y-2">
+                {availableSubjectsList.map(subj => (
+                  <div 
+                    key={subj.id}
+                    className="flex items-center justify-between p-3 bg-slate-50/50 border border-slate-150 rounded-xl hover:border-indigo-200 hover:bg-indigo-50/10 transition-all"
+                  >
+                    <div className="min-w-0 flex-1 pr-2">
+                      <p className="text-xs font-bold text-slate-900 leading-tight truncate">{subj.name}</p>
+                      <p className="text-[9px] text-indigo-500 font-extrabold uppercase tracking-wide mt-1">
+                        {subj.group || (subj.subjectType === 'CORE' ? 'Core Course' : 'Applied/Specialized')}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setEnrolledIds([...enrolledIds, subj.id])}
+                      className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white rounded-lg transition-all text-[9px] font-black uppercase tracking-widest flex items-center gap-1 shrink-0 shadow-sm active:scale-95"
+                      title="Add to enrollment"
+                    >
+                      <Plus size={11} />
+                      <span>Add</span>
+                    </button>
+                  </div>
+                ))}
+
+                {availableSubjectsList.length === 0 && (
+                  <div className="flex flex-col items-center justify-center py-16 text-center text-slate-400 h-full">
+                    <CheckCircle className="text-emerald-500 mb-2" size={24} />
+                    <p className="text-[10px] font-black uppercase tracking-wider text-emerald-600">Fully Enrolled</p>
+                    <p className="text-[9px] text-slate-400 mt-1 max-w-[170px] leading-normal font-semibold">The student is actively enrolled in all grade subjects.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-5 border-t border-slate-100 flex justify-end gap-3 shrink-0 mt-auto">
+            <button 
+              type="button"
+              onClick={onClose}
+              className="px-5 py-2.5 text-sm font-bold text-slate-500 hover:bg-slate-100 rounded-xl transition-all"
+            >
+              Cancel
+            </button>
+            <button 
+              type="submit"
+              disabled={isSaving}
+              className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-bold rounded-xl transition-all shadow-md active:scale-95 shadow-indigo-600/15"
+            >
+              {isSaving ? "Saving..." : "Save Enrollment"}
+            </button>
+          </div>
+        </form>
+      </motion.div>
+    </motion.div>
+  );
+}
+
 function EditLearnerModal({ 
   form, 
   setForm, 
@@ -12656,46 +12865,6 @@ function EditLearnerModal({
             </div>
 
             <EligibilityForm form={form} setForm={setForm} />
-
-            {section && Number(section.gradeLevel) > 10 && (
-              <div className="space-y-4 border-t border-slate-100 pt-6">
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2 uppercase tracking-widest"><BookOpen size={16} className="text-indigo-600"/> Enrolled Subjects</h3>
-                  <p className="text-xs text-slate-500 mt-1">Select the curriculum subjects this learner will be enrolled in.</p>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-56 overflow-y-auto custom-scrollbar p-1">
-                  {sectionSubjectsList.map(subj => {
-                     const isEnrolled = (form.enrolledSubjectIds || []).includes(subj.id);
-                     return (
-                       <label key={subj.id} className={`flex items-start gap-3 p-3 rounded-xl border ${isEnrolled ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-slate-200 hover:border-slate-300'} cursor-pointer transition-all select-none`}>
-                         <div className="pt-0.5">
-                           <input 
-                             type="checkbox"
-                             checked={isEnrolled}
-                             onChange={(e) => {
-                               const ids = new Set(form.enrolledSubjectIds || []);
-                               if (e.target.checked) ids.add(subj.id);
-                               else ids.delete(subj.id);
-                               setForm({...form, enrolledSubjectIds: Array.from(ids)});
-                             }}
-                             className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300"
-                           />
-                         </div>
-                         <div>
-                            <p className="text-sm font-bold text-slate-900 leading-tight">{subj.name}</p>
-                            <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">{subj.group || (subj.subjectType === 'CORE' ? 'Core Course' : 'Applied/Specialized')}</p>
-                         </div>
-                       </label>
-                     );
-                  })}
-                  {sectionSubjectsList.length === 0 && (
-                     <div className="col-span-1 border border-dashed border-slate-300 rounded-xl p-4 text-center">
-                        <p className="text-xs text-slate-500 uppercase tracking-widest font-bold">No subjects configured for this Section / Grade Level</p>
-                     </div>
-                  )}
-                </div>
-              </div>
-            )}
 
             {section && Number(section.gradeLevel) <= 10 && (
               <div className="space-y-4 border-t border-slate-100 pt-6">
