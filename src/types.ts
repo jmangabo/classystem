@@ -66,6 +66,9 @@ export interface Student {
   studentNumber: string;
   email?: string;
   lrn?: string;
+  sectionId?: string;
+  sectionName?: string;
+  gradeLevel?: number;
   birthdate?: string;
   birthplace?: string;
   dateOfFirstAttendance?: string;
@@ -110,6 +113,7 @@ export interface Student {
   };
   sf9CardUnlocked?: boolean;
   adviserSignature?: string;
+  siblingIds?: string[];
   status?: 'Active' | 'Regular' | 'Irregular' | 'Transferred Out' | 'Dropped Out' | 'Retained' | 'Promoted';
   dropoutDate?: string;
   dropoutReason?: string;
@@ -247,6 +251,7 @@ export interface PTAFee {
   semester: '1st Semester' | '2nd Semester' | 'Full Year';
   status: 'active' | 'inactive';
   isVoluntary: boolean;
+  allowSiblingCoverage?: boolean;
   createdBy: string;
   createdAt: string;
   updatedAt?: string;
@@ -270,6 +275,10 @@ export interface PTAPayment {
   collectorEmail: string;
   schoolYear: string;
   remarks?: string;
+  coveredBySibling?: boolean;
+  coveredSiblings?: { id: string; name: string; lrn?: string; sectionName?: string; gradeLevel?: number }[];
+  coveredBySiblingPayeeId?: string;
+  coveredBySiblingPayeeName?: string;
   schoolId: string;
   createdAt: string; // ISO DateTime
 }

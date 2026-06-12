@@ -215,6 +215,7 @@
         "semester": { "type": "string", "enum": ["1st Semester", "2nd Semester", "Full Year"] },
         "status": { "type": "string", "enum": ["active", "inactive"] },
         "isVoluntary": { "type": "boolean" },
+        "allowSiblingCoverage": { "type": "boolean" },
         "createdBy": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" },
@@ -243,6 +244,7 @@
         "collectorEmail": { "type": "string" },
         "schoolYear": { "type": "string" },
         "remarks": { "type": "string" },
+        "coveredBySibling": { "type": "boolean" },
         "schoolId": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
       },

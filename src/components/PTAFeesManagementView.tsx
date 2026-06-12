@@ -81,6 +81,7 @@ export function PTAFeesManagementView({
   const [feeFormYear, setFeeFormYear] = useState('');
   const [feeFormSemester, setFeeFormSemester] = useState<'1st Semester' | '2nd Semester' | 'Full Year'>('Full Year');
   const [feeFormStatus, setFeeFormStatus] = useState<'active' | 'inactive'>('active');
+  const [feeFormAllowSiblingCoverage, setFeeFormAllowSiblingCoverage] = useState(true);
   
   // Form states - Payment Record
   const [payAmount, setPayAmount] = useState<number>(0);
@@ -88,6 +89,94 @@ export function PTAFeesManagementView({
   const [payDate, setPayDate] = useState(new Date().toISOString().split('T')[0]);
   const [payCollector, setPayCollector] = useState('');
   const [payRemarks, setPayRemarks] = useState('');
+  const [payCoveredBySibling, setPayCoveredBySibling] = useState(false);
+  const [enableSiblingCoverageCheck, setEnableSiblingCoverageCheck] = useState(false);
+  const [selectedSiblingIds, setSelectedSiblingIds] = useState<string[]>([]);
+
+  const getGradeWeight = (g: string | number | undefined | null): number => {
+    if (!g) return 0;
+    const s = String(g).trim().toLowerCase();
+    if (s === 'kinder' || s === 'kindergarten') return 0;
+    const val = parseInt(s, 10);
+    return isNaN(val) ? 0 : val;
+  };
+
+  // Helper to find all siblings for a given student in the overall studentsList across sections
+  const getSiblingsForStudent = (student: Student): Student[] => {
+    if (!student) return [];
+    
+    // Explicit manual links based on siblingIds
+    const explicitSiblings = studentsList.filter(other => 
+      other.id !== student.id && (
+        (student.siblingIds && student.siblingIds.includes(other.id)) ||
+        (other.siblingIds && other.siblingIds.includes(student.id))
+      )
+    );
+
+    const sLast = (student.lastName || '').trim().toLowerCase();
+    const sContact = (student.contactNumber || '').trim().toLowerCase();
+    const sAddress = (student.address || '').trim().toLowerCase();
+
+    const familySiblings = studentsList.filter(other => {
+      if (other.id === student.id) return false;
+      // Skip if already in explicit siblings
+      if (explicitSiblings.some(s => s.id === other.id) || explicitSiblings.some(s => s.id === other.id + '_' + other.sectionId)) return false;
+      
+      const oLast = (other.lastName || '').trim().toLowerCase();
+      const oContact = (other.contactNumber || '').trim().toLowerCase();
+      const oAddress = (other.address || '').trim().toLowerCase();
+
+      // Ensure that we have actual values to match, to prevent blank/empty field matching
+      const matchContact = sContact && oContact && sContact === oContact;
+      const matchLastNameAndContact = sLast && oLast && sLast === oLast && sContact && oContact && sContact === oContact;
+      const matchLastNameAndAddress = sLast && oLast && sLast === oLast && sAddress && oAddress && sAddress === oAddress;
+
+      return !!(matchContact || matchLastNameAndContact || matchLastNameAndAddress);
+    });
+
+    const currentGradeW = getGradeWeight(student.gradeLevel);
+    
+    // Only allow covering siblings that are in a LOWER grade
+    return [...explicitSiblings, ...familySiblings].filter(other => {
+      return getGradeWeight(other.gradeLevel) < currentGradeW;
+    });
+  };
+
+  // Helper to find all siblings for a given student regardless of their grades
+  const getAllSiblingsForStudent = (student: Student): Student[] => {
+    if (!student) return [];
+    
+    // Explicit manual links based on siblingIds
+    const explicitSiblings = studentsList.filter(other => 
+      other.id !== student.id && (
+        (student.siblingIds && student.siblingIds.includes(other.id)) ||
+        (other.siblingIds && other.siblingIds.includes(student.id))
+      )
+    );
+
+    const sLast = (student.lastName || '').trim().toLowerCase();
+    const sContact = (student.contactNumber || '').trim().toLowerCase();
+    const sAddress = (student.address || '').trim().toLowerCase();
+
+    const familySiblings = studentsList.filter(other => {
+      if (other.id === student.id) return false;
+      // Skip if already in explicit siblings
+      if (explicitSiblings.some(s => s.id === other.id) || explicitSiblings.some(s => s.id === other.id + '_' + other.sectionId)) return false;
+      
+      const oLast = (other.lastName || '').trim().toLowerCase();
+      const oContact = (other.contactNumber || '').trim().toLowerCase();
+      const oAddress = (other.address || '').trim().toLowerCase();
+
+      // Ensure that we have actual values to match, to prevent blank/empty field matching
+      const matchContact = sContact && oContact && sContact === oContact;
+      const matchLastNameAndContact = sLast && oLast && sLast === oLast && sContact && oContact && sContact === oContact;
+      const matchLastNameAndAddress = sLast && oLast && sLast === oLast && sAddress && oAddress && sAddress === oAddress;
+
+      return !!(matchContact || matchLastNameAndContact || matchLastNameAndAddress);
+    });
+
+    return [...explicitSiblings, ...familySiblings];
+  };
 
   // Form states - Cashiers Config
   const [newCashierEmail, setNewCashierEmail] = useState('');
@@ -321,12 +410,13 @@ export function PTAFeesManagementView({
       fees.forEach(fee => {
         // Find relevant payment records for this student and this fee
         const stFeePayments = payments.filter(p => p.studentId === st.id && p.feeId === fee.id);
+        const hasSiblingPayment = stFeePayments.some(p => p.coveredBySibling);
         const totalPaid = stFeePayments.reduce((acc, p) => acc + p.amountPaid, 0);
-        const billed = fee.amount;
-        const balance = billed - totalPaid;
+        const billed = hasSiblingPayment ? 0 : fee.amount;
+        const balance = Math.max(0, billed - totalPaid);
         
         let status: 'Paid' | 'Partial' | 'Unpaid' = 'Unpaid';
-        if (totalPaid >= billed) {
+        if (hasSiblingPayment || totalPaid >= fee.amount) {
           status = 'Paid';
         } else if (totalPaid > 0) {
           status = 'Partial';
@@ -458,6 +548,7 @@ export function PTAFeesManagementView({
         semester: feeFormSemester,
         status: feeFormStatus,
         isVoluntary: true, // Rigid rule complying with DepEd guidance
+        allowSiblingCoverage: feeFormAllowSiblingCoverage,
         createdBy: userProfile.email,
         createdAt: new Date().toISOString(),
         schoolId
@@ -486,6 +577,7 @@ export function PTAFeesManagementView({
       setFeeFormDescription('');
       setFeeFormSemester('Full Year');
       setFeeFormStatus('active');
+      setFeeFormAllowSiblingCoverage(true);
       setShowFeeModal(false);
     } catch(err) {
       handleFirestoreError(err, 'write', 'pta_fees');
@@ -657,6 +749,9 @@ export function PTAFeesManagementView({
     setPayAmount(maxDue);
     setPayOrNumber(automaticOr);
     setPayRemarks('');
+    setPayCoveredBySibling(false);
+    setEnableSiblingCoverageCheck(false);
+    setSelectedSiblingIds([]);
     setPayDate(new Date().toISOString().split('T')[0]);
     setShowPaymentModal(true);
   };
@@ -668,15 +763,38 @@ export function PTAFeesManagementView({
     const { student, fee } = paymentTarget;
     const amount = Number(payAmount);
 
-    if (amount <= 0) {
+    if (!payCoveredBySibling && amount <= 0) {
       alert("Amount paid must be greater than zero.");
       return;
+    }
+
+    // Validate siblings if selected
+    if (enableSiblingCoverageCheck && selectedSiblingIds.length > 0) {
+      const familySiblings = getSiblingsForStudent(student);
+      const invalidSelections = selectedSiblingIds.filter(id => !familySiblings.some(s => s.id === id));
+      if (invalidSelections.length > 0) {
+        alert("Validation Error: One or more selected learners do not belong to the same family/sibling group.");
+        return;
+      }
     }
 
     try {
       const schoolId = userProfile.schoolId || 'default_school';
       const paymentRef = collection(db, 'pta_payments');
       
+      const siblingObjects = (enableSiblingCoverageCheck && selectedSiblingIds.length > 0)
+        ? selectedSiblingIds.map(sid => {
+            const sib = studentsList.find(st => st.id === sid);
+            return {
+              id: sid,
+              name: sib ? formatStudentName(sib) : 'Unknown Sibling',
+              lrn: sib?.lrn || 'N/A',
+              sectionName: sib?.sectionName || '',
+              gradeLevel: sib?.gradeLevel || 0
+            };
+          })
+        : undefined;
+
       const newPayment: Omit<PTAPayment, 'id'> = {
         studentId: student.id,
         studentName: formatStudentName(student),
@@ -686,26 +804,71 @@ export function PTAFeesManagementView({
         gradeLevel: student.gradeLevel || 0,
         feeId: fee.id,
         feeName: fee.name,
-        amountPaid: amount,
+        amountPaid: payCoveredBySibling ? 0 : amount,
         paymentDate: payDate,
         orNumber: payOrNumber.trim() || 'N/A',
         collectorName: payCollector.trim(),
         collectorEmail: userProfile.email,
         schoolYear: fee.schoolYear,
         remarks: payRemarks.trim(),
+        coveredBySibling: payCoveredBySibling,
         schoolId,
         createdAt: new Date().toISOString()
       };
 
+      if (siblingObjects && siblingObjects.length > 0) {
+        newPayment.coveredSiblings = siblingObjects;
+      }
+
       const docAdded = await addDoc(paymentRef, newPayment);
       
+      // Save 0-amount sibling coverages for each selected sibling and mark them as coveredBySibling
+      if (enableSiblingCoverageCheck && selectedSiblingIds.length > 0) {
+        for (const sid of selectedSiblingIds) {
+          const sib = studentsList.find(st => st.id === sid);
+          if (sib) {
+            const siblingPayment: Omit<PTAPayment, 'id'> = {
+              studentId: sib.id,
+              studentName: formatStudentName(sib),
+              lrn: sib.lrn || 'N/A',
+              sectionId: sib.sectionId,
+              sectionName: sib.sectionName || '',
+              gradeLevel: sib.gradeLevel || 0,
+              feeId: fee.id,
+              feeName: fee.name,
+              amountPaid: 0,
+              paymentDate: payDate,
+              orNumber: payOrNumber.trim() || 'N/A',
+              collectorName: payCollector.trim(),
+              collectorEmail: userProfile.email,
+              schoolYear: fee.schoolYear,
+              remarks: `Waived/Covered by Sibling Payment of "${formatStudentName(student)}" (O.R. #${payOrNumber})`,
+              coveredBySibling: true,
+              coveredBySiblingPayeeId: student.id,
+              coveredBySiblingPayeeName: formatStudentName(student),
+              schoolId,
+              createdAt: new Date().toISOString()
+            };
+            await addDoc(paymentRef, siblingPayment);
+          }
+        }
+      }
+
       // Auto-trigger full recipe printer presentation
       setShowReceipt({ id: docAdded.id, ...newPayment } as PTAPayment);
 
-      await writeAuditLog(
-        'payment_record', 
-        `PTA Collection recorded: Received ₱${amount} from student "${newPayment.studentName}" (LRN: ${newPayment.lrn}) for "${fee.name}" (SY: ${fee.schoolYear}). OR-No: ${newPayment.orNumber}, Collected by ${newPayment.collectorName}`
-      );
+      let logDetails = '';
+      if (payCoveredBySibling) {
+        logDetails = `PTA Sibling Exemption recorded for student "${newPayment.studentName}" (LRN: ${newPayment.lrn}) for "${fee.name}" (SY: ${fee.schoolYear}). OR-No: ${newPayment.orNumber}, Logged by ${newPayment.collectorName}`;
+      } else {
+        logDetails = `PTA Collection recorded: Received ₱${amount} from student "${newPayment.studentName}" (LRN: ${newPayment.lrn}) for "${fee.name}" (SY: ${fee.schoolYear}). OR-No: ${newPayment.orNumber}, Collected by ${newPayment.collectorName}`;
+        if (siblingObjects && siblingObjects.length > 0) {
+          const namesStr = siblingObjects.map(s => s.name).join(', ');
+          logDetails += ` [Covered ${siblingObjects.length} sibling(s): ${namesStr}]`;
+        }
+      }
+
+      await writeAuditLog('payment_record', logDetails);
 
       setShowPaymentModal(false);
       setPaymentTarget(null);
@@ -764,21 +927,28 @@ export function PTAFeesManagementView({
       const totalCollectedForFee = feePayments.reduce((acc, p) => acc + p.amountPaid, 0);
       
       // Calculate how many have fully paid this fee
-      const fullyPaidCount = studentsList.filter(st => {
+      let feeTargetStudents = 0;
+      let fullyPaidCount = 0;
+      
+      studentsList.forEach(st => {
         const pList = payments.filter(pay => pay.studentId === st.id && pay.feeId === fee.id);
-        const sumPay = pList.reduce((sum, p) => sum + p.amountPaid, 0);
-        return sumPay >= fee.amount;
-      }).length;
+        const hasSiblingCoverage = pList.some(p => p.coveredBySibling);
+        if (!hasSiblingCoverage) {
+          feeTargetStudents++;
+          const sumPay = pList.reduce((sum, p) => sum + p.amountPaid, 0);
+          if (sumPay >= fee.amount) fullyPaidCount++;
+        }
+      });
 
       feeCollectedBreakdown[fee.id] = {
         name: fee.name,
         amount: fee.amount,
         collected: totalCollectedForFee,
         paidUsers: fullyPaidCount,
-        totalUsers: studentsInYear
+        totalUsers: feeTargetStudents
       };
 
-      totalBilled += fee.amount * studentsInYear;
+      totalBilled += fee.amount * feeTargetStudents;
       totalCollected += totalCollectedForFee;
     });
 
@@ -793,7 +963,15 @@ export function PTAFeesManagementView({
       let secPaid = 0;
 
       activePeriodFees.forEach(fee => {
-        secDue += fee.amount * studentCount;
+        let secActiveBilled = 0;
+        secStudents.forEach(st => {
+          const pList = payments.filter(p => p.feeId === fee.id && p.studentId === st.id);
+          if (!pList.some(p => p.coveredBySibling)) {
+            secActiveBilled += fee.amount;
+          }
+        });
+        secDue += secActiveBilled;
+        
         const secFeePayments = payments.filter(p => p.feeId === fee.id && p.sectionId === sec.id && p.schoolYear === repSchoolYear);
         secPaid += secFeePayments.reduce((sum, p) => sum + p.amountPaid, 0);
       });
@@ -848,8 +1026,9 @@ export function PTAFeesManagementView({
     
     const totalPriorPaid = priorPayments.reduce((acc, p) => acc + p.amountPaid, 0);
     const totalPaidToDate = totalPriorPaid + currentPaymentAmount;
-    const remainingBalance = Math.max(0, totalFeeAmount - totalPaidToDate);
-    const isPartial = totalPaidToDate < totalFeeAmount;
+    const isCovered = showReceipt.coveredBySibling || allPayments.some(p => p.coveredBySibling);
+    const remainingBalance = isCovered ? 0 : Math.max(0, totalFeeAmount - totalPaidToDate);
+    const isPartial = isCovered ? false : (totalPaidToDate < totalFeeAmount);
 
     return {
       totalFeeAmount,
@@ -1020,7 +1199,12 @@ export function PTAFeesManagementView({
       pdf.setTextColor(15, 23, 42);
       pdf.setFontSize(9);
       pdf.text(showReceipt.feeName, 24, 126);
-      pdf.text(`PHP ${showReceipt.amountPaid.toFixed(2)}`, 186, 126, { align: 'right' });
+      pdf.text(
+        showReceipt.coveredBySibling 
+          ? "PHP 0.00 (SIBLING COVERED)" 
+          : `PHP ${showReceipt.amountPaid.toFixed(2)}`, 
+        186, 126, { align: 'right' }
+      );
 
       // Breakdown lines
       pdf.setFontSize(8);
@@ -1029,7 +1213,12 @@ export function PTAFeesManagementView({
       pdf.text(`PHP ${totalFeeAmount.toFixed(2)}`, 186, 132, { align: 'right' });
 
       pdf.text("Total Paid to Date (Cumulative):", 24, 138);
-      pdf.text(`PHP ${totalPaidToDate.toFixed(2)}`, 186, 138, { align: 'right' });
+      pdf.text(
+        showReceipt.coveredBySibling 
+          ? "PHP 0.00 (SIBLING COVERED)" 
+          : `PHP ${totalPaidToDate.toFixed(2)}`, 
+        186, 138, { align: 'right' }
+      );
 
       if (isPartial) {
         pdf.setTextColor(180, 83, 9); // amber-700
@@ -1037,7 +1226,12 @@ export function PTAFeesManagementView({
         pdf.text(`PHP ${remainingBalance.toFixed(2)}`, 186, 144, { align: 'right' });
       } else {
         pdf.setTextColor(4, 120, 87); // emerald-700
-        pdf.text("Payment Status: Fully Settled", 24, 144);
+        pdf.text(
+          showReceipt.coveredBySibling 
+            ? "Payment Status: Sibling Coverage Settled" 
+            : "Payment Status: Fully Settled", 
+          24, 144
+        );
         pdf.text("PHP 0.00", 186, 144, { align: 'right' });
       }
       
@@ -1048,7 +1242,12 @@ export function PTAFeesManagementView({
       pdf.setTextColor(15, 23, 42);
       pdf.text("TOTAL RECEIVED AMOUNT IN THIS RECEIPT", 24, 156);
       pdf.setTextColor(79, 70, 229);
-      pdf.text(`PHP ${showReceipt.amountPaid.toFixed(2)}`, 186, 156, { align: 'right' });
+      pdf.text(
+        showReceipt.coveredBySibling 
+          ? "PHP 0.00 (SIBLING COVERED)" 
+          : `PHP ${showReceipt.amountPaid.toFixed(2)}`, 
+        186, 156, { align: 'right' }
+      );
       
       // Footer and disclaimer
       pdf.setTextColor(148, 163, 184);
@@ -1256,10 +1455,13 @@ export function PTAFeesManagementView({
       sexStudents.forEach((student, idx) => {
         const rowBg = idx % 2 === 0 ? "FFFFFF" : "F8FAFC"; // Zebra striping
 
-        const totalTarget = activeFees.reduce((sum, fee) => sum + fee.amount, 0);
+        const totalTarget = activeFees.reduce((sum, fee) => sum + (studentPTALedger[student.id]?.[fee.id]?.billed ?? fee.amount), 0);
         const totalPaid = activeFees.reduce((sum, fee) => sum + (studentPTALedger[student.id]?.[fee.id]?.paid || 0), 0);
-        const remainingBalance = Math.max(0, totalTarget - totalPaid);
-        const isFullySettled = totalPaid >= totalTarget && totalTarget > 0;
+        const remainingBalance = activeFees.reduce((sum, fee) => {
+          const lObj = studentPTALedger[student.id]?.[fee.id];
+          return sum + (lObj ? lObj.balance : fee.amount);
+        }, 0);
+        const isFullySettled = remainingBalance === 0 && totalTarget > 0;
 
         const studentRow = [
           createCell(idx + 1, { align: "center", bg: rowBg }),
@@ -1326,9 +1528,14 @@ export function PTAFeesManagementView({
     actionableStudents.forEach(st => {
       const target = activeFees.reduce((sum, fee) => sum + fee.amount, 0);
       const paid = activeFees.reduce((sum, fee) => sum + (studentPTALedger[st.id]?.[fee.id]?.paid || 0), 0);
+      const remainingForStudent = activeFees.reduce((sum, fee) => {
+        const lObj = studentPTALedger[st.id]?.[fee.id];
+        return sum + (lObj ? lObj.balance : fee.amount);
+      }, 0);
+
       grandTargetSum += target;
       grandPaidSum += paid;
-      grandRemainingSum += Math.max(0, target - paid);
+      grandRemainingSum += remainingForStudent;
 
       activeFees.forEach(fee => {
         feeTotals[fee.id] += (studentPTALedger[st.id]?.[fee.id]?.paid || 0);
@@ -1621,6 +1828,9 @@ export function PTAFeesManagementView({
                           <th key={fee.id} className="px-5 py-3 text-center text-xs font-bold text-slate-500 uppercase tracking-wider font-mono">
                             <span className="block font-black text-slate-700">{fee.name}</span>
                             <span className="text-[10px] text-slate-400 block font-bold">₱{fee.amount} ({fee.semester === 'Full Year' ? 'Year' : 'Sem'})</span>
+                            <span className={`inline-block text-[8px] font-extrabold uppercase tracking-widest px-1.5 py-0.5 rounded mt-1 border ${fee.allowSiblingCoverage !== false ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-slate-50 text-slate-400 border-slate-200'}`}>
+                              {fee.allowSiblingCoverage !== false ? '• Sibling Allowed' : '• Individual Only'}
+                            </span>
                           </th>
                         ))}
                         <th className="px-5 py-3 text-center text-xs font-bold text-indigo-500 uppercase tracking-widest bg-indigo-50/30 border-l border-indigo-100">Contribution Summary</th>
@@ -1654,7 +1864,32 @@ export function PTAFeesManagementView({
                                   </div>
                                   <div>
                                     <h4 className="text-xs font-black text-slate-800">{formatStudentName(student)}</h4>
-                                    <span className="font-mono text-[10px] text-slate-400 block font-bold">LRN: {student.lrn || 'Missing'}</span>
+                                    <div className="flex items-center gap-2 mt-0.5">
+                                      <span className="font-mono text-[10px] text-slate-400 block font-bold">LRN: {student.lrn || 'Missing'}</span>
+                                      {(() => {
+                                        const siblings = getSiblingsForStudent(student);
+                                        if (siblings.length > 0) {
+                                          return (
+                                            <span className="inline-flex items-center gap-1 px-1.5 py-0.2 bg-purple-50 text-purple-700 border border-purple-200/50 rounded text-[9px] font-black" title={siblings.map(sib => `${formatStudentName(sib)} (${sib.sectionName || 'N/A'}, Gr ${sib.gradeLevel})`).join('\n')}>
+                                              {siblings.length} Sibling{siblings.length > 1 ? 's' : ''}
+                                            </span>
+                                          );
+                                        }
+                                        return null;
+                                      })()}
+                                    </div>
+                                    {(() => {
+                                      const siblings = getSiblingsForStudent(student);
+                                      if (siblings.length > 0) {
+                                        return (
+                                          <div className="text-[9px] text-purple-600 font-heavy mt-1 max-w-xs truncate flex items-center gap-1">
+                                            <span className="shrink-0 bg-purple-100 px-1 py-0.2 rounded font-black text-[8px] tracking-wide">SIBLINGS:</span>
+                                            <span className="truncate">{siblings.map(sib => formatStudentName(sib)).join(', ')}</span>
+                                          </div>
+                                        );
+                                      }
+                                      return null;
+                                    })()}
                                   </div>
                                 </div>
                               </td>
@@ -1673,21 +1908,21 @@ export function PTAFeesManagementView({
                                       {/* Payment status badge */}
                                       <div className="flex flex-col gap-1 items-center">
                                         {ledg.status === 'Paid' ? (
-                                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-emerald-100 text-emerald-800 rounded-full text-[10px] font-heavy tracking-wider">
-                                            <CheckCircle2 size={10} /> Fully Paid
+                                          <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-heavy tracking-wider ${ledg.payments?.some(p => p.coveredBySibling) ? 'bg-purple-100 text-purple-800 border border-purple-200' : 'bg-emerald-100 text-emerald-800'}`}>
+                                            <CheckCircle2 size={10} /> {ledg.payments?.some(p => p.coveredBySibling) ? 'Sibling Paid' : 'Fully Paid'}
                                           </span>
                                         ) : ledg.status === 'Partial' ? (
-                                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-amber-100 text-amber-800 rounded-full text-[10px] font-heavy tracking-wider">
-                                            Partial (₱{ledg.paid})
+                                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-amber-50 border border-amber-200 text-amber-800 rounded-full text-[10px] font-heavy tracking-wider">
+                                            <span className="w-2 h-2 border border-amber-400 border-t-transparent rounded-full animate-spin inline-block"></span> Partial (₱{ledg.paid})
                                           </span>
                                         ) : (
-                                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-rose-100 text-rose-800 rounded-full text-[10px] font-heavy tracking-wider">
-                                            Unpaid
+                                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-slate-50 border border-slate-200 text-slate-400 rounded-full text-[10px] font-heavy tracking-wider select-none">
+                                            <span className="w-2 h-2 border border-slate-300 rounded inline-block"></span> Unpaid
                                           </span>
                                         )}
 
                                         {/* OR List for paid/partial payments */}
-                                        {(ledg.status === 'Paid' || ledg.status === 'Partial') && (
+                                        {(ledg.status === 'Paid' || ledg.status === 'Partial') && ledg.payments && (
                                           <div className="flex flex-col gap-1 mt-1">
                                             {ledg.payments.map((p) => (
                                               <button
@@ -1695,7 +1930,7 @@ export function PTAFeesManagementView({
                                                 onClick={() => setShowReceipt(p)}
                                                 className="text-[10px] text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100 hover:bg-indigo-100 font-bold whitespace-nowrap"
                                               >
-                                                OR #{p.orNumber}
+                                                OR #{p.orNumber}{p.coveredBySibling ? ' (Sub)' : ''}
                                               </button>
                                             ))}
                                           </div>
@@ -1727,12 +1962,12 @@ export function PTAFeesManagementView({
                                     ₱{fees.filter(f => f.status === 'active').reduce((sum, fee) => sum + (studentPTALedger[student.id]?.[fee.id]?.paid || 0), 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                   </span>
                                   <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
-                                    of ₱{fees.filter(f => f.status === 'active').reduce((sum, fee) => sum + fee.amount, 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Target
+                                    of ₱{fees.filter(f => f.status === 'active').reduce((sum, fee) => sum + (studentPTALedger[student.id]?.[fee.id]?.billed ?? fee.amount), 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Target
                                   </span>
                                   {(() => {
                                       const totPaid = fees.filter(f => f.status === 'active').reduce((sum, fee) => sum + (studentPTALedger[student.id]?.[fee.id]?.paid || 0), 0);
-                                      const totAmt = fees.filter(f => f.status === 'active').reduce((sum, fee) => sum + fee.amount, 0);
-                                      if (totAmt === 0) return null;
+                                      const totAmt = fees.filter(f => f.status === 'active').reduce((sum, fee) => sum + (studentPTALedger[student.id]?.[fee.id]?.billed ?? fee.amount), 0);
+                                      if (totAmt === 0 && !fees.find(f => studentPTALedger[student.id]?.[f.id]?.paid !== 0)) return null;
                                       if (totPaid >= totAmt) return <span className="mt-1 px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-full text-[9px] font-black uppercase tracking-widest flex items-center gap-1"><CheckCircle2 size={10} /> Fully Settled</span>;
                                       return null;
                                   })()}
@@ -1925,6 +2160,9 @@ export function PTAFeesManagementView({
                           <th key={fee.id} className="px-5 py-3 text-center text-xs font-bold text-black uppercase tracking-wider font-mono">
                             <span className="block font-black text-black">{fee.name}</span>
                             <span className="text-[10px] text-black block font-bold">₱{fee.amount} ({fee.semester === 'Full Year' ? 'Year' : 'Sem'})</span>
+                            <span className="inline-block text-[8px] font-extrabold uppercase tracking-widest px-1 py-0.2 bg-slate-100 text-slate-700 rounded mt-1 border border-slate-300">
+                              {fee.allowSiblingCoverage !== false ? '• Sibling Exception Yes' : '• Individual Only'}
+                            </span>
                           </th>
                         ))}
                         <th className="px-5 py-3 text-center text-xs font-bold text-black uppercase tracking-widest">Total Required Target</th>
@@ -1953,7 +2191,7 @@ export function PTAFeesManagementView({
                             </td>
                           </tr>
                           {sexStudents.map(student => {
-                            const totalTarget = fees.filter(f => f.status === 'active').reduce((sum, fee) => sum + fee.amount, 0);
+                            const totalTarget = fees.filter(f => f.status === 'active').reduce((sum, fee) => sum + (studentPTALedger[student.id]?.[fee.id]?.billed ?? fee.amount), 0);
                             const totalPaid = fees.filter(f => f.status === 'active').reduce((sum, fee) => sum + (studentPTALedger[student.id]?.[fee.id]?.paid || 0), 0);
                             const remainingBalance = Math.max(0, totalTarget - totalPaid);
                             const isFullySettled = totalPaid >= totalTarget && totalTarget > 0;
@@ -1967,7 +2205,32 @@ export function PTAFeesManagementView({
                                     </div>
                                     <div>
                                       <h4 className="text-xs font-black text-black">{formatStudentName(student)}</h4>
-                                      <span className="font-mono text-[10px] text-black block font-bold">LRN: {student.lrn || 'Missing'}</span>
+                                      <div className="flex items-center gap-2 mt-0.5">
+                                        <span className="font-mono text-[10px] text-black block font-bold">LRN: {student.lrn || 'Missing'}</span>
+                                        {(() => {
+                                          const siblings = getSiblingsForStudent(student);
+                                          if (siblings.length > 0) {
+                                            return (
+                                              <span className="inline-flex items-center gap-1 px-1.5 py-0.2 bg-purple-50 text-purple-700 border border-purple-200/50 rounded text-[9px] font-black" title={siblings.map(sib => `${formatStudentName(sib)} (${sib.sectionName || 'N/A'}, Gr ${sib.gradeLevel})`).join('\n')}>
+                                                {siblings.length} Sibling{siblings.length > 1 ? 's' : ''}
+                                              </span>
+                                            );
+                                          }
+                                          return null;
+                                        })()}
+                                      </div>
+                                      {(() => {
+                                        const siblings = getSiblingsForStudent(student);
+                                        if (siblings.length > 0) {
+                                          return (
+                                            <div className="text-[9px] text-purple-600 font-heavy mt-1 max-w-xs truncate flex items-center gap-1">
+                                              <span className="shrink-0 bg-purple-100 px-1 py-0.2 rounded font-black text-[8px] tracking-wide">SIBLINGS:</span>
+                                              <span className="truncate">{siblings.map(sib => formatStudentName(sib)).join(', ')}</span>
+                                            </div>
+                                          );
+                                        }
+                                        return null;
+                                      })()}
                                     </div>
                                   </div>
                                 </td>
@@ -1982,7 +2245,11 @@ export function PTAFeesManagementView({
                                   const amountPaid = feeLedger?.paid || 0;
                                   return (
                                     <td key={fee.id} className="px-5 py-4 whitespace-nowrap text-center">
-                                      <span className="text-sm font-bold text-black">₱{amountPaid.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                                      {feeLedger?.payments?.some(p => p.coveredBySibling) ? (
+                                        <span className="text-[10px] bg-purple-100 text-purple-800 px-2 py-0.5 rounded font-extrabold uppercase tracking-wider border border-purple-200">Sibling Waiver</span>
+                                      ) : (
+                                        <span className="text-sm font-bold text-black">₱{amountPaid.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                                      )}
                                     </td>
                                   )
                                 })}
@@ -2100,6 +2367,21 @@ export function PTAFeesManagementView({
                       </div>
                     </div>
 
+                    {/* Sibling Waiver Setup Checkbox */}
+                    <div className="flex items-start space-x-2 bg-slate-50 p-2.5 border border-slate-200 rounded-xl">
+                      <input 
+                        type="checkbox" 
+                        id="setupAllowSiblingCoverage"
+                        checked={feeFormAllowSiblingCoverage}
+                        onChange={(e) => setFeeFormAllowSiblingCoverage(e.target.checked)}
+                        className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer mt-0.5"
+                      />
+                      <label htmlFor="setupAllowSiblingCoverage" className="text-xs font-black text-slate-700 cursor-pointer select-none">
+                        Allow Sibling Payment Coverage
+                        <span className="text-[10px] text-slate-400 font-normal block leading-tight mt-0.5">Siblings are exempt once one family member contributes to this item.</span>
+                      </label>
+                    </div>
+
                     <div className="space-y-1">
                       <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Description / PTA Target Scope</label>
                       <textarea 
@@ -2130,6 +2412,8 @@ export function PTAFeesManagementView({
                           setFeeFormAmount(0);
                           setFeeFormDescription('');
                           setFeeFormSemester('Full Year');
+                          setFeeFormStatus('active');
+                          setFeeFormAllowSiblingCoverage(true);
                         }}
                         className="w-full py-2 bg-slate-100 text-slate-500 text-xs font-bold rounded-lg hover:bg-slate-200"
                       >
@@ -2241,6 +2525,16 @@ export function PTAFeesManagementView({
                           ) : (
                             <span className="px-2.5 py-0.5 bg-slate-100 text-slate-500 rounded-full text-[9px] font-heavy tracking-wider">inactive</span>
                           )}
+
+                          {fee.allowSiblingCoverage !== false ? (
+                            <span className="px-2.5 py-0.5 bg-purple-100 text-purple-800 border border-purple-200/50 rounded-full text-[9px] font-heavy tracking-wider font-mono flex items-center gap-0.5">
+                              ✓ Sibling Waiver Allowed
+                            </span>
+                          ) : (
+                            <span className="px-2.5 py-0.5 bg-slate-50 text-slate-400 border border-slate-200/50 rounded-full text-[9px] font-heavy tracking-wider font-mono flex items-center gap-0.5">
+                              ✗ Sibling Waiver Disabled
+                            </span>
+                          )}
                         </div>
                         <div>
                           <h4 className="text-xs font-black text-slate-800">{fee.name}</h4>
@@ -2270,6 +2564,7 @@ export function PTAFeesManagementView({
                               setFeeFormYear(fee.schoolYear);
                               setFeeFormSemester(fee.semester);
                               setFeeFormStatus(fee.status);
+                              setFeeFormAllowSiblingCoverage(fee.allowSiblingCoverage !== false);
                               setShowFeeModal(true);
                               document.getElementById('pta-fees-portal')?.scrollTo({ top: 0, behavior: 'smooth' });
                             }}
@@ -2519,9 +2814,29 @@ export function PTAFeesManagementView({
                       payments.map(p => (
                         <tr key={p.id} className="text-xs hover:bg-slate-50">
                           <td className="px-5 py-3 font-mono font-bold text-slate-700">{p.orNumber}</td>
-                          <td className="px-5 py-3">{p.studentName}</td>
+                          <td className="px-5 py-3">
+                            <div className="font-black text-slate-800">{p.studentName}</div>
+                            {p.coveredBySibling && p.coveredBySiblingPayeeName && (
+                              <div className="text-[10px] text-indigo-600 font-bold mt-0.5">
+                                Covered by sibling: {p.coveredBySiblingPayeeName}
+                              </div>
+                            )}
+                            {p.coveredSiblings && p.coveredSiblings.length > 0 && (
+                              <div className="text-[10px] text-purple-600 font-bold mt-0.5">
+                                Covers sibling(s): {p.coveredSiblings.map(s => s.name).join(', ')}
+                              </div>
+                            )}
+                          </td>
                           <td className="px-5 py-3 text-indigo-700">{p.feeName}</td>
-                          <td className="px-5 py-3 text-center text-emerald-700">₱{p.amountPaid.toLocaleString()}</td>
+                          <td className="px-5 py-3 text-center text-emerald-700">
+                            {p.coveredBySibling ? (
+                              <span className="bg-indigo-50 text-indigo-700 border border-indigo-100 px-2 py-0.5 rounded-full text-[10px] uppercase font-extrabold tracking-wider">
+                                Sibling Covered
+                              </span>
+                            ) : (
+                              `₱${p.amountPaid.toLocaleString()}`
+                            )}
+                          </td>
                           <td className="px-5 py-3 text-center">{p.schoolYear}</td>
                         </tr>
                       ))
@@ -2647,14 +2962,128 @@ export function PTAFeesManagementView({
                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Received voluntary Amount (₱)</label>
                 <input 
                   type="number" 
-                  min="1"
+                  min={payCoveredBySibling ? "0" : "1"}
                   max={paymentTarget.fee.amount}
-                  value={payAmount || ''}
+                  value={payCoveredBySibling ? 0 : (payAmount || '')}
                   onChange={(e) => setPayAmount(Number(e.target.value))}
-                  className="p-2.5 w-full bg-slate-50 border border-slate-250 rounded-xl text-xs font-black text-slate-800 font-mono"
+                  disabled={payCoveredBySibling}
+                  className={`p-2.5 w-full border rounded-xl text-xs font-black font-mono transition-colors ${payCoveredBySibling ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed' : 'bg-slate-50 border-slate-250 text-slate-800'}`}
                   required
                 />
               </div>
+
+              {/* Sibling Coverage Checkbox */}
+              {paymentTarget.fee.allowSiblingCoverage !== false && getAllSiblingsForStudent(paymentTarget.student).length > 0 && (
+                <div className="flex items-start space-x-2.5 bg-indigo-50/50 p-3 border border-indigo-100/60 rounded-xl">
+                  <input 
+                    type="checkbox" 
+                    id="coveredBySibling"
+                    checked={payCoveredBySibling}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setPayCoveredBySibling(checked);
+                      if (checked) {
+                        setPayAmount(0);
+                        setEnableSiblingCoverageCheck(false);
+                        setSelectedSiblingIds([]);
+                      } else {
+                        const studentId = paymentTarget.student.id;
+                        const feeId = paymentTarget.fee.id;
+                        const record = studentPTALedger[studentId]?.[feeId];
+                        const maxDue = record ? record.balance : paymentTarget.fee.amount;
+                        setPayAmount(maxDue);
+                      }
+                    }}
+                    className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer mt-0.5"
+                  />
+                  <label htmlFor="coveredBySibling" className="text-xs font-black text-slate-700 cursor-pointer select-none">
+                    Covered by Sibling Payment
+                    <span className="text-[10px] text-slate-400 font-normal block leading-tight mt-0.5">Mark student as fully paid under sibling exception rules.</span>
+                  </label>
+                </div>
+              )}
+
+              {/* Allow Sibling Payment Coverage Checkbox and Selector */}
+              {paymentTarget.fee.allowSiblingCoverage !== false && !payCoveredBySibling && (
+                (() => {
+                  const siblings = getSiblingsForStudent(paymentTarget.student);
+                  if (siblings.length === 0) {
+                    return (
+                      <div className="bg-purple-50/30 p-3.5 border border-purple-100/60 rounded-xl space-y-1.5 text-xs animate-in fade-in duration-150">
+                        <span className="text-[10px] font-black text-purple-700 uppercase tracking-widest block">No Linked Siblings Found</span>
+                        <p className="text-[10px] text-slate-500 leading-normal">
+                          Siblings are automatically recognized when learners share a matching <strong className="text-slate-700">Contact Number</strong> or matching <strong className="text-slate-700">Last Name &amp; Address</strong>. You can also manually link siblings!
+                        </p>
+                        <p className="text-[9.5px] text-indigo-600 font-bold">
+                          💡 You can also link individual siblings manually by editing each student's profile on the main Learner/Student directories and adding their siblings!
+                        </p>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="space-y-3 bg-purple-50/50 p-4 border border-purple-100 rounded-xl">
+                      <div className="flex items-center space-x-2.5">
+                        <input 
+                          type="checkbox" 
+                          id="allowSiblingPaymentCoverage"
+                          checked={enableSiblingCoverageCheck}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setEnableSiblingCoverageCheck(checked);
+                            if (!checked) {
+                              setSelectedSiblingIds([]);
+                            }
+                          }}
+                          className="w-4 h-4 text-purple-600 border-slate-300 rounded focus:ring-purple-500 cursor-pointer"
+                        />
+                        <label htmlFor="allowSiblingPaymentCoverage" className="text-xs font-black text-slate-700 cursor-pointer select-none">
+                          Allow Sibling Payment Coverage
+                          <span className="text-[10px] text-slate-400 font-normal block leading-tight mt-0.5">Cover lower-grade siblings' fees under this single transaction.</span>
+                        </label>
+                      </div>
+
+                      {enableSiblingCoverageCheck && (
+                        <div className="space-y-2 pt-1.5 border-t border-purple-100/50 animate-in fade-in slide-in-from-top-1 duration-150">
+                          <label className="text-[10px] font-bold text-purple-700 uppercase tracking-wider block flex justify-between">
+                            <span>Select Siblings to Cover (linked to same family group)</span>
+                            <span className="text-[9px] text-amber-600 lowercase bg-amber-50 px-1.5 rounded">only showing lower grades</span>
+                          </label>
+                          <div className="border border-purple-200/60 rounded-lg max-h-36 overflow-y-auto bg-white p-2 text-xs space-y-1.5 shadow-inner">
+                            {siblings.map(sib => {
+                              const isChecked = selectedSiblingIds.includes(sib.id);
+                              return (
+                                <label key={sib.id} className="flex items-center space-x-2.5 p-1.5 hover:bg-slate-50 rounded cursor-pointer transition-colors">
+                                  <input 
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={() => {
+                                      if (isChecked) {
+                                        setSelectedSiblingIds(selectedSiblingIds.filter(id => id !== sib.id));
+                                      } else {
+                                        setSelectedSiblingIds([...selectedSiblingIds, sib.id]);
+                                      }
+                                    }}
+                                    className="w-3.5 h-3.5 text-purple-600 rounded border-slate-300 focus:ring-purple-500"
+                                  />
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-extrabold text-slate-700 truncate">{sib.name}</p>
+                                    <p className="text-[9px] text-slate-400 font-semibold">
+                                      {sib.sectionName || 'N/A'} • Grade {sib.gradeLevel || 0} {sib.lrn ? `• LRN: ${sib.lrn}` : ''}
+                                    </p>
+                                  </div>
+                                </label>
+                              );
+                            })}
+                          </div>
+                          <span className="text-[9px] text-purple-600 font-bold block">
+                            {selectedSiblingIds.length} sibling(s) selected for waiver coverage.
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
@@ -2804,6 +3233,29 @@ export function PTAFeesManagementView({
                     <span className="text-slate-800 font-bold">Grade {showReceipt.gradeLevel}</span>
                   </div>
                 </div>
+
+                {showReceipt.coveredBySibling && showReceipt.coveredBySiblingPayeeName && (
+                  <div className="flex justify-between border-t border-slate-200/60 pt-1.5 mt-1.5 text-[11px]">
+                    <span className="text-slate-500 font-bold">Paid by Sibling:</span>
+                    <span className="text-indigo-600 font-black uppercase text-xs">{showReceipt.coveredBySiblingPayeeName}</span>
+                  </div>
+                )}
+
+                {showReceipt.coveredSiblings && showReceipt.coveredSiblings.length > 0 && (
+                  <div className="border-t border-slate-200/60 pt-2 mt-2 space-y-1">
+                    <span className="text-purple-600 font-heavy uppercase text-[9px] block tracking-wide">Covered Siblings (Waived)</span>
+                    <div className="bg-purple-50/50 p-2 rounded-lg border border-purple-100/40 space-y-1">
+                      {showReceipt.coveredSiblings.map((sib, sIdx) => (
+                        <div key={sIdx} className="flex justify-between items-center text-[10px] text-slate-700">
+                          <span className="font-extrabold truncate text-slate-800">{sib.name}</span>
+                          <span className="text-[9px] text-slate-400 font-bold shrink-0 ml-2">
+                            {sib.sectionName || 'N/A'} • Grade {sib.gradeLevel || 0}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Payment amounts receipt description */}
@@ -2817,7 +3269,13 @@ export function PTAFeesManagementView({
                     <h4 className="text-slate-900 font-black">{showReceipt.feeName}</h4>
                     <span className="text-[10px] text-slate-400 font-normal">Strictly voluntary parent association fund</span>
                   </div>
-                  <span className="font-mono text-slate-900 text-sm font-black">₱{showReceipt.amountPaid.toFixed(2)}</span>
+                  <span className="font-mono text-slate-900 text-sm font-black">
+                    {showReceipt.coveredBySibling ? (
+                      <span className="text-xs bg-indigo-50 border border-indigo-100 text-indigo-705 px-2 py-0.5 rounded font-black uppercase tracking-wide">Sibling Covered</span>
+                    ) : (
+                      `₱${showReceipt.amountPaid.toFixed(2)}`
+                    )}
+                  </span>
                 </div>
 
                 {receiptFeeDetails && (
@@ -2834,7 +3292,13 @@ export function PTAFeesManagementView({
                     )}
                     <div className="flex justify-between text-slate-800 font-medium">
                       <span>Paid in This Receipt:</span>
-                      <span className="font-mono">₱{showReceipt.amountPaid.toFixed(2)}</span>
+                      <span className="font-mono">
+                        {showReceipt.coveredBySibling ? (
+                          <span className="text-[10px] text-indigo-600 font-bold uppercase">Sibling Covered</span>
+                        ) : (
+                          `₱${showReceipt.amountPaid.toFixed(2)}`
+                        )}
+                      </span>
                     </div>
                     <div className="flex justify-between font-bold border-t border-slate-200/50 pt-1.5 mt-1">
                       {receiptFeeDetails.isPartial ? (
@@ -2849,7 +3313,7 @@ export function PTAFeesManagementView({
                         <>
                           <span className="text-emerald-700 flex items-center gap-1">
                             <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full inline-block"></span>
-                            Status: Fully Settled
+                            {showReceipt.coveredBySibling ? "Status: Sibling Coverage Settled" : "Status: Fully Settled"}
                           </span>
                           <span className="font-mono text-emerald-700">₱0.00</span>
                         </>
@@ -2860,7 +3324,13 @@ export function PTAFeesManagementView({
 
                 <div className="bg-slate-50 px-4 py-3 border-t border-slate-200 flex justify-between items-center text-xs">
                   <span className="text-slate-500 font-black uppercase text-[10px]">Total Received Amount</span>
-                  <span className="font-mono text-indigo-700 font-black text-base">₱{showReceipt.amountPaid.toFixed(2)}</span>
+                  <span className="font-mono text-indigo-700 font-black text-base">
+                    {showReceipt.coveredBySibling ? (
+                      <span className="text-xs bg-indigo-50 border border-indigo-100 text-indigo-700 px-2.5 py-1 rounded font-black uppercase tracking-wide">Sibling Covered</span>
+                    ) : (
+                      `₱${showReceipt.amountPaid.toFixed(2)}`
+                    )}
+                  </span>
                 </div>
               </div>
 
@@ -2927,18 +3397,39 @@ export function PTAFeesManagementView({
                                   <div style="font-weight: bold; text-transform: uppercase;">Grade ${showReceipt.gradeLevel}</div>
                                 </div>
                               </div>
+
+                              ${showReceipt.coveredBySibling && showReceipt.coveredBySiblingPayeeName ? `
+                              <div style="display: flex; justify-content: space-between; border-top: 1px solid #ddd; padding-top: 10px; margin-top: 10px; font-size: 11px;">
+                                <span style="color: #666;">Paid by Sibling:</span>
+                                <span style="font-weight: bold; text-transform: uppercase; color: #4338ca;">${showReceipt.coveredBySiblingPayeeName}</span>
+                              </div>
+                              ` : ''}
+
+                              ${showReceipt.coveredSiblings && showReceipt.coveredSiblings.length > 0 ? `
+                              <div style="border-top: 1px solid #ddd; padding-top: 10px; margin-top: 10px; font-size: 11px;">
+                                <div style="font-size: 10px; color: #805ad5; font-weight: bold; text-transform: uppercase; margin-bottom: 5px;">Covered Siblings (Waived)</div>
+                                <div style="background: #faf5ff; border: 1px solid #e9d5ff; padding: 10px; border-radius: 6px;">
+                                  ${showReceipt.coveredSiblings.map(sib => `
+                                    <div style="display: flex; justify-content: space-between; margin-bottom: 3px; font-size: 11px;">
+                                      <span style="font-weight: bold; color: #2d3748;">${sib.name}</span>
+                                      <span style="color: #666;">${sib.sectionName || 'N/A'} • Grade ${sib.gradeLevel || 'N/A'}</span>
+                                    </div>
+                                  `).join('')}
+                                </div>
+                              </div>
+                              ` : ''}
                             </div>
                             
                             <div style="border: 1px solid #ddd; border-radius: 8px; overflow: hidden; margin-bottom: 20px;">
                               <div style="padding: 15px; font-size: 12px;">
                                 <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
                                   <span style="font-weight: bold;">${showReceipt.feeName}</span>
-                                  <span style="font-weight: bold; font-family: monospace;">PHP ${showReceipt.amountPaid.toFixed(2)}</span>
+                                  <span style="font-weight: bold; font-family: monospace;">${showReceipt.coveredBySibling ? 'SIBLING COVERED (PHP 0.00)' : 'PHP ' + showReceipt.amountPaid.toFixed(2)}</span>
                                 </div>
                               </div>
                               <div style="background: #f1f5f9; padding: 15px; border-top: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center;">
                                 <span style="font-size: 10px; font-weight: bold; text-transform: uppercase;">Total Received Amount</span>
-                                <span style="font-size: 16px; font-weight: 900; color: #1e1b4b; font-family: monospace;">PHP ${showReceipt.amountPaid.toFixed(2)}</span>
+                                <span style="font-size: 16px; font-weight: 900; color: #1e1b4b; font-family: monospace;">${showReceipt.coveredBySibling ? 'SIBLING COVERED (PHP 0.00)' : 'PHP ' + showReceipt.amountPaid.toFixed(2)}</span>
                               </div>
                             </div>
                             

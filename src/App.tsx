@@ -84,11 +84,13 @@ import {
   ExternalLink,
   Camera,
   Save,
-  Info
+  Info,
+  Edit
 } from "lucide-react";
 
 import { SystemDocumentationView } from "./components/SystemDocumentationView";
 import { SF8View } from "./components/SF8View";
+import { ManualSiblingSelector } from "./components/ManualSiblingSelector";
 
 const formatGradeSection = (gradeLevel?: string | number, sectionName?: string) => {
   const g = String(gradeLevel || "7").trim();
@@ -831,6 +833,7 @@ export default function App() {
     height: "",
     nutritionalStatus: {},
     isTransferredIn: false,
+    siblingIds: [] as string[],
     eligibility: {
       type: 'Elementary School Completer',
       genAvg: '',
@@ -1014,21 +1017,33 @@ export default function App() {
             const userDoc = await getDoc(doc(db, "users", user.uid));
             if (userDoc.exists()) {
               const profile = userDoc.data() as UserProfile;
+              let updatedProfile = { ...profile };
+              let syncNeeded = false;
+
+              // Sync name from Google Auth if it was changed
+              if (user.displayName && profile.displayName !== user.displayName) {
+                updatedProfile.displayName = user.displayName;
+                syncNeeded = true;
+              }
               
               // Bootstrap Admin
               if (user.email === 'jessiemangabo@gmail.com' && (profile.role !== 'admin' || profile.approvalStatus !== 'approved')) {
-                 const updated = { ...profile, role: 'admin' as const, approvalStatus: 'approved' as const };
-                 await setDoc(doc(db, "users", user.uid), updated);
-                 setUserProfile(updated);
+                 updatedProfile = { ...updatedProfile, role: 'admin', approvalStatus: 'approved' };
+                 syncNeeded = true;
+              }
+
+              if (syncNeeded) {
+                 await setDoc(doc(db, "users", user.uid), updatedProfile, { merge: true });
+                 setUserProfile(updatedProfile);
               } else {
                  setUserProfile(profile);
               }
               
-              if (profile.role === 'student') {
+              if (updatedProfile.role === 'student') {
                  // Look for student in all sections
                  const identifiers: { val: string, type: 'email' | 'lrn' }[] = [];
-                 if (profile.email) identifiers.push({ val: profile.email, type: 'email' });
-                 if (profile.lrn) identifiers.push({ val: profile.lrn, type: 'lrn' });
+                 if (updatedProfile.email) identifiers.push({ val: updatedProfile.email, type: 'email' });
+                 if (updatedProfile.lrn) identifiers.push({ val: updatedProfile.lrn, type: 'lrn' });
                  
                  if (identifiers.length > 0) {
                    await findStudentEnrollments(identifiers);
@@ -1780,6 +1795,10 @@ export default function App() {
       }
 
       if (editingId) {
+        const oldStudent = students.find(s => s.id === editingId);
+        const oldSiblings = oldStudent?.siblingIds || [];
+        const newSiblings = learnerForm.siblingIds || [];
+
         const { bmi, category } = computeBMI(parseFloat(learnerForm.weight) || 0, parseFloat(learnerForm.height) || 0);
         await setDoc(doc(db, `sections/${selectedSection.id}/students`, editingId), {
           ...learnerForm,
@@ -1795,6 +1814,7 @@ export default function App() {
           studentNumber: learnerForm.lrn,
           enrolledSubjectIds: resolvedEnrolledSubjectIds
         }, { merge: true });
+
         setEditingId(null);
       } else {
         const { bmi, category } = computeBMI(parseFloat(learnerForm.weight) || 0, parseFloat(learnerForm.height) || 0);
@@ -1834,15 +1854,35 @@ export default function App() {
           grades: {},
           enrolledSubjectIds: resolvedEnrolledSubjectIds,
           gradeLevel: selectedSection.gradeLevel || "",
-          sectionName: selectedSection.name || ""
+          sectionName: selectedSection.name || "",
+          siblingIds: learnerForm.siblingIds || []
         };
-        await addDoc(collection(db, `sections/${selectedSection.id}/students`), newLearner);
+        const docRef = await addDoc(collection(db, `sections/${selectedSection.id}/students`), newLearner);
+        const newStudentId = docRef.id;
+
+        // Bidirectional update for new student
+        try {
+          const sibs = learnerForm.siblingIds || [];
+          for (const sId of sibs) {
+            const snaps = await Promise.all(sections.map(sec => getDoc(doc(db, `sections/${sec.id}/students`, sId))));
+            const snap = snaps.find(s => s.exists());
+            if (snap) {
+              const sRef = snap.ref;
+              const sibList = snap.data().siblingIds || [];
+              if (!sibList.includes(newStudentId)) {
+                await updateDoc(sRef, { siblingIds: [...sibList, newStudentId] });
+              }
+            }
+          }
+        } catch (e) {
+          console.error("Error creating manual bidirectional links for new student:", e);
+        }
       }
       setLearnerForm({ 
         lastName: "", firstName: "", middleName: "", extension: "", name: "", 
         lrn: "", email: "", photo: "", age: "", birthdate: "", sex: "Male", weight: "", height: "", attendance: {}, 
         birthplace: "", address: "", fatherName: "", motherName: "", guardianName: "", guardianRelationship: "", primaryContact: "guardian", contactNumber: "",
-        nutritionalStatus: {}, isTransferredIn: false, eligibility: { type: 'Elementary School Completer' } as Eligibility 
+        nutritionalStatus: {}, isTransferredIn: false, siblingIds: [], eligibility: { type: 'Elementary School Completer' } as Eligibility 
       });
     } catch (error) {
       handleFirestoreError(error, 'write', `sections/${selectedSection.id}/students`);
@@ -2065,6 +2105,7 @@ export default function App() {
       attendance: student.attendance || {},
       nutritionalStatus: student.nutritionalStatus || {},
       isTransferredIn: student.isTransferredIn || false,
+      siblingIds: student.siblingIds || [],
       eligibility: student.eligibility || { type: 'Elementary School Completer' } as Eligibility
     });
   };
@@ -3307,6 +3348,7 @@ export default function App() {
                   setForm={setLearnerForm} 
                   onSave={handleSaveLearner}
                   students={filteredStudents}
+                  sections={sections}
                   unenrolledStudents={unenrolledStudents}
                   onEnrollAllLearners={handleEnrollAllLearners}
                   onEdit={handleEditClick}
@@ -3322,7 +3364,7 @@ export default function App() {
                       lastName: "", firstName: "", middleName: "", extension: "", name: "", 
                       lrn: "", email: "", photo: "", age: "", birthdate: "", sex: "Male", weight: "", height: "", attendance: {}, 
                       birthplace: "", address: "", fatherName: "", motherName: "", guardianName: "", guardianRelationship: "", primaryContact: "guardian", contactNumber: "",
-                      nutritionalStatus: {}, isTransferredIn: false, eligibility: { type: 'Elementary School Completer' } as any
+                      nutritionalStatus: {}, isTransferredIn: false, siblingIds: [], eligibility: { type: 'Elementary School Completer' } as any
                     });
                   }}
                   sectionName={selectedSection.name}
@@ -4030,26 +4072,26 @@ function SectionForm({
             <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider ml-1">Adviser Name</label>
             {advisoryCandidates.length > 0 ? (
               <select 
-                value={form.adviserName}
+                value={form.adviserEmail || ""}
                 onChange={e => {
                   const val = e.target.value;
-                  const matched = advisoryCandidates.find(c => (c.displayName || c.email) === val);
+                  const matched = advisoryCandidates.find(c => c.email === val);
                   setForm(prev => ({
                     ...prev,
-                    adviserName: val,
-                    adviserEmail: matched ? (matched.email || "") : prev.adviserEmail
+                    adviserName: matched ? (matched.displayName || matched.email) : val,
+                    adviserEmail: val
                   }));
                 }}
                 className="w-full h-11 px-4 bg-slate-50/50 border border-slate-200 rounded-lg outline-none focus:border-indigo-500 font-semibold text-sm transition-all text-slate-800"
               >
                 <option value="" disabled>Select Class Adviser...</option>
-                {form.adviserName && !advisoryCandidates.some(c => (c.displayName || c.email) === form.adviserName) && (
-                  <option value={form.adviserName}>{form.adviserName}</option>
+                {form.adviserEmail && !advisoryCandidates.some(c => c.email === form.adviserEmail) && (
+                  <option value={form.adviserEmail}>{form.adviserName || form.adviserEmail}</option>
                 )}
                 {advisoryCandidates.map(c => {
                   const label = c.displayName || c.email;
                   return (
-                    <option key={c.uid} value={label}>
+                    <option key={c.uid} value={c.email}>
                       {label} ({c.email})
                     </option>
                   );
@@ -4070,9 +4112,9 @@ function SectionForm({
             <input 
               value={form.adviserEmail}
               onChange={e => setForm({...form, adviserEmail: e.target.value})}
-              readOnly={!!form.adviserName && advisoryCandidates.some(c => (c.displayName || c.email) === form.adviserName)}
+              readOnly={!!form.adviserEmail && advisoryCandidates.some(c => c.email === form.adviserEmail)}
               className={`w-full h-11 px-4 border border-slate-200 rounded-lg outline-none font-semibold text-sm transition-all ${
-                (form.adviserName && advisoryCandidates.some(c => (c.displayName || c.email) === form.adviserName)) 
+                (form.adviserEmail && advisoryCandidates.some(c => c.email === form.adviserEmail)) 
                   ? 'bg-slate-100 text-slate-500 cursor-not-allowed' 
                   : 'bg-slate-50/50 focus:border-indigo-500 text-slate-850'
               }`}
@@ -5409,7 +5451,7 @@ function SectionsView({
   const [requestDeletionReason, setRequestDeletionReason] = useState("");
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
   const [confirmFinalizeConfig, setConfirmFinalizeConfig] = useState<{ subjectId: string, term: number, finalize: boolean } | null>(null);
-  const [isOverviewOpen, setIsOverviewOpen] = useState(true);
+  const [isOverviewOpen, setIsOverviewOpen] = useState(false);
   const [collapsedAdminGrades, setCollapsedAdminGrades] = useState<Set<number>>(new Set());
   
   const adminGroupedOverview = useMemo(() => {
@@ -8356,6 +8398,7 @@ function AddLearnerModal({
   globalSubjects = [],
   subjects = [],
   section,
+  sections = [],
   onTriggerBulkUpload
 }: { 
   form: any, 
@@ -8367,6 +8410,7 @@ function AddLearnerModal({
   globalSubjects?: Subject[],
   subjects?: Subject[],
   section?: Section | null,
+  sections?: Section[],
   onTriggerBulkUpload?: () => void
 }) {
   const [searchLrn, setSearchLrn] = useState("");
@@ -8804,6 +8848,8 @@ function AddLearnerModal({
               />
             </div>
 
+            <div className="border-t border-slate-150 mt-5 pt-4"></div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-600 uppercase tracking-widest flex justify-between">
@@ -8876,6 +8922,17 @@ function AddLearnerModal({
                 value={form.contactNumber || ''}
                 onChange={e => setForm({...form, contactNumber: e.target.value})}
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none text-sm font-medium"
+              />
+            </div>
+
+            <div className="border-t border-slate-150 pt-5 mt-5">
+              <ManualSiblingSelector 
+                siblingIds={form.siblingIds || []} 
+                onChange={(newIds) => setForm({...form, siblingIds: newIds})} 
+                sections={sections}
+                currentStudentId={null}
+                currentGradeLevel={section?.gradeLevel || null}
+                currentSectionId={section?.id || null}
               />
             </div>
 
@@ -9144,7 +9201,8 @@ function AddLearnerView({
   globalSubjects = [],
   unenrolledStudents = [],
   onEnrollAllLearners,
-  subjects = []
+  subjects = [],
+  sections = []
 }: {
   form: any,
   setForm: any,
@@ -9174,7 +9232,8 @@ function AddLearnerView({
   globalSubjects?: Subject[],
   unenrolledStudents?: Student[],
   onEnrollAllLearners?: () => Promise<void>,
-  subjects?: Subject[]
+  subjects?: Subject[],
+  sections?: Section[]
 }) {
   const [showAddModal, setShowAddModal] = useState(false);
   const studentsMale = useMemo(() => {
@@ -9772,6 +9831,7 @@ function AddLearnerView({
             globalSubjects={globalSubjects}
             subjects={subjects}
             section={section}
+            sections={sections}
             onTriggerBulkUpload={() => {
               setShowAddModal(false);
               setTimeout(() => {
@@ -9797,6 +9857,7 @@ function AddLearnerView({
             globalSubjects={globalSubjects}
             subjects={subjects}
             section={section}
+            sections={sections}
           />
         )}
         {deleteTarget && (
@@ -12156,7 +12217,8 @@ function EditLearnerModal({
   isActiveSY,
   globalSubjects = [],
   subjects = [],
-  section
+  section,
+  sections = []
 }: { 
   form: any, 
   setForm: any, 
@@ -12169,7 +12231,8 @@ function EditLearnerModal({
   isActiveSY?: boolean,
   globalSubjects?: Subject[],
   subjects?: Subject[],
-  section?: Section | null
+  section?: Section | null,
+  sections?: Section[]
 }) {
   const [activeTab, setActiveTab] = useState<'basic' | 'attendance'>('basic');
 
@@ -12386,6 +12449,8 @@ function EditLearnerModal({
                 />
               </div>
 
+              <div className="col-span-full border-t border-slate-150 mt-5 pt-4"></div>
+
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-600 uppercase tracking-widest flex justify-between">
                   <span>Father's Full Name</span>
@@ -12577,6 +12642,17 @@ function EditLearnerModal({
                <label htmlFor="editIsTransferredIn" className="text-xs font-black text-orange-700 uppercase tracking-widest cursor-pointer select-none">
                  Learner is Transferred In/Move In
                </label>
+            </div>
+
+            <div className="border-t border-slate-150 pt-5 mt-5">
+              <ManualSiblingSelector 
+                siblingIds={form.siblingIds || []} 
+                onChange={(newIds) => setForm({...form, siblingIds: newIds})} 
+                sections={sections}
+                currentStudentId={form.id || null}
+                currentGradeLevel={section?.gradeLevel || null}
+                currentSectionId={section?.id || null}
+              />
             </div>
 
             <EligibilityForm form={form} setForm={setForm} />
@@ -14364,6 +14440,7 @@ function DashboardView({
   const totalStudents = students.length;
   const totalSubjects = subjects.length;
   const [collapsedGrades, setCollapsedGrades] = useState<Set<number>>(new Set());
+  const [isAdvisoryOverviewOpen, setIsAdvisoryOverviewOpen] = useState(false);
 
   const groupedOverview = useMemo(() => {
     const groups: {
@@ -14792,10 +14869,38 @@ function DashboardView({
 
         {/* Section Advisory: All Finalized Subjects Overview */}
         {!isYearEndFinalized && currentUser?.role === 'system_admin' && subjects.length > 0 && (
-          <div className="animate-in fade-in slide-in-from-top-2 duration-300 mt-8 mb-4">
-            <h4 className="text-sm font-bold text-slate-800 mb-4 border-b border-slate-100 pb-2 font-sans uppercase tracking-tight">Section Subject Finalization Overview</h4>
-            <div className="space-y-4">
-              {sortedGradeLevels.map(gradeLevel => {
+          <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm mb-6 mt-8 transition-all">
+            <button 
+              type="button"
+              onClick={() => setIsAdvisoryOverviewOpen(!isAdvisoryOverviewOpen)}
+              className="w-full px-6 py-4 flex items-center justify-between bg-slate-50 hover:bg-slate-100/70 border-b border-slate-100 transition-colors text-left font-sans cursor-pointer"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                  <BookOpen size={16} />
+                </div>
+                <div>
+                  <h4 className="font-bold text-slate-800 text-sm uppercase tracking-wider leading-none font-sans uppercase tracking-tight">Section Subject Finalization Overview</h4>
+                  <p className="text-[10px] text-slate-500 font-medium uppercase tracking-widest mt-1">Monitor finalization status across academic classes</p>
+                </div>
+              </div>
+              <div className="text-slate-400 p-1 bg-white hover:bg-slate-200 rounded-lg border border-slate-200 transition-all">
+                {isAdvisoryOverviewOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              </div>
+            </button>
+
+            <AnimatePresence initial={false}>
+              {isAdvisoryOverviewOpen && (
+                <motion.div 
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="overflow-hidden"
+                >
+                  <div className="p-6">
+                    <div className="space-y-4">
+                      {sortedGradeLevels.map(gradeLevel => {
                 const gradeLabel = Number(gradeLevel) === 0 ? "Kindergarten" : `Grade ${gradeLevel}`;
                 const sectionsInGrade = groupedOverview[gradeLevel];
                 const sectionIds = Object.keys(sectionsInGrade).sort((a, b) => {
@@ -14911,6 +15016,10 @@ function DashboardView({
                 );
               })}
             </div>
+            </div>
+            </motion.div>
+            )}
+            </AnimatePresence>
           </div>
         )}
 
@@ -21036,7 +21145,10 @@ function StudentPortal({
                      <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm">
                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Voluntary Fee Targets</span>
                        <div className="flex items-baseline gap-1.5">
-                         <span className="text-2xl font-black text-slate-900">₱{ptaFees.reduce((sum, f) => sum + (f.amount || 0), 0).toFixed(2)}</span>
+                         <span className="text-2xl font-black text-slate-900">₱{ptaFees.reduce((sum, f) => {
+                           const isSibCovered = ptaPayments.some(p => p.feeId === f.id && p.coveredBySibling);
+                           return isSibCovered ? sum : sum + (f.amount || 0);
+                         }, 0).toFixed(2)}</span>
                        </div>
                        <p className="text-[10px] text-slate-500 mt-2 font-medium">For {ptaFees.length} active contribution programs</p>
                      </div>
@@ -21076,19 +21188,25 @@ function StudentPortal({
                      ) : (
                        <div className="divide-y divide-slate-100">
                          {ptaFees.map((fee) => {
+                           const isSibCovered = ptaPayments.some(p => p.feeId === fee.id && p.coveredBySibling);
                            const paidForThisFee = ptaPayments
-                             .filter(p => p.feeId === fee.id)
+                             .filter(p => p.feeId === fee.id && !p.coveredBySibling)
                              .reduce((sum, p) => sum + (p.amountPaid || 0), 0);
-                           const isFullySettled = paidForThisFee >= fee.amount;
+                           const isFullySettled = paidForThisFee >= fee.amount || isSibCovered;
                            
                            return (
-                             <div key={fee.id} className="py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                             <div key={fee.id} className={`py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 ${isSibCovered ? 'opacity-60' : ''}`}>
                                <div className="space-y-1">
                                  <div className="flex items-center gap-2">
                                    <h4 className="font-bold text-slate-900 text-xs">{fee.name}</h4>
-                                   {fee.isVoluntary && (
+                                   {fee.isVoluntary && !isSibCovered && (
                                      <span className="bg-amber-100 text-amber-800 text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded tracking-widest">
                                        Voluntary
+                                     </span>
+                                   )}
+                                   {isSibCovered && (
+                                     <span className="bg-purple-100 text-purple-800 text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded tracking-widest">
+                                       Sibling Covered Disabled
                                      </span>
                                    )}
                                  </div>
@@ -21100,11 +21218,15 @@ function StudentPortal({
                                  <div className="text-left sm:text-right">
                                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">Contributions Paid</label>
                                    <span className="text-xs font-black text-slate-900">₱{paidForThisFee.toFixed(2)}</span>
-                                   <span className="text-[10px] text-slate-400"> of ₱{fee.amount ? fee.amount.toFixed(2) : '0.00'}</span>
+                                   <span className="text-[10px] text-slate-400"> of ₱{isSibCovered ? '0.00' : (fee.amount ? fee.amount.toFixed(2) : '0.00')}</span>
                                  </div>
 
                                  <div>
-                                   {isFullySettled ? (
+                                   {isSibCovered ? (
+                                     <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-purple-50 text-purple-700 text-[10px] font-extrabold rounded-full uppercase border border-purple-100">
+                                       <CheckCircle size={10} /> Sibling Covered
+                                     </span>
+                                   ) : isFullySettled ? (
                                      <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-700 text-[10px] font-extrabold rounded-full uppercase border border-emerald-100">
                                        <CheckCircle size={10} /> Compliant
                                      </span>
@@ -22091,6 +22213,9 @@ function AdminUsersView({
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [userToDelete, setUserToDelete] = useState<UserProfile | null>(null);
+  const [userToEdit, setUserToEdit] = useState<UserProfile | null>(null);
+  const [editUserName, setEditUserName] = useState("");
+  const [editUserLoading, setEditUserLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [showPendingOnly, setShowPendingOnly] = useState(false);
 
@@ -22474,6 +22599,20 @@ function AdminUsersView({
     }
   };
 
+  const handleEditUserSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userToEdit) return;
+    setEditUserLoading(true);
+    try {
+      await updateDoc(doc(db, "users", userToEdit.uid), { displayName: editUserName });
+      setUserToEdit(null);
+    } catch (err) {
+      handleFirestoreError(err, 'update', `users/${userToEdit.uid}`);
+    } finally {
+      setEditUserLoading(false);
+    }
+  };
+
   const confirmDelete = async () => {
     if (!userToDelete) return;
     try {
@@ -22488,6 +22627,59 @@ function AdminUsersView({
     <div className="min-h-screen bg-slate-50 relative flex flex-col">
       {!globalSettings?.activeSchoolYear && <EncodingClosedBanner />}
       <DeadlineBanner globalSettings={globalSettings} />
+      
+      {userToEdit && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl"
+          >
+            <h3 className="text-xl font-black text-slate-800 uppercase italic tracking-tighter mb-4 flex items-center gap-2">
+              <Edit size={20} className="text-indigo-600" />
+              Edit Profile Name
+            </h3>
+            <form onSubmit={handleEditUserSubmit}>
+              <div className="space-y-4 mb-6">
+                <div>
+                  <label className="text-xs font-black text-slate-400 uppercase tracking-widest block mb-1.5">Registered Email</label>
+                  <p className="text-sm font-semibold text-slate-700 bg-slate-50 border border-slate-100 rounded-xl px-4 py-3">{userToEdit.email}</p>
+                </div>
+                <div>
+                  <label htmlFor="editUserNameAdmin" className="text-xs font-black text-slate-400 uppercase tracking-widest block mb-1.5">Display Name</label>
+                  <input 
+                    id="editUserNameAdmin"
+                    type="text"
+                    value={editUserName}
+                    onChange={(e) => setEditUserName(e.target.value)}
+                    placeholder="e.g. Juan De La Cruz"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all font-medium text-slate-800 placeholder-slate-300"
+                    autoFocus
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setUserToEdit(null)}
+                  className="flex-1 px-4 py-3 border border-slate-200 text-slate-600 font-bold rounded-xl active:scale-95 transition-all outline-none"
+                  disabled={editUserLoading}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 px-4 py-3 bg-indigo-600 text-white font-black uppercase tracking-wider rounded-xl hover:bg-indigo-700 active:scale-95 transition-all outline-none shadow-md shadow-indigo-600/20 disabled:opacity-50 flex items-center justify-center gap-2"
+                  disabled={editUserLoading || !editUserName.trim()}
+                >
+                  {editUserLoading ? <Loader2 size={16} className="animate-spin" /> : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
+
       {userToDelete && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
           <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl">
@@ -23330,6 +23522,16 @@ function AdminUsersView({
                               </button>
                             )}
                             <button
+                              onClick={() => {
+                                setUserToEdit(u);
+                                setEditUserName(u.displayName || '');
+                              }}
+                              className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                              title="Edit User"
+                            >
+                              <Edit size={14} />
+                            </button>
+                            <button
                               onClick={() => setUserToDelete(u)}
                               className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
                               title="Delete User"
@@ -24152,17 +24354,67 @@ function ProfileView({ userProfile, onUpdate, onBack }: { userProfile: UserProfi
           <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight">My Profile</h1>
           <p className="text-sm font-medium text-slate-500 mt-1">View your personal and school information</p>
         </div>
-        {onBack && (
-          <button 
-            onClick={onBack}
-            className="flex items-center gap-2 bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 px-5 py-2.5 rounded-xl font-semibold text-xs transition-all shadow-sm active:scale-95"
+        <div className="flex items-center gap-3">
+          {onBack && (
+            <button 
+              onClick={onBack}
+              className="flex items-center gap-2 bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 px-5 py-2.5 rounded-xl font-semibold text-xs transition-all shadow-sm active:scale-95"
+            >
+              Go to Home
+            </button>
+          )}
+          <button
+            onClick={() => setIsEditing(true)}
+            className="flex items-center gap-2 bg-indigo-600 text-white hover:bg-indigo-700 px-5 py-2.5 rounded-xl font-bold text-xs transition-all shadow-sm active:scale-95"
           >
-            Go to Home
+            <Edit size={14} /> Edit Profile
           </button>
-        )}
+        </div>
       </div>
 
-      <div className="bg-white rounded-3xl border border-slate-200 p-8 shadow-sm space-y-8 relative overflow-hidden">
+      {isEditing ? (
+        <div className="bg-white rounded-3xl border border-slate-200 p-8 shadow-sm space-y-6">
+          <div className="space-y-4">
+            <div>
+              <label className="text-xs font-black text-slate-400 uppercase tracking-widest block mb-1.5">Registered Email</label>
+              <p className="text-sm font-semibold text-slate-700 bg-slate-50 border border-slate-100 rounded-xl px-4 py-3">{userProfile.email}</p>
+            </div>
+            <div>
+              <label htmlFor="editProfileName" className="text-xs font-black text-slate-400 uppercase tracking-widest block mb-1.5">Display Name</label>
+              <input 
+                id="editProfileName"
+                type="text"
+                value={editForm.displayName}
+                onChange={(e) => setEditForm({ ...editForm, displayName: e.target.value })}
+                className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all font-medium text-slate-800"
+              />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => {
+                setEditForm({
+                  displayName: userProfile.displayName || '',
+                  schoolId: userProfile.schoolId || '',
+                });
+                setIsEditing(false);
+              }}
+              className="flex-1 px-4 py-3 border border-slate-200 text-slate-600 font-bold rounded-xl active:scale-95 transition-all outline-none"
+              disabled={loading}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              className="flex-1 px-4 py-3 bg-indigo-600 text-white font-black uppercase tracking-wider rounded-xl hover:bg-indigo-700 active:scale-95 transition-all outline-none shadow-md shadow-indigo-600/20 disabled:opacity-50 flex items-center justify-center gap-2"
+              disabled={loading || !editForm.displayName.trim()}
+            >
+              {loading ? <Loader2 size={16} className="animate-spin" /> : 'Save Changes'}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="bg-white rounded-3xl border border-slate-200 p-8 shadow-sm space-y-8 relative overflow-hidden">
         {/* Background Accent */}
         <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-50/50 rounded-full blur-3xl opacity-60 -mr-10 -mt-10 pointer-events-none"></div>
 
@@ -24244,7 +24496,8 @@ function ProfileView({ userProfile, onUpdate, onBack }: { userProfile: UserProfi
               </div>
             </div>
           </div>
-      </div>
+        </div>
+      )}
     </div>
   );
 }

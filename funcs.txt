@@ -1,0 +1,48 @@
+105:function EncodingClosedBanner() {
+117:function DeadlineBanner({ globalSettings }: { globalSettings?: any }) {
+158:function SectionYearEndBadge({ sectionId, schoolYear, globalSettings, isSectionFinalized }: { sectionId: string; schoolYear?: string; globalSettings?: any; isSectionFinalized?: boolean }) {
+232:function SectionStatsDisplay({ sectionId, schoolYear, schoolCalendar }: { sectionId: string, schoolYear: string, schoolCalendar: any[] }) {
+663:export async function fetchSubjectsForSection(
+686:export default function App() {
+1184:      // Let's use a function and combine results
+3811:function StatusChangeModal({ 
+3912:function SectionForm({ 
+4260:function LoginView({ onLogin, isLoading }: { onLogin: () => void, isLoading?: boolean }) {
+4420:function GlobalFinalizationController({
+4876:function StatementOfAccountView({ 
+5371:function SectionsView({ 
+8159:function EligibilityForm({ form, setForm }: { form: any, setForm: any }) {
+8391:function AddLearnerModal({ 
+9020:function StudentHistoryModal({ student, onClose }: { student: Student, onClose: () => void }) {
+9026:    async function fetchHistory() {
+9175:function AddLearnerView({
+10414:function IDPrintingCenterModal({
+10975:    window.onload = function() {
+10976:      window.onafterprint = function() { window.close(); };
+10977:      window.onfocus = function() { setTimeout(function() { window.close(); }, 800); };
+10978:      setTimeout(function() { window.print(); }, 500);
+12083:function DeleteConfirmationModal({ 
+12136:function EnrollAllConfirmationModal({
+12208:function EditLearnerModal({ 
+12751:function GradebookView({ 
+14401:function DashboardView({ 
+15278:function SubjectsView({ 
+16250:function MATATAGReportCardModal({ 
+18272:          window.onload = function() {
+18273:            setTimeout(function() {
+18921:function SummarySheetView({ 
+19325:        callback: function (doc) {
+20002:function TransferFacilityView({ 
+20099:function RoleSelectionView({ user, onComplete }: { user: FirebaseUser, onComplete: (profile: UserProfile) => void }) {
+20393:function StudentLinkingView({ userProfile, onLinked, onLogout }: { userProfile: UserProfile, onLinked: (lrn: string, type: 'lrn' | 'email') => void, onLogout: () => void }) {
+20464:function StudentPortal({ 
+21393:                                       window.onload = function() {
+21394:                                         window.onafterprint = function() { window.close(); };
+21395:                                         window.onfocus = function() { setTimeout(function() { window.close(); }, 800); };
+21396:                                         setTimeout(function() {
+21760:                    printWindow.document.write('<html><head><title>Official PTA Receipt - ' + portalShowReceipt.orNumber + '</title><style>@page { size: A5 portrait; margin: 15mm; } body { padding: 0; margin: 0; }</style></head><body>' + receiptHTML + '<script>window.onload = function() { window.onafterprint = function() { window.close(); }; window.onfocus = function() { setTimeout(function() { window.close(); }, 800); }; setTimeout(function() { window.print(); }, 500); };</script></body></html>');
+21964:function PendingApprovalView({ onLogout, isExpired, isRejected, noAdminFound, userRole }: { onLogout: () => void, isExpired?: boolean, isRejected?: boolean, noAdminFound?: boolean, userRole?: string }) {
+22146:function AdminUsersView({ 
+23512:function UserGuideView() {
+24260:function ProfileView({ userProfile, onUpdate, onBack }: { userProfile: UserProfile, onUpdate: (p: UserProfile) => void, onBack?: () => void }) {
+24459:function AdminSchoolsView({ 
