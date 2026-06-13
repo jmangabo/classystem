@@ -688,7 +688,24 @@ export default function App() {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const [sections, setSections] = useState<Section[]>([]);
+  const [sections, setSectionsRaw] = useState<Section[]>([]);
+  const setSections = React.useCallback((val: Section[] | ((prev: Section[]) => Section[])) => {
+    const sortFn = (list: Section[]) => {
+      return [...list].sort((a, b) => {
+        const valA = Number(a.gradeLevel) || 0;
+        const valB = Number(b.gradeLevel) || 0;
+        if (valA !== valB) {
+          return valA - valB;
+        }
+        return (a.name || '').localeCompare(b.name || '');
+      });
+    };
+    if (typeof val === 'function') {
+      setSectionsRaw(prev => sortFn(val(prev)));
+    } else {
+      setSectionsRaw(sortFn(val));
+    }
+  }, []);
   const [expiredSchoolIds, setExpiredSchoolIds] = useState<string[]>([]);
   const [selectedSection, setSelectedSection] = useState<Section | null>(null);
   const [schoolCalendar, setSchoolCalendar] = useState<any[]>([]);
