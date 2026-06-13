@@ -2771,7 +2771,7 @@ export default function App() {
     if (activeTab === 'subjects') {
       return (
         <div className="flex-1 bg-slate-50 min-h-screen">
-          <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between sticky top-0 z-20 shadow-sm">
+          <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between sticky top-0 z-[50] shadow-sm">
             <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2">
               <BookOpen size={24} className="text-indigo-600" />
               Global Subjects Directory
@@ -15441,6 +15441,25 @@ function SubjectsView({
     offeredTerms: [1]
   });
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [selectedGradeFilter, setSelectedGradeFilter] = useState<string>('all');
+  const [selectedTermFilter, setSelectedTermFilter] = useState<string>('all');
+
+  const filteredSubjectsList = useMemo(() => {
+    return subjects.filter(sub => {
+      if (selectedGradeFilter !== 'all') {
+        if (Number(sub.gradeLevel) !== Number(selectedGradeFilter)) {
+          return false;
+        }
+      }
+      if (selectedTermFilter !== 'all') {
+        const termNum = Number(selectedTermFilter);
+        if (!sub.offeredTerms || !sub.offeredTerms.includes(termNum as any)) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [subjects, selectedGradeFilter, selectedTermFilter]);
 
   const [teacherCandidates, setTeacherCandidates] = useState<UserProfile[]>([]);
   const [presetTeacherEmail, setPresetTeacherEmail] = useState<string>(currentUser?.email || '');
@@ -15517,7 +15536,7 @@ function SubjectsView({
 
   return (
     <div className="w-full space-y-0 pb-12 bg-slate-50 min-h-screen">
-      <div className="bg-white border-b border-slate-200 px-8 py-8 md:px-12 md:py-10 flex flex-col md:flex-row justify-between items-start md:items-end gap-6 shadow-sm sticky top-0 z-40 relative overflow-hidden">
+      <div className={`bg-white border-b border-slate-200 px-8 py-8 md:px-12 md:py-10 flex flex-col md:flex-row justify-between items-start md:items-end gap-6 shadow-sm ${selectedSection ? 'sticky top-0 z-40' : 'relative z-10'} overflow-hidden`}>
         <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-50 rounded-full blur-3xl opacity-50 -mr-20 -mt-20 pointer-events-none"></div>
         <div className="flex flex-col items-start gap-4 relative z-10">
           {onBack && (
@@ -16234,16 +16253,68 @@ function SubjectsView({
       </AnimatePresence>
 
       <section className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="p-5 md:p-6 border-b border-slate-200 bg-white flex justify-between items-center px-6">
-          <h3 className="font-bold text-slate-900 tracking-tight flex items-center gap-2">
+        <div className="p-5 md:p-6 border-b border-slate-200 bg-white flex flex-col md:flex-row md:items-center justify-between gap-4 px-6">
+          <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600">
               <TableIcon size={16} />
             </div>
-            Configured Subjects
-          </h3>
-          <span className="text-xs font-semibold text-slate-600 bg-slate-50 px-3 py-1 rounded-full border border-slate-200">
-            {subjects.length} Total
-          </span>
+            <div>
+              <h3 className="font-bold text-slate-900 tracking-tight">
+                Configured Subjects
+              </h3>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                Curriculum Inventory
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-500 whitespace-nowrap">Grade:</span>
+              <select
+                value={selectedGradeFilter}
+                onChange={(e) => setSelectedGradeFilter(e.target.value)}
+                className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer"
+              >
+                <option value="all">All Grades</option>
+                <option value="0">Kindergarten (K)</option>
+                <option value="1">Grade 1</option>
+                <option value="2">Grade 2</option>
+                <option value="3">Grade 3</option>
+                <option value="4">Grade 4</option>
+                <option value="5">Grade 5</option>
+                <option value="6">Grade 6</option>
+                <option value="7">Grade 7</option>
+                <option value="8">Grade 8</option>
+                <option value="9">Grade 9</option>
+                <option value="10">Grade 10</option>
+                <option value="11">Grade 11 ★</option>
+                <option value="12">Grade 12 ★</option>
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-500 whitespace-nowrap">Term:</span>
+              <select
+                value={selectedTermFilter}
+                onChange={(e) => setSelectedTermFilter(e.target.value)}
+                className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer"
+              >
+                <option value="all">All Terms</option>
+                <option value="1">Term 1</option>
+                <option value="2">Term 2</option>
+                <option value="3">Term 3</option>
+                <option value="4">Term 4</option>
+              </select>
+            </div>
+
+            <span className="text-xs font-black text-slate-600 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 whitespace-nowrap text-center">
+              {filteredSubjectsList.length === subjects.length 
+                ? `${subjects.length} Total` 
+                : `${filteredSubjectsList.length} of ${subjects.length} Shown`
+              }
+            </span>
+          </div>
         </div>
         
         <div className="overflow-x-auto max-h-[70vh] custom-scrollbar">
@@ -16262,7 +16333,7 @@ function SubjectsView({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
-              {subjects.length === 0 ? (
+              {filteredSubjectsList.length === 0 ? (
                 <tr>
                   <td colSpan={isActiveSY ? (selectedSection ? 9 : 8) : (selectedSection ? 8 : 7)} className="px-6 py-12">
                     <div className="flex flex-col items-center justify-center p-8 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200 text-center max-w-md mx-auto">
@@ -16271,13 +16342,13 @@ function SubjectsView({
                       </div>
                       <div>
                         <h2 className="text-lg font-bold text-slate-800 tracking-tight">No Subjects Configured</h2>
-                        <p className="text-sm text-slate-500 mt-1">Add new subjects or use a curriculum preset to populate your curriculum data.</p>
+                        <p className="text-sm text-slate-500 mt-1">Add new subjects or adjust filters to find configured curriculum details.</p>
                       </div>
                     </div>
                   </td>
                 </tr>
               ) : (
-                [...subjects].sort((a, b) => (a.order || 0) - (b.order || 0)).map(subject => (
+                [...filteredSubjectsList].sort((a, b) => (a.order || 0) - (b.order || 0)).map(subject => (
                   <tr key={subject.id} className="hover:bg-indigo-50/30 transition-colors group">
                     <td className="px-6 py-4">
                       <span className="text-sm font-semibold text-slate-900">{subject.name}</span>
