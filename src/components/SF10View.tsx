@@ -23,7 +23,7 @@ import html2canvas from 'html2canvas-pro';
 import * as XLSX from 'xlsx-js-style';
 import { Student, Section, Subject, TermNumber, UserProfile } from '../types';
 import { calculateGrade } from '../lib/calculations';
-import { formatStudentName, getSubjectSortScore } from '../utils';
+import { formatStudentName, getSubjectSortScore, isTleSubject } from '../utils';
 import { db, safeGetDoc as getDoc, safeGetDocs as getDocs } from '../firebase';
 import { collectionGroup, query, where, onSnapshot, doc, collection, updateDoc, writeBatch, addDoc, deleteField } from 'firebase/firestore';
 
@@ -783,11 +783,18 @@ export function SF10View({
            isMapehComponent = true;
         }
 
-        return { id: s.id, name: s.name, grades, final, isMapehComponent, offeredTerms: s.offeredTerms };
+        return { id: s.id, name: s.name, grades, final, isMapehComponent, offeredTerms: s.offeredTerms, unit: s.unit };
       });
 
-      const validFinals = processedSubjects.filter(f => !f.isMapehComponent).map(f => f.final).filter(g => g > 0);
-      const genAvg = validFinals.length > 0 ? Math.round(validFinals.reduce((a, b) => a + b, 0) / validFinals.length) : 0;
+      const validFinals = processedSubjects.filter(f => !f.isMapehComponent && f.final > 0);
+      let totalWeightedGrades = 0;
+      let totalUnits = 0;
+      validFinals.forEach(f => {
+        const u = (f.unit !== undefined && f.unit !== null && f.unit > 0) ? f.unit : 1.0;
+        totalWeightedGrades += f.final * u;
+        totalUnits += u;
+      });
+      const genAvg = totalUnits > 0 ? Math.round(totalWeightedGrades / totalUnits) : 0;
 
       // Inner Table Headers: Learning Area, Quarters, Final Rating, Remarks
       const tableHeadersBg = "C6E0B4"; // beautiful green header row
@@ -1524,6 +1531,17 @@ const AcademicYearTable: React.FC<AcademicYearTableProps> = ({ section, student,
     const gradeLevelVal = typeof section.gradeLevel === 'string' ? parseInt(section.gradeLevel) : (section.gradeLevel || 7);
     let sortedSubjects = getSortedSubjectsForSection(subjects, gradeLevelVal);
 
+    // Filter un-enrolled JHS TLE subjects
+    const isJHS = gradeLevelVal === 9 || gradeLevelVal === 10;
+    if (isJHS) {
+      sortedSubjects = sortedSubjects.filter(s => {
+        if (isTleSubject(s.name)) {
+          return student.enrolledSubjectIds?.includes(s.id);
+        }
+        return true;
+      });
+    }
+
     // Check if MAPEH components exist, but MAPEH itself is missing
     const hasMapeh = sortedSubjects.some(s => s.name.toUpperCase().trim() === 'MAPEH');
     if (!hasMapeh) {
@@ -1647,13 +1665,20 @@ const AcademicYearTable: React.FC<AcademicYearTableProps> = ({ section, student,
          isMapehComponent = true;
       }
 
-      return { id: s.id, name: s.name, grades, terms, final, isMapehComponent, offeredTerms: s.offeredTerms };
+      return { id: s.id, name: s.name, grades, terms, final, isMapehComponent, offeredTerms: s.offeredTerms, unit: s.unit };
     });
   }, [student, subjects, termMode, semMode]);
 
   const genAvg = useMemo(() => {
-    const validFinals = finalGrades.filter(f => !f.isMapehComponent).map(f => f.final).filter(g => g > 0);
-    return validFinals.length > 0 ? Math.round(validFinals.reduce((a, b) => a + b, 0) / validFinals.length) : 0;
+    const validFinals = finalGrades.filter(f => !f.isMapehComponent && f.final > 0);
+    let totalWeightedGrades = 0;
+    let totalUnits = 0;
+    validFinals.forEach(f => {
+      const u = (f.unit !== undefined && f.unit !== null && f.unit > 0) ? f.unit : 1.0;
+      totalWeightedGrades += f.final * u;
+      totalUnits += u;
+    });
+    return totalUnits > 0 ? Math.round(totalWeightedGrades / totalUnits) : 0;
   }, [finalGrades]);
 
   return (

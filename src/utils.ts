@@ -24,6 +24,19 @@ export const formatStudentName = (student: Student | null | undefined) => {
   return (student.name || "").toUpperCase();
 };
 
+export function isTleSubject(name: string | undefined): boolean {
+  if (!name) return false;
+  const upper = name.toUpperCase();
+  return upper.includes("TLE") || 
+         upper.includes("TECHNOLOGY AND LIVELIHOOD") || 
+         upper.includes("COMPUTERS SYSTEMS SERVICING") ||
+         upper.includes("COOKERY") ||
+         upper.includes("BREAD AND PASTRY") ||
+         upper.includes("DRESSMAKING") ||
+         upper.includes("AGRICULTURAL") ||
+         upper.includes("HORTICULTURE");
+}
+
 export const getSubjectSortScore = (name: string): number => {
   if (!name) return 1000;
   

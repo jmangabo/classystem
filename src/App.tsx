@@ -508,7 +508,7 @@ import {
 } from "firebase/firestore";
 import { auth, db, handleFirestoreError, safeGetDoc as getDoc, safeGetDocs as getDocs } from "./firebase";
 import { Subject, Student, Course, TermNumber, RatedValue, Section, UserProfile, School, Eligibility, AnecdotalRecord } from "./types";
-import { formatStudentName, capitalizeName, capitalizeFirst, getSubjectSortScore, printHTMLContent } from "./utils";
+import { formatStudentName, capitalizeName, capitalizeFirst, getSubjectSortScore, printHTMLContent, isTleSubject } from "./utils";
 import { INITIAL_STUDENTS, DEFAULT_TERM_DATA } from "./constants";
 import { AttendanceCard } from "./components/AttendanceCard";
 import { DailyAttendanceTracker } from "./components/DailyAttendanceTracker";
@@ -523,6 +523,7 @@ import { AdminFeedbackDashboard } from "./components/AdminFeedbackDashboard";
 import { AdminStudentListView } from "./components/AdminStudentListView";
 import { AnecdotalRecordsView } from "./components/AnecdotalRecordsView";
 import { PTAFeesManagementView } from "./components/PTAFeesManagementView";
+import { TleDashboardView } from "./components/TleDashboardView";
 
 const transmuteGrade = (initial: number): number => {
   if (initial >= 99.50) return 100;
@@ -783,7 +784,7 @@ export default function App() {
   const [activeSchool, setActiveSchool] = useState<School | null>(null);
   const [teacherCount, setTeacherCount] = useState<number>(0);
   
-  const [activeTab, setActiveTab ] = useState<"dashboard" | "gradebook" | "enroll" | "subjects" | "summary" | "guide" | "sys-docs" | "attendance" | "sf2" | "observed-values" | "sf10" | "transfers" | "sf8" | "sf4" | "anecdotes" | "pta">("dashboard");
+  const [activeTab, setActiveTab ] = useState<"dashboard" | "gradebook" | "enroll" | "subjects" | "summary" | "guide" | "sys-docs" | "attendance" | "sf2" | "observed-values" | "sf10" | "transfers" | "sf8" | "sf4" | "anecdotes" | "pta" | "tle-dashboard">("dashboard");
   const [ptaInitialTab, setPtaInitialTab] = useState<'collection' | 'setup' | 'reports' | 'audit'>('collection');
   const [preselectedStudentForAnecdotal, setPreselectedStudentForAnecdotal] = useState<Student | null>(null);
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
@@ -1808,7 +1809,14 @@ export default function App() {
           selectedSection.globalSubjectIds || [],
           globalSubjects
         );
-        resolvedEnrolledSubjectIds = connectedSubjects.map(s => s.id);
+        const secGrade = Number(selectedSection.gradeLevel);
+        if (secGrade === 9 || secGrade === 10) {
+          resolvedEnrolledSubjectIds = connectedSubjects
+            .filter(s => !isTleSubject(s.name))
+            .map(s => s.id);
+        } else {
+          resolvedEnrolledSubjectIds = connectedSubjects.map(s => s.id);
+        }
       }
 
       if (editingId) {
@@ -1981,20 +1989,21 @@ export default function App() {
     try {
       const activeStudents = students.filter(s => s.status === 'Active' || !s.status);
       const updatePromises = activeStudents.map(student => {
-         let totalFinals = 0;
-         let validCount = 0;
+         let totalWeightedFinals = 0;
+         let totalUnits = 0;
          editableSubjects.forEach(subj => {
              const termsPassed = (subj.offeredTerms || [1,2,3,4]).map(t => calculateGrade(student, subj, t as TermNumber).final).filter(f => f > 0);
              if (termsPassed.length > 0) {
                  const finalRating = Math.round(termsPassed.reduce((a,b)=>a+b, 0) / termsPassed.length);
-                 totalFinals += finalRating;
-                 validCount++;
+                 const u = (subj.unit !== undefined && subj.unit !== null && subj.unit > 0) ? subj.unit : 1.0;
+                 totalWeightedFinals += finalRating * u;
+                 totalUnits += u;
              }
          });
          
          let finalStatus = 'Retained';
-         if (validCount > 0) {
-             const genAvg = Math.round(totalFinals / validCount);
+         if (totalUnits > 0) {
+             const genAvg = Math.round(totalWeightedFinals / totalUnits);
              finalStatus = genAvg >= 75 ? 'Promoted' : 'Retained';
          }
          return updateDoc(doc(db, `sections/${selectedSection.id}/students`, student.id), {
@@ -2397,7 +2406,12 @@ export default function App() {
           selectedSection.globalSubjectIds || [],
           globalSubjects
         );
-        autoSubjectIds = connectedSubjects.map(s => s.id);
+        const secGrade = Number(selectedSection.gradeLevel);
+        if (secGrade === 9 || secGrade === 10) {
+          autoSubjectIds = connectedSubjects.filter(s => !isTleSubject(s.name)).map(s => s.id);
+        } else {
+          autoSubjectIds = connectedSubjects.map(s => s.id);
+        }
       } catch (err) {
         console.error("Failed to dynamically resolve bulk upload subjects:", err);
       }
@@ -2746,6 +2760,7 @@ export default function App() {
         ptWeight: s.ptWeight,
         taWeight: s.taWeight,
         offeredTerms: s.offeredTerms || [1],
+        unit: s.unit !== undefined ? s.unit : null,
       };
       if (s.order !== undefined) {
         updateData.order = s.order;
@@ -2804,6 +2819,17 @@ export default function App() {
             </div>
           </div>
         </div>
+      );
+    }
+
+    if (activeTab === 'tle-dashboard') {
+      return (
+        <TleDashboardView 
+          sections={sections}
+          subjects={subjects}
+          currentUser={userProfile}
+          onBack={() => setActiveTab('dashboard')}
+        />
       );
     }
 
@@ -2964,6 +2990,7 @@ export default function App() {
                 { id: 'pta', label: 'PTA Fees', icon: <CreditCard size={14} /> },
                 { id: 'sf2', label: 'School Form 2', icon: <FileText size={14} /> },
                 { id: 'sf10', label: 'Learners Records', icon: <HistoryIcon size={14} /> },
+                { id: 'tle-dashboard', label: 'G9/10 TLE Allocation', icon: <GraduationCap size={14} /> },
                 { id: 'attendance', label: 'Daily Attendance', icon: <Calendar size={14} /> },
                 { id: 'observed-values', label: 'Observed Values', icon: <Heart size={14} /> },
                 { id: 'anecdotes', label: 'Anecdotal Records', icon: <MessageSquare size={14} /> },
@@ -2992,7 +3019,7 @@ export default function App() {
 
                 if (userProfile?.role === 'system_admin' || userProfile?.role === 'admin' || isAuthorizedCashier) {
                   const allowedTabsList = [
-                    'dashboard', 'enroll', 'subjects', 'pta', 'sf8', 'guide', 'sys-docs', 'gradebook', 'summary', 'attendance', 'observed-values', 'sf2', 'transfers', 'sf10', 'sf4', 'anecdotes', 'logs', 'logs-clear'
+                    'dashboard', 'enroll', 'subjects', 'pta', 'sf8', 'guide', 'sys-docs', 'gradebook', 'summary', 'attendance', 'observed-values', 'sf2', 'transfers', 'sf10', 'sf4', 'anecdotes', 'logs', 'logs-clear', 'tle-dashboard'
                   ];
                   if (userProfile?.role === 'system_admin') {
                     return allowedTabsList.filter(id => {
@@ -3005,7 +3032,7 @@ export default function App() {
                   return allowedTabsList.filter(id => id !== 'sf4').includes(tab.id);
                 }
                 if (userProfile?.role === 'school_head') {
-                  return ['sf8', 'sf4', 'sf10', 'anecdotes'].includes(tab.id);
+                   return ['sf8', 'sf4', 'sf10', 'anecdotes'].includes(tab.id);
                 }
                 if (userProfile?.role === 'guidance_designate') {
                   return ['anecdotes'].includes(tab.id);
@@ -3013,7 +3040,7 @@ export default function App() {
                 if (userProfile?.role === 'teacher') {
                   if (isSectionAdviser) {
                     // Advisers see most things except restricted ones like SF4
-                    return ['dashboard', 'enroll', 'subjects', 'pta', 'sf8', 'sf10', 'attendance', 'observed-values', 'sf2', 'transfers', 'anecdotes', 'guide', 'gradebook', 'summary'].includes(tab.id);
+                    return ['dashboard', 'enroll', 'subjects', 'pta', 'sf8', 'sf10', 'attendance', 'observed-values', 'sf2', 'transfers', 'anecdotes', 'guide', 'gradebook', 'summary', 'tle-dashboard'].includes(tab.id);
                   }
                   return tab.id === 'gradebook' || tab.id === 'dashboard' || tab.id === 'anecdotes' || tab.id === 'pta';
                 }
@@ -3042,7 +3069,7 @@ export default function App() {
 
               const mgmtTabs = allowedTabs.filter(t => ['enroll', 'transfers', 'sf8', 'pta'].includes(t.id));
               const attTabs = allowedTabs.filter(t => ['attendance', 'sf2', 'observed-values', 'anecdotes'].includes(t.id));
-              const academicTabs = allowedTabs.filter(t => ['subjects', 'gradebook', 'summary', 'sf10'].includes(t.id));
+              const academicTabs = allowedTabs.filter(t => ['subjects', 'gradebook', 'summary', 'sf10', 'tle-dashboard'].includes(t.id));
               const supportTabsGroup = allowedTabs.filter(t => ['guide', 'sys-docs'].includes(t.id));
 
               const renderDropdown = (id: string, label: string, icon: React.ReactNode, tabs: any[]) => {
@@ -3249,9 +3276,27 @@ export default function App() {
       </div>
 
       {/* Workspace Area */}
-      <main className={`flex-1 overflow-x-hidden overflow-y-auto bg-[#fcfdfe] scroll-smooth custom-scrollbar ${['gradebook', 'summary', 'dashboard', 'subjects', 'enroll', 'guide', 'sf8', 'transfers', 'sf10', 'observed-values', 'anecdotes', 'pta'].includes(activeTab) ? 'p-0' : 'p-6 md:p-12'}`}>
-        <div className={`${['gradebook', 'summary', 'dashboard', 'subjects', 'enroll', 'guide', 'sf8', 'transfers', 'sf10', 'observed-values', 'anecdotes', 'pta'].includes(activeTab) ? 'w-full' : 'max-w-full 2xl:max-w-[1600px] mx-auto w-full'}`}>
+      <main className={`flex-1 overflow-x-hidden overflow-y-auto bg-[#fcfdfe] scroll-smooth custom-scrollbar ${['gradebook', 'summary', 'dashboard', 'subjects', 'enroll', 'guide', 'sf8', 'transfers', 'sf10', 'observed-values', 'anecdotes', 'pta', 'tle-dashboard'].includes(activeTab) ? 'p-0' : 'p-6 md:p-12'}`}>
+        <div className={`${['gradebook', 'summary', 'dashboard', 'subjects', 'enroll', 'guide', 'sf8', 'transfers', 'sf10', 'observed-values', 'anecdotes', 'pta', 'tle-dashboard'].includes(activeTab) ? 'w-full' : 'max-w-full 2xl:max-w-[1600px] mx-auto w-full'}`}>
           <AnimatePresence mode="wait">
+            {activeTab === 'tle-dashboard' && (
+              <motion.div
+                key="tle-dashboard"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2 }}
+                className="flex flex-col"
+              >
+                <TleDashboardView 
+                  sections={sections}
+                  subjects={subjects}
+                  currentUser={userProfile}
+                  onBack={() => setActiveTab('dashboard')}
+                />
+              </motion.div>
+            )}
+
             {activeTab === 'dashboard' && (
               <motion.div 
                 key="dashboard"
@@ -4601,22 +4646,23 @@ function GlobalFinalizationController({
 
         const activeStudents = sectionStudents.filter(s => s.status === 'Active' || !s.status);
         const updatePromises = activeStudents.map(student => {
-          let totalFinals = 0;
-          let validCount = 0;
+          let totalWeightedFinals = 0;
+          let totalUnits = 0;
           sectionSubjects.forEach(subj => {
             const termsPassed = (subj.offeredTerms || [1, 2, 3, 4])
               .map(t => calculateGrade(student, subj, t as TermNumber).final)
               .filter(f => f > 0);
             if (termsPassed.length > 0) {
               const finalRating = Math.round(termsPassed.reduce((a, b) => a + b, 0) / termsPassed.length);
-              totalFinals += finalRating;
-              validCount++;
+              const u = (subj.unit !== undefined && subj.unit !== null && subj.unit > 0) ? subj.unit : 1.0;
+              totalWeightedFinals += finalRating * u;
+              totalUnits += u;
             }
           });
 
           let finalStatus = 'Retained';
-          if (validCount > 0) {
-            const genAvg = Math.round(totalFinals / validCount);
+          if (totalUnits > 0) {
+            const genAvg = Math.round(totalWeightedFinals / totalUnits);
             finalStatus = genAvg >= 75 ? 'Promoted' : 'Retained';
           }
           return updateDoc(doc(db, `sections/${section.id}/students`, student.id), {
@@ -8095,7 +8141,12 @@ function SectionsView({
                                   sec.globalSubjectIds || [],
                                   globalSubjects || []
                                 );
-                                autoSubjectIds = connectedSubjects.map(s => s.id);
+                                const secGrade = Number(sec.gradeLevel);
+                                if (secGrade === 9 || secGrade === 10) {
+                                  autoSubjectIds = connectedSubjects.filter(s => !isTleSubject(s.name)).map(s => s.id);
+                                } else {
+                                  autoSubjectIds = connectedSubjects.map(s => s.id);
+                                }
                               } catch (err) {
                                 console.error("Failed to dynamically fetch subjects during dashboard bulk upload:", err);
                               }
@@ -9084,20 +9135,21 @@ function StudentHistoryModal({ student, onClose }: { student: Student, onClose: 
      if (studentLocal.status === 'Transferred Out') return 'Transferred Out';
      if (studentLocal.isTransferredIn) return 'Transfer In';
      
-     let totalFinals = 0;
-     let validCount = 0;
+     let totalWeightedFinals = 0;
+     let totalUnits = 0;
      
      subjects.forEach(subj => {
          const termsPassed = [1,2,3,4].map(t => calculateGrade(studentLocal, subj, t as TermNumber).final).filter(f => f > 0);
          if (termsPassed.length > 0) {
              const finalRating = Math.round(termsPassed.reduce((a,b)=>a+b, 0) / termsPassed.length);
-             totalFinals += finalRating;
-             validCount++;
+             const u = (subj.unit !== undefined && subj.unit !== null && subj.unit > 0) ? subj.unit : 1.0;
+             totalWeightedFinals += finalRating * u;
+             totalUnits += u;
          }
      });
      
-     if (validCount > 0) {
-         const genAvg = Math.round(totalFinals / validCount);
+     if (totalUnits > 0) {
+         const genAvg = Math.round(totalWeightedFinals / totalUnits);
          return genAvg >= 75 ? 'Promoted' : 'Retained';
      }
      
@@ -12248,6 +12300,8 @@ function EnrollSubjectsModal({
   const [isSaving, setIsSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
+  const isG9OrG10 = Number(section?.gradeLevel) === 9 || Number(section?.gradeLevel) === 10;
+
   const sectionSubjectsList = useMemo(() => {
     if (subjects && subjects.length > 0) {
       return subjects.filter(sub => sub.sectionId === section?.id);
@@ -12260,8 +12314,73 @@ function EnrollSubjectsModal({
   }, [sectionSubjectsList, enrolledIds]);
 
   const availableSubjectsList = useMemo(() => {
-    return sectionSubjectsList.filter(subj => !enrolledIds.includes(subj.id));
+    return sectionSubjectsList.filter(subj => {
+      const isEligible = !enrolledIds.includes(subj.id);
+      if (isG9OrG10) {
+        return isEligible && !isTleSubject(subj.name);
+      }
+      return isEligible;
+    });
+  }, [sectionSubjectsList, enrolledIds, isG9OrG10]);
+
+  const enrolledTleSubject = useMemo(() => {
+    return sectionSubjectsList.find(subj => enrolledIds.includes(subj.id) && isTleSubject(subj.name));
   }, [sectionSubjectsList, enrolledIds]);
+
+  const handleCreateAndEnrollTle = async (typeName: string) => {
+    setIsSaving(true);
+    setErrorMsg("");
+    try {
+      const parentSubjects = subjects.filter(sub => sub.sectionId === section?.id);
+      // Avoid duplication in subjects collection
+      let matchedSubject = parentSubjects.find(s => s.name.toUpperCase() === typeName.toUpperCase());
+      
+      if (!matchedSubject) {
+        const subjectsCollRef = collection(db, `sections/${section.id}/subjects`);
+        const newSubjectDoc = await addDoc(subjectsCollRef, {
+          name: typeName,
+          gradeLevel: Number(section.gradeLevel),
+          group: "Revised K-10 Curriculum",
+          subjectType: "CORE",
+          sectionId: section.id,
+          schoolId: section.schoolId || "",
+          teacherEmail: section.adviserEmail || "",
+          wwWeight: 25,
+          ptWeight: 50,
+          taWeight: 25,
+          unit: 1,
+          order: 999
+        });
+        matchedSubject = {
+          id: newSubjectDoc.id,
+          name: typeName,
+          gradeLevel: Number(section.gradeLevel),
+          group: "Revised K-10 Curriculum",
+          subjectType: "CORE",
+          sectionId: section.id,
+          teacherEmail: section.adviserEmail || "",
+          wwWeight: 25,
+          ptWeight: 50,
+          taWeight: 25,
+          unit: 1,
+          order: 999
+        };
+      }
+      
+      const finalEnrolledIds = enrolledIds.filter(id => {
+        const matchingSubject = sectionSubjectsList.find(s => s.id === id);
+        return !matchingSubject || !isTleSubject(matchingSubject.name);
+      });
+      
+      setEnrolledIds([...finalEnrolledIds, matchedSubject.id]);
+      alert(`New TLE Specialization "${typeName}" has been successfully added to this section and selected for enrollment.`);
+    } catch (err: any) {
+      console.error("Error creating TLE subject: ", err);
+      setErrorMsg("Failed to add TLE specialization.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -12292,7 +12411,7 @@ function EnrollSubjectsModal({
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.95, opacity: 0, y: 20 }}
         onClick={(e) => e.stopPropagation()}
-        className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]"
+        className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]"
       >
         <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
           <div>
@@ -12308,7 +12427,7 @@ function EnrollSubjectsModal({
           </button>
         </div>
 
-        <form onSubmit={handleSave} className="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
+        <form onSubmit={handleSave} className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
           {errorMsg && (
             <div className="p-3 bg-rose-50 border border-rose-100 text-rose-600 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2">
               <AlertCircle size={16} />
@@ -12316,9 +12435,114 @@ function EnrollSubjectsModal({
             </div>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 min-h-[380px] max-h-[52vh] overflow-hidden">
+          {isG9OrG10 && (
+            <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-5 shrink-0 shadow-sm">
+              <div className="flex items-center gap-2.5 mb-2">
+                <div className="w-2.5 h-2.5 rounded-full bg-indigo-600 animate-pulse" />
+                <h4 className="text-sm font-extrabold text-slate-800 tracking-tight">
+                  Grade 9 & 10 TLE component / specialization manual enroler
+                </h4>
+              </div>
+              <p className="text-xs text-slate-500 leading-relaxed font-semibold">
+                Under the DepEd curriculum, TLE specializations vary on an individual level. Select an existing or add a new TLE component below. Only one active TLE specialization can be enrolled.
+              </p>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-4">
+                {/* Status Column */}
+                <div className="bg-white border border-slate-150 p-4 rounded-xl shadow-xs">
+                  <span className="text-[10px] font-extrabold text-indigo-500 uppercase tracking-widest">Active Specialisation</span>
+                  {enrolledTleSubject ? (
+                    <div className="mt-2.5 flex items-center justify-between bg-emerald-50/65 border border-emerald-100/60 p-3 rounded-lg">
+                      <div className="min-w-0 pr-2">
+                        <p className="text-xs font-extrabold text-slate-800 leading-tight truncate">{enrolledTleSubject.name}</p>
+                        <p className="text-[10px] text-emerald-600 font-extrabold uppercase tracking-wide mt-1">Status: Active</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEnrolledIds(prev => prev.filter(id => id !== enrolledTleSubject.id));
+                        }}
+                        className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-150 text-rose-600 text-[10px] font-black uppercase tracking-wider rounded-lg transition-colors shrink-0"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="mt-2 text-xs text-slate-400 font-bold italic py-2">
+                      No TLE Specialization Enrolled
+                    </div>
+                  )}
+                </div>
+
+                {/* Dropdowns Column */}
+                <div className="space-y-3.5">
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">
+                      Choose from configured TLE subjects:
+                    </label>
+                    <select
+                      value={enrolledTleSubject?.id || ""}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val) {
+                          const cleanIds = enrolledIds.filter(id => {
+                            const matchingSubject = sectionSubjectsList.find(s => s.id === id);
+                            return !matchingSubject || !isTleSubject(matchingSubject.name);
+                          });
+                          setEnrolledIds([...cleanIds, val]);
+                        }
+                      }}
+                      className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none text-slate-800 transition-all cursor-pointer"
+                    >
+                      <option value="">-- Choose existing TLE subject --</option>
+                      {sectionSubjectsList.filter(s => isTleSubject(s.name)).map(s => (
+                        <option key={s.id} value={s.id}>
+                          {s.name} {s.unit ? `(${s.unit} Units)` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="border-t border-slate-100 pt-3">
+                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">
+                      Or Add & Enroll a new TLE specialization:
+                    </label>
+                    <select
+                      value=""
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val) {
+                          handleCreateAndEnrollTle(val);
+                        }
+                      }}
+                      className="w-full bg-indigo-600 hover:bg-indigo-700 text-white border border-transparent rounded-xl px-3.5 py-2.5 text-xs font-bold outline-none cursor-pointer transition-colors shadow-sm"
+                    >
+                      <option value="" className="text-slate-800 bg-white">-- select new specialization to add --</option>
+                      {[
+                        "TLE - COOKERY",
+                        "TLE - COMPUTER SYSTEMS SERVICING",
+                        "TLE - TECHNICAL DRAFTING",
+                        "TLE - BREAD AND PASTRY PRODUCTION",
+                        "TLE - BEAUTY CARE",
+                        "TLE - DRESSMAKING",
+                        "TLE - ELECTRICAL INSTALLATION AND MAINTENANCE",
+                        "TLE - AGRICULTURAL CROPS PRODUCTION",
+                        "TLE - FOOD PROCESSING"
+                      ].map(spec => (
+                        <option key={spec} value={spec} className="text-slate-800 bg-white font-semibold">
+                          {spec}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 min-h-[280px] md:max-h-[46vh] md:h-[400px] overflow-y-auto md:overflow-hidden pr-1">
             {/* Left Panel: Currently Enrolled Subjects */}
-            <div className="flex flex-col bg-slate-50 border border-slate-200/60 rounded-2xl p-4 overflow-hidden">
+            <div className="flex flex-col bg-slate-50 border border-slate-200/60 rounded-2xl p-4 h-[350px] md:h-full overflow-hidden">
               <div className="flex items-center justify-between mb-3 shrink-0">
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -12336,7 +12560,14 @@ function EnrollSubjectsModal({
                     className="flex items-center justify-between p-3 bg-white border border-slate-150 rounded-xl shadow-sm hover:border-emerald-250 transition-colors"
                   >
                     <div className="min-w-0 flex-1 pr-2">
-                      <p className="text-xs font-bold text-slate-900 leading-tight truncate">{subj.name}</p>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <p className="text-xs font-bold text-slate-900 leading-tight truncate">{subj.name}</p>
+                        {subj.unit !== undefined && subj.unit !== null && (
+                          <span className="text-[9px] font-semibold px-1.5 py-0.5 bg-slate-200/60 text-slate-600 rounded">
+                            {subj.unit} {subj.unit === 1 ? 'Unit' : 'Units'}
+                          </span>
+                        )}
+                      </div>
                       <p className="text-[9px] text-emerald-600 font-extrabold uppercase tracking-wide mt-1">
                         {subj.group || (subj.subjectType === 'CORE' ? 'Core Course' : 'Applied/Specialized')}
                       </p>
@@ -12363,7 +12594,7 @@ function EnrollSubjectsModal({
             </div>
 
             {/* Right Panel: Available Subjects */}
-            <div className="flex flex-col bg-white border border-slate-200/60 rounded-2xl p-4 overflow-hidden">
+            <div className="flex flex-col bg-white border border-slate-200/60 rounded-2xl p-4 h-[350px] md:h-full overflow-hidden">
               <div className="flex items-center justify-between mb-3 shrink-0">
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full bg-indigo-500" />
@@ -12381,7 +12612,14 @@ function EnrollSubjectsModal({
                     className="flex items-center justify-between p-3 bg-slate-50/50 border border-slate-150 rounded-xl hover:border-indigo-200 hover:bg-indigo-50/10 transition-all"
                   >
                     <div className="min-w-0 flex-1 pr-2">
-                      <p className="text-xs font-bold text-slate-900 leading-tight truncate">{subj.name}</p>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <p className="text-xs font-bold text-slate-900 leading-tight truncate">{subj.name}</p>
+                        {subj.unit !== undefined && subj.unit !== null && (
+                          <span className="text-[9px] font-semibold px-1.5 py-0.5 bg-slate-200/60 text-slate-600 rounded">
+                            {subj.unit} {subj.unit === 1 ? 'Unit' : 'Units'}
+                          </span>
+                        )}
+                      </div>
                       <p className="text-[9px] text-indigo-500 font-extrabold uppercase tracking-wide mt-1">
                         {subj.group || (subj.subjectType === 'CORE' ? 'Core Course' : 'Applied/Specialized')}
                       </p>
@@ -12976,9 +13214,13 @@ function GradebookView({
                           subjects[0];
 
   const students = useMemo(() => {
+    if (!selectedSubject) return rawStudents;
     const isSHS = selectedSection && Number(selectedSection.gradeLevel) > 10;
-    if (!isSHS || !selectedSubject) return rawStudents;
-    return rawStudents.filter(s => s.enrolledSubjectIds?.includes(selectedSubject.id));
+    const isTle = isTleSubject(selectedSubject.name);
+    if (isSHS || isTle) {
+      return rawStudents.filter(s => s.enrolledSubjectIds?.includes(selectedSubject.id));
+    }
+    return rawStudents;
   }, [rawStudents, selectedSection, selectedSubject]);
 
   const teacherAssignedSubjects = useMemo(() => {
@@ -15419,6 +15661,18 @@ function SubjectsView({
   const [presetSelectedSubjects, setPresetSelectedSubjects] = useState<string[]>([]);
   
   const effectiveGradeLevel = selectedSection?.gradeLevel || globalPresetGradeLevel;
+  const presetOptions = useMemo(() => {
+    if (!presetQueue) return [];
+    const base = presetQueue === 'matatag' ? MATATAG_SUBJECTS 
+      : presetQueue === 'shs-core' ? SHS_CORE_SUBJECTS 
+      : presetQueue === 'ssh-shs' ? STRENGTHENED_SHS_SUBJECTS 
+      : NON_MATATAG_SUBJECTS;
+    const lvl = Number(effectiveGradeLevel);
+    if (lvl === 9 || lvl === 10) {
+      return base.filter(name => !isTleSubject(name));
+    }
+    return base;
+  }, [presetQueue, effectiveGradeLevel]);
   const [presetSubjectGroup, setPresetSubjectGroup] = useState<Subject['group']>('Revised K-10 Curriculum');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const isMainAdmin = currentUser?.email === 'jessiemangabo@gmail.com';
@@ -15438,7 +15692,8 @@ function SubjectsView({
     wwWeight: 25,
     ptWeight: 50,
     taWeight: 25,
-    offeredTerms: [1]
+    offeredTerms: [1],
+    unit: undefined
   });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedGradeFilter, setSelectedGradeFilter] = useState<string>('all');
@@ -15512,7 +15767,8 @@ function SubjectsView({
       wwWeight: 25,
       ptWeight: 50,
       taWeight: 25,
-      offeredTerms: [1]
+      offeredTerms: [1],
+      unit: undefined
     });
     setEditingId(null);
     setIsModalOpen(false);
@@ -15627,7 +15883,9 @@ function SubjectsView({
                         return;
                       }
                       setPresetSubjectGroup('Revised K-10 Curriculum');
-                      setPresetSelectedSubjects([...MATATAG_SUBJECTS]);
+                      const lvl = Number(effectiveGradeLevel);
+                      const filtered = (lvl === 9 || lvl === 10) ? MATATAG_SUBJECTS.filter(name => !isTleSubject(name)) : MATATAG_SUBJECTS;
+                      setPresetSelectedSubjects([...filtered]);
                       setPresetQueue('matatag');
                     }}
                     className="flex items-center justify-between p-6 bg-white border border-slate-200 rounded-2xl hover:border-indigo-300 hover:shadow-md transition-all group disabled:opacity-50 text-left relative overflow-hidden"
@@ -15653,7 +15911,9 @@ function SubjectsView({
                         return;
                       }
                       setPresetSubjectGroup('SHS Core Subjects, Other SHS Academic Electives');
-                      setPresetSelectedSubjects([...NON_MATATAG_SUBJECTS]);
+                      const lvl = Number(effectiveGradeLevel);
+                      const filtered = (lvl === 9 || lvl === 10) ? NON_MATATAG_SUBJECTS.filter(name => !isTleSubject(name)) : NON_MATATAG_SUBJECTS;
+                      setPresetSelectedSubjects([...filtered]);
                       setPresetQueue('non-matatag');
                     }}
                     className="flex items-center justify-between p-6 bg-white border border-slate-200 rounded-2xl hover:border-emerald-300 hover:shadow-md transition-all group disabled:opacity-50 text-left relative overflow-hidden"
@@ -15814,10 +16074,7 @@ function SubjectsView({
                     <button 
                       type="button"
                       onClick={() => {
-                        const currentList = presetQueue === 'matatag' ? MATATAG_SUBJECTS 
-                          : presetQueue === 'shs-core' ? SHS_CORE_SUBJECTS 
-                          : presetQueue === 'ssh-shs' ? STRENGTHENED_SHS_SUBJECTS 
-                          : NON_MATATAG_SUBJECTS;
+                        const currentList = presetOptions;
                         
                         if (presetSelectedSubjects.length === currentList.length) {
                           setPresetSelectedSubjects([]);
@@ -15827,11 +16084,11 @@ function SubjectsView({
                       }}
                       className="text-[10px] font-black text-slate-500 hover:text-indigo-600 uppercase tracking-widest transition-all flex items-center gap-1.5 bg-white border border-slate-200 px-2.5 py-1 rounded-lg hover:border-indigo-200"
                     >
-                      {presetSelectedSubjects.length === (presetQueue === 'matatag' ? MATATAG_SUBJECTS : presetQueue === 'shs-core' ? SHS_CORE_SUBJECTS : presetQueue === 'ssh-shs' ? STRENGTHENED_SHS_SUBJECTS : NON_MATATAG_SUBJECTS).length ? 'Deselect All' : 'Select All'}
+                      {presetSelectedSubjects.length === presetOptions.length ? 'Deselect All' : 'Select All'}
                     </button>
                   </div>
                   <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 max-h-[35vh] overflow-y-auto custom-scrollbar space-y-1.5">
-                    {(presetQueue === 'matatag' ? MATATAG_SUBJECTS : presetQueue === 'shs-core' ? SHS_CORE_SUBJECTS : presetQueue === 'ssh-shs' ? STRENGTHENED_SHS_SUBJECTS : NON_MATATAG_SUBJECTS).map((subjectName) => (
+                    {presetOptions.map((subjectName) => (
                       <div key={subjectName} className="flex items-center gap-3 bg-white px-3 py-2.5 rounded-lg border border-slate-200 shadow-sm hover:border-indigo-300 transition-colors cursor-pointer" onClick={() => {
                           if (presetSelectedSubjects.includes(subjectName)) {
                             setPresetSelectedSubjects(prev => prev.filter(s => s !== subjectName));
@@ -16181,6 +16438,22 @@ function SubjectsView({
                         {[1,2,3,4,5,6,7,8,9,10,11,12].map(n => <option key={n} value={n}>Grade {n}</option>)}
                       </select>
                     </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-700">Academic Units / Credits</label>
+                      <input 
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        placeholder="e.g. 3.0"
+                        value={form.unit !== undefined && form.unit !== null ? form.unit : ""}
+                        onChange={e => {
+                          const val = e.target.value;
+                          setForm({...form, unit: val === "" ? undefined : parseFloat(val)});
+                        }}
+                        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none font-medium text-slate-900 placeholder:text-slate-400 text-sm"
+                      />
+                    </div>
                   </>
                   )}
                   </div>
@@ -16325,6 +16598,7 @@ function SubjectsView({
                 <th className="px-6 py-4 text-[11px] uppercase tracking-widest font-semibold">Type</th>
                 <th className="px-6 py-4 text-[11px] uppercase tracking-widest font-semibold">Group</th>
                 <th className="px-6 py-4 text-[11px] uppercase tracking-widest font-semibold text-center">Grade</th>
+                <th className="px-6 py-4 text-[11px] uppercase tracking-widest font-semibold text-center">Units</th>
                 {selectedSection && <th className="px-6 py-4 text-[11px] uppercase tracking-widest font-semibold text-center">Teacher</th>}
                 <th className="px-6 py-4 text-[11px] uppercase tracking-widest font-semibold text-center" title="Written Works Weight">WW</th>
                 <th className="px-6 py-4 text-[11px] uppercase tracking-widest font-semibold text-center" title="Performance Tasks Weight">PT</th>
@@ -16335,7 +16609,7 @@ function SubjectsView({
             <tbody className="divide-y divide-slate-100 bg-white">
               {filteredSubjectsList.length === 0 ? (
                 <tr>
-                  <td colSpan={isActiveSY ? (selectedSection ? 9 : 8) : (selectedSection ? 8 : 7)} className="px-6 py-12">
+                  <td colSpan={isActiveSY ? (selectedSection ? 10 : 9) : (selectedSection ? 9 : 8)} className="px-6 py-12">
                     <div className="flex flex-col items-center justify-center p-8 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200 text-center max-w-md mx-auto">
                       <div className="size-16 bg-white rounded-full border border-slate-200 flex items-center justify-center mx-auto mb-4 shadow-sm">
                         <BookOpen size={24} className="text-slate-400" />
@@ -16371,6 +16645,11 @@ function SubjectsView({
                     <td className="px-6 py-4 text-center">
                       <span className="text-xs font-medium text-slate-600 text-center px-2 py-1 bg-slate-50 rounded-md border border-slate-100">
                         {Number(subject.gradeLevel) === 0 ? "K" : `G${subject.gradeLevel}`}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <span className="text-xs font-semibold text-slate-700">
+                        {subject.unit !== undefined && subject.unit !== null ? subject.unit : '-'}
                       </span>
                     </td>
                     {selectedSection && (
@@ -16653,10 +16932,18 @@ function MATATAGReportCardModal({
           });
         }
       } else {
-        const sub = subjects.find(s => 
-          !processedSubjectIds.has(s.id) && 
-          (s.name.toLowerCase() === templateName.toLowerCase() || s.name.toLowerCase().includes(templateName.toLowerCase()))
-        );
+        const sub = subjects.find(s => {
+          if (processedSubjectIds.has(s.id)) return false;
+          const matchesName = s.name.toLowerCase() === templateName.toLowerCase() || s.name.toLowerCase().includes(templateName.toLowerCase());
+          if (!matchesName) return false;
+
+          const isTle = isTleSubject(s.name);
+          const isJHS = Number(section.gradeLevel) === 9 || Number(section.gradeLevel) === 10;
+          if (isJHS && isTle && (!student.enrolledSubjectIds || !student.enrolledSubjectIds.includes(s.id))) {
+            return false;
+          }
+          return true;
+        });
         if (sub) {
           processedSubjectIds.add(sub.id);
           list.push({ type: 'subject', subject: sub });
@@ -16667,6 +16954,11 @@ function MATATAGReportCardModal({
     // Add remaining subjects
     subjects.forEach(s => {
       if (!processedSubjectIds.has(s.id)) {
+        const isTle = isTleSubject(s.name);
+        const isJHS = Number(section.gradeLevel) === 9 || Number(section.gradeLevel) === 10;
+        if (isJHS && isTle && (!student.enrolledSubjectIds || !student.enrolledSubjectIds.includes(s.id))) {
+          return; // Skip non-enrolled JHS TLE subjects
+        }
         list.push({ type: 'subject', subject: s });
       }
     });
@@ -16701,8 +16993,17 @@ function MATATAGReportCardModal({
     if (displaySubjectsList.length === 0) return 0;
     const gradedEntries = displaySubjectsList.filter(entry => getEntryGrades(entry, 'final') > 0);
     if (gradedEntries.length === 0) return 0;
-    const sum = gradedEntries.reduce((acc, entry) => acc + getEntryGrades(entry, 'final'), 0);
-    return Math.round(sum / gradedEntries.length);
+    
+    let totalWeightedGrades = 0;
+    let totalUnits = 0;
+    gradedEntries.forEach(entry => {
+      const finalGrade = getEntryGrades(entry, 'final');
+      const u = (entry.subject && entry.subject.unit !== undefined && entry.subject.unit !== null && entry.subject.unit > 0) ? entry.subject.unit : 1.0;
+      totalWeightedGrades += finalGrade * u;
+      totalUnits += u;
+    });
+    
+    return totalUnits > 0 ? Math.round(totalWeightedGrades / totalUnits) : 0;
   };
   
   const [depEdLogo, setDepEdLogo] = useState<string | null>(null);
@@ -19354,7 +19655,8 @@ function SummarySheetView({
   
   const getSubjectTermGrade = (student: Student, subject: Subject, term: TermNumber) => {
     const isSHS = selectedSection && Number(selectedSection.gradeLevel) > 10;
-    if (isSHS && (!student.enrolledSubjectIds || !student.enrolledSubjectIds.includes(subject.id))) {
+    const isTle = isTleSubject(subject.name);
+    if ((isSHS || isTle) && (!student.enrolledSubjectIds || !student.enrolledSubjectIds.includes(subject.id))) {
       return -2; // Not enrolled
     }
     if (subject.offeredTerms && subject.offeredTerms.length > 0 && !subject.offeredTerms.includes(term)) {
@@ -19365,7 +19667,8 @@ function SummarySheetView({
 
   const getSubjectFinalGrade = (student: Student, subject: Subject) => {
     const isSHS = selectedSection && Number(selectedSection.gradeLevel) > 10;
-    if (isSHS && (!student.enrolledSubjectIds || !student.enrolledSubjectIds.includes(subject.id))) {
+    const isTle = isTleSubject(subject.name);
+    if ((isSHS || isTle) && (!student.enrolledSubjectIds || !student.enrolledSubjectIds.includes(subject.id))) {
       return -2; // Not enrolled
     }
     let terms = termsToShow;
@@ -19450,7 +19753,8 @@ function SummarySheetView({
         }
 
         const isSHS = selectedSection && Number(selectedSection.gradeLevel) > 10;
-        if (isSHS && (!student.enrolledSubjectIds || !student.enrolledSubjectIds.includes(s.id))) {
+        const isTle = isTleSubject(s.name);
+        if ((isSHS || isTle) && (!student.enrolledSubjectIds || !student.enrolledSubjectIds.includes(s.id))) {
            return false;
         }
 

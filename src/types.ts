@@ -144,6 +144,7 @@ export interface Subject {
   offeredTerms?: TermNumber[];
   finalizedTerms?: TermNumber[];
   isZeroBasedGrading?: boolean;
+  unit?: number;
 }
 
 export const DEFAULT_TERM_DATA: TermData = {
