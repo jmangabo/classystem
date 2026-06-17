@@ -2971,7 +2971,6 @@ export default function App() {
                 { id: 'pta', label: 'PTA Fees', icon: <CreditCard size={14} /> },
                 { id: 'sf2', label: 'School Form 2', icon: <FileText size={14} /> },
                 { id: 'sf10', label: 'Learners Records', icon: <HistoryIcon size={14} /> },
-                { id: 'tle-dashboard', label: 'G9/10 TLE Allocation', icon: <GraduationCap size={14} /> },
                 { id: 'attendance', label: 'Daily Attendance', icon: <Calendar size={14} /> },
                 { id: 'observed-values', label: 'Observed Values', icon: <Heart size={14} /> },
                 { id: 'anecdotes', label: 'Anecdotal Records', icon: <MessageSquare size={14} /> },
@@ -3000,7 +2999,7 @@ export default function App() {
 
                 if (userProfile?.role === 'system_admin' || userProfile?.role === 'admin' || isAuthorizedCashier) {
                   const allowedTabsList = [
-                    'dashboard', 'enroll', 'subjects', 'pta', 'sf8', 'guide', 'sys-docs', 'gradebook', 'summary', 'attendance', 'observed-values', 'sf2', 'transfers', 'sf10', 'sf4', 'anecdotes', 'logs', 'logs-clear', 'tle-dashboard'
+                    'dashboard', 'enroll', 'subjects', 'pta', 'sf8', 'guide', 'sys-docs', 'gradebook', 'summary', 'attendance', 'observed-values', 'sf2', 'transfers', 'sf10', 'sf4', 'anecdotes', 'logs', 'logs-clear'
                   ];
                   if (userProfile?.role === 'system_admin') {
                     return allowedTabsList.filter(id => {
@@ -3021,7 +3020,7 @@ export default function App() {
                 if (userProfile?.role === 'teacher') {
                   if (isSectionAdviser) {
                     // Advisers see most things except restricted ones like SF4
-                    return ['dashboard', 'enroll', 'subjects', 'pta', 'sf8', 'sf10', 'attendance', 'observed-values', 'sf2', 'transfers', 'anecdotes', 'guide', 'gradebook', 'summary', 'tle-dashboard'].includes(tab.id);
+                    return ['dashboard', 'enroll', 'subjects', 'pta', 'sf8', 'sf10', 'attendance', 'observed-values', 'sf2', 'transfers', 'anecdotes', 'guide', 'gradebook', 'summary'].includes(tab.id);
                   }
                   return tab.id === 'gradebook' || tab.id === 'dashboard' || tab.id === 'anecdotes' || tab.id === 'pta';
                 }
@@ -3050,7 +3049,7 @@ export default function App() {
 
               const mgmtTabs = allowedTabs.filter(t => ['enroll', 'transfers', 'sf8', 'pta'].includes(t.id));
               const attTabs = allowedTabs.filter(t => ['attendance', 'sf2', 'observed-values', 'anecdotes'].includes(t.id));
-              const academicTabs = allowedTabs.filter(t => ['subjects', 'gradebook', 'summary', 'sf10', 'tle-dashboard'].includes(t.id));
+              const academicTabs = allowedTabs.filter(t => ['subjects', 'gradebook', 'summary', 'sf10'].includes(t.id));
               const supportTabsGroup = allowedTabs.filter(t => ['guide', 'sys-docs'].includes(t.id));
 
               const renderDropdown = (id: string, label: string, icon: React.ReactNode, tabs: any[]) => {
@@ -6550,6 +6549,15 @@ function SectionsView({
                     >
                       <TableIcon size={16} className="text-indigo-600" />
                       <span>Student List</span>
+                    </button>
+                  )}
+                  {(user?.role === 'admin' || user?.role === 'system_admin') && (
+                    <button 
+                      onClick={() => onSetActiveTab('tle-dashboard')}
+                      className="flex items-center justify-center gap-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-sm px-5 py-2.5 rounded-xl transition-all shadow-sm w-full sm:w-auto"
+                    >
+                      <GraduationCap size={16} className="text-indigo-600" />
+                      <span>G9/10 TLE Allocation</span>
                     </button>
                   )}
                   {user?.role === 'system_admin' && (
