@@ -5497,7 +5497,12 @@ function SectionsView({
   const [confirmFinalizeConfig, setConfirmFinalizeConfig] = useState<{ subjectId: string, term: number, finalize: boolean } | null>(null);
   const [isOverviewOpen, setIsOverviewOpen] = useState(false);
   const [collapsedAdminGrades, setCollapsedAdminGrades] = useState<Set<number>>(new Set());
-  
+
+  const hasAssignedSubjects = useMemo(() => {
+    return subjects.some(s => (s.teacherEmail || "").toLowerCase() === (user?.email || "").toLowerCase()) ||
+           sections.some(sec => sec.teacherSubjects && Object.values(sec.teacherSubjects).map((e: any) => (e || "").toLowerCase()).includes((user?.email || "").toLowerCase()));
+  }, [subjects, sections, user]);
+
   const adminGroupedOverview = useMemo(() => {
     const groups: {
       [gradeLevel: number]: {
@@ -6551,7 +6556,7 @@ function SectionsView({
                       <span>Student List</span>
                     </button>
                   )}
-                  {(user?.role === 'admin' || user?.role === 'system_admin') && (
+                  {(user?.role === 'admin' || user?.role === 'system_admin' || (user?.role === 'teacher' && hasAssignedSubjects)) && (
                     <button 
                       onClick={() => onSetActiveTab('tle-dashboard')}
                       className="flex items-center justify-center gap-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-sm px-5 py-2.5 rounded-xl transition-all shadow-sm w-full sm:w-auto"
@@ -13627,7 +13632,7 @@ function GradebookView({
       ...new Array(2).fill(createCell("", { bg: "E6E6E6" })),
       createCell(selectedSubject.name, { align: "left" }),
       ...new Array(4).fill(createCell("", {})),
-      createCell("Quarter / Term:", { bold: true, bg: "E6E6E6", align: "center" }),
+      createCell("Term:", { bold: true, bg: "E6E6E6", align: "center" }),
       ...new Array(2).fill(createCell("", { bg: "E6E6E6" })),
       createCell(`${termLabel} Term`, { align: "center" }),
       ...new Array(2).fill(createCell("", {}))
@@ -16622,7 +16627,7 @@ function SubjectsView({
                 {selectedSection && <th className="px-6 py-4 text-[11px] uppercase tracking-widest font-semibold text-center">Teacher</th>}
                 <th className="px-6 py-4 text-[11px] uppercase tracking-widest font-semibold text-center" title="Written Works Weight">WW</th>
                 <th className="px-6 py-4 text-[11px] uppercase tracking-widest font-semibold text-center" title="Performance Tasks Weight">PT</th>
-                <th className="px-6 py-4 text-[11px] uppercase tracking-widest font-semibold text-center" title="Quarterly Assessment Weight">QA</th>
+                <th className="px-6 py-4 text-[11px] uppercase tracking-widest font-semibold text-center" title="Term Assessment Weight">TA</th>
                 {isActiveSY && <th className="px-6 py-4 text-[11px] uppercase tracking-widest font-semibold text-right">Actions</th>}
               </tr>
             </thead>
@@ -22312,7 +22317,7 @@ function StudentPortal({
                         </div>
                         <div>
                            <h3 className="text-2xl font-bold text-slate-900 tracking-tight leading-none">{selectedTermDetail.subject.name}</h3>
-                           <p className="text-slate-400 text-[10px] font-bold uppercase tracking-[0.2em] mt-2 italic shadow-none">Grade Performance &bull; Quarter {selectedTermDetail.term}</p>
+                           <p className="text-slate-400 text-[10px] font-bold uppercase tracking-[0.2em] mt-2 italic shadow-none">Grade Performance &bull; Term {selectedTermDetail.term}</p>
                         </div>
                      </div>
                      <button 
@@ -22335,7 +22340,7 @@ function StudentPortal({
                                  {[
                                     { label: 'Written Works', value: grades.ww.ws.toFixed(2), weight: selectedTermDetail.subject.wwWeight + '%', color: 'bg-blue-50 text-blue-700' },
                                     { label: 'Performance Tasks', value: grades.pt.ws.toFixed(2), weight: selectedTermDetail.subject.ptWeight + '%', color: 'bg-emerald-50 text-emerald-700' },
-                                    { label: 'Quarterly Assessment', value: grades.ta.ws.toFixed(2), weight: selectedTermDetail.subject.taWeight + '%', color: 'bg-amber-50 text-amber-700' }
+                                    { label: 'Term Assessment', value: grades.ta.ws.toFixed(2), weight: selectedTermDetail.subject.taWeight + '%', color: 'bg-amber-50 text-amber-700' }
                                  ].map((comp, i) => (
                                     <div key={i} className={`p-4 rounded-xl border border-slate-100 flex flex-col items-center text-center ${comp.color}`}>
                                        <span className="text-[10px] font-bold uppercase tracking-wider opacity-70 mb-1">{comp.label}</span>
@@ -22408,7 +22413,7 @@ function StudentPortal({
                               <div className="space-y-6">
                                  <h4 className="text-[11px] font-bold text-slate-900 uppercase tracking-widest flex items-center gap-2">
                                     <span className="w-1 h-3 bg-amber-500 rounded-full" />
-                                    Quarterly Assessments
+                                    Term Assessments
                                  </h4>
                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                                     {/* Summative 1 */}
@@ -22460,7 +22465,7 @@ function StudentPortal({
                               <div className="mt-16 pt-10 border-t border-slate-100 flex flex-col md:flex-row items-center justify-between gap-8">
                                  <div className="text-center md:text-left">
                                     <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1">Final Computation</h5>
-                                    <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Quarterly Result Summary</h2>
+                                    <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Term Result Summary</h2>
                                  </div>
                                  <div className="flex items-center gap-12">
                                     <div className="text-center md:text-right">
@@ -24147,7 +24152,7 @@ function UserGuideView() {
           <div className="space-y-4">
             <div className="p-5 border-l-4 border-indigo-600 bg-indigo-50/30 rounded-r-2xl">
               <h6 className="font-bold text-indigo-900 mb-1">1. Subjects & Weights</h6>
-              <p className="text-sm text-slate-600">Define the percentage weights for Written Works, Performance Tasks, and Quarterly Assessments for each subject.</p>
+              <p className="text-sm text-slate-600">Define the percentage weights for Written Works, Performance Tasks, and Term Assessments for each subject.</p>
             </div>
             <div className="p-5 border-l-4 border-emerald-600 bg-emerald-50/30 rounded-r-2xl">
               <h6 className="font-bold text-emerald-900 mb-1">2. Record Assessment</h6>
@@ -24438,7 +24443,7 @@ function UserGuideView() {
           "Roles Summary and Permissions Grid:",
           "• System Administrator: Broad administrative scope. Can register and configure primary school units, define regional subject listings, configure active years, and audit systems. Does not manipulate active gradebook scores directly.",
           "• School Administrator: Coordinates user accounts, registers teaching personnel, assigns course weights, and manages sections.",
-          "• Subject Teacher: Input-level access. Can configure scoring weight parameters, log quarterly grades, written works, and performance logs for assigned sections.",
+          "• Subject Teacher: Input-level access. Can configure scoring weight parameters, log term grades, written works, and performance logs for assigned sections.",
           "• Class Adviser: Primary oversight. Manages student enrollments, logs daily attendance matrices, outputs monthly SF2 tallies, and registers confidential student observations."
         ]
       },

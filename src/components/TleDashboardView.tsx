@@ -295,6 +295,25 @@ export const TleDashboardView: React.FC<TleDashboardViewProps> = ({
     }
   };
 
+  // Update TLE Enrollment Term
+  const handleUpdateTerm = async (student: Student, sectionId: string, subjectId: string, term: string) => {
+    setIsSavingId(student.id);
+    try {
+      const studentRef = doc(db, "sections", sectionId, "students", student.id);
+      
+      const updatedTerms = { ...(student.tleEnrollmentTerms || {}) };
+      updatedTerms[subjectId] = term;
+      
+      await updateDoc(studentRef, { tleEnrollmentTerms: updatedTerms });
+      await refreshData();
+    } catch (err: any) {
+      console.error("Error updating term:", err);
+      setErrorMsg("Failed to update term.");
+    } finally {
+      setIsSavingId("");
+    }
+  };
+
   // Update teacher assignment for a TLE specialization subject
   const handleUpdateSubjectTeacher = async (sectionId: string, subjectId: string, teacherEmail: string) => {
     setLoading(true);
@@ -938,6 +957,7 @@ export const TleDashboardView: React.FC<TleDashboardViewProps> = ({
                         <th className="py-4.5 px-4 font-extrabold">Section</th>
                         <th className="py-4.5 px-4 font-extrabold">Gender</th>
                         <th className="py-4.5 px-4 font-extrabold">Current Status</th>
+                        <th className="py-4.5 px-4 font-extrabold text-center">Term Enrolled</th>
                         <th className="py-4.5 px-6 font-extrabold text-center max-w-[320px] md:max-w-[400px]">Assign Component / specialization</th>
                       </tr>
                     </thead>
@@ -1009,6 +1029,26 @@ export const TleDashboardView: React.FC<TleDashboardViewProps> = ({
                                   UNASSIGNED
                                 </span>
                               )}
+                            </td>
+
+                            {/* Term Enrolled Dropdown */}
+                            <td className="py-4.5 px-4">
+                              <select
+                                value={(enrolledTle && student.tleEnrollmentTerms?.[enrolledTle.id]) || "All Terms"}
+                                onChange={(e) => {
+                                  if (enrolledTle) {
+                                    handleUpdateTerm(student, section.id, enrolledTle.id, e.target.value);
+                                  }
+                                }}
+                                disabled={!enrolledTle || isSaving}
+                                className="w-full min-w-[120px] bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500/20 focus:border-indigo-600 outline-none transition-all text-slate-800 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                <option value="All Terms">Entire School Year</option>
+                                <option value="1">1st Term</option>
+                                <option value="2">2nd Term</option>
+                                <option value="3">3rd Term</option>
+                                <option value="4">4th Term</option>
+                              </select>
                             </td>
 
                             {/* Dropdown Allocator */}

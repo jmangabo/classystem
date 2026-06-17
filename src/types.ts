@@ -120,6 +120,7 @@ export interface Student {
   isTransferredIn?: boolean;
   eligibility?: Eligibility;
   enrolledSubjectIds?: string[];
+  tleEnrollmentTerms?: Record<string, string>;
 }
 
 export interface Subject {
