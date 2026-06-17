@@ -1188,108 +1188,84 @@ export default function App() {
         handleFirestoreError(err, 'list', 'sections');
       });
     } else if (userProfile.role === 'teacher') {
-      const userEmail = (currentUser.email || "").toLowerCase();
-      // 1. Get sections where they are adviser or creator
-      const baseQuery = query(
-        collection(db, "sections"), 
-        or(
-          where("createdBy", "==", currentUser.uid),
-          where("adviserEmail", "==", userEmail)
-        )
-      );
+      const userEmailLower = (currentUser.email || "").toLowerCase();
+      // 1. Get all sections for their school to check subjectTeachers dynamically
+      const baseQuery = userProfile.schoolId 
+        ? query(collection(db, "sections"), where("schoolId", "==", userProfile.schoolId))
+        : query(collection(db, "sections"));
 
-      // We need to fetch everything manually if we also have subject-level access
-      // Let's use a function and combine results
-      const fetchTeacherSections = async () => {
+      const processSections = async (snapshotDocs: any[]) => {
         try {
-          const sectionsMap = new Map<string, Section>();
-          const userEmailLower = userEmail.toLowerCase();
+          const allSections = snapshotDocs.map(d => ({ id: d.id, ...d.data() } as Section));
+          let subDocs: any[] = [];
           
-          // 1. Get sections where they are adviser or creator
-          const baseSnap = await getDocs(baseQuery);
-          baseSnap.forEach(d => {
-             sectionsMap.set(d.id, { id: d.id, ...d.data() } as Section);
-          });
-
-          // 2. Query collectionGroup('subjects') to find subjects taught by this teacher
           if (userEmailLower) {
             const subjectsQuery = query(
               collectionGroup(db, 'subjects'),
               where("teacherEmail", "==", userEmailLower)
             );
-            
-            const subjectsSnap = await getDocs(subjectsQuery).catch(err => {
-              console.error("Subjects collectionGroup query failed:", err);
-              return { docs: [] } as any;
-            });
+            const subjectsSnap = await getDocs(subjectsQuery).catch(() => ({ docs: [] }));
+            subDocs = subjectsSnap.docs;
+          }
 
-            // For subjects, extract sectionId from ref.path
-            const missingSectionIds = new Set<string>();
-            for (const subjDoc of subjectsSnap.docs) {
-               // path: sections/{sectionId}/subjects/{subjectId}
-               const pathParts = subjDoc.ref.path.split('/');
-               const sectionId = pathParts[1];
-               const subjectData = subjDoc.data() as Subject;
-               
-               if (sectionId && !sectionsMap.has(sectionId)) {
-                 missingSectionIds.add(sectionId);
-               } else if (sectionId) {
-                 const sec = sectionsMap.get(sectionId)!;
-                 if (!sec.teacherSubjects) sec.teacherSubjects = [];
-                 if (!sec.teacherSubjects.includes(subjectData.name)) {
-                     sec.teacherSubjects.push(subjectData.name);
-                 }
-               }
+          const teacherSections: Section[] = [];
+
+          for (const sec of allSections) {
+            let isRelevant = sec.createdBy === currentUser.uid || (sec.adviserEmail || "").toLowerCase() === userEmailLower;
+            const teacherSubjectNames = new Set<string>();
+            
+            // Check custom subjects via collectionGroup
+            for (const subjDoc of subDocs) {
+              const pathParts = subjDoc.ref.path.split('/');
+              const sectionId = pathParts[1];
+              if (sectionId === sec.id) {
+                isRelevant = true;
+                teacherSubjectNames.add((subjDoc.data() as Subject).name);
+              }
+            }
+            
+            // Check global subjects via subjectTeachers map
+            if (sec.subjectTeachers) {
+              for (const [subjId, tEmail] of Object.entries(sec.subjectTeachers)) {
+                if (tEmail && typeof tEmail === 'string' && tEmail.toLowerCase() === userEmailLower) {
+                  isRelevant = true;
+                  const gSubj = globalSubjects.find(g => g.id === subjId);
+                  if (gSubj) {
+                    teacherSubjectNames.add(gSubj.name);
+                  }
+                }
+              }
             }
 
-            // Fetch missing sections in parallel
-            if (missingSectionIds.size > 0) {
-              await Promise.all(Array.from(missingSectionIds).map(async (secId) => {
-                try {
-                  const secDoc = await getDoc(doc(db, "sections", secId));
-                  if (secDoc.exists()) {
-                    const sectionData = { id: secDoc.id, ...secDoc.data() } as Section;
-                    // Tag with subject names found earlier
-                    const subjNames = subjectsSnap.docs
-                      .filter((s: any) => s.ref.path.includes(`sections/${secId}/subjects/`))
-                      .map((s: any) => (s.data() as Subject).name);
-                    
-                    sectionsMap.set(secId, { ...sectionData, teacherSubjects: Array.from(new Set(subjNames)) });
-                  }
-                } catch (e) {
-                  console.error(`Error fetching missing section ${secId}:`, e);
-                  // Don't throw, just skip this one
-                }
-              }));
+            if (isRelevant) {
+               teacherSections.push({
+                 ...sec,
+                 teacherSubjects: Array.from(teacherSubjectNames)
+               });
             }
           }
+
           if (isSubscribed) {
-            setSections(Array.from(sectionsMap.values()));
+            setSections(teacherSections);
           }
         } catch (e) {
-          console.error("Error fetching teacher sections", e);
+          console.error("Error processing teacher sections", e);
         }
       };
 
-      fetchTeacherSections();
-      
-      // We can also set up a standard listener for base sections, but for full accuracy with subject assignment we might poll or just rely on manual reload for new assignments.
-      // For now, let's just listen to base query and add our custom fetched ones. Wait, better to just use getDocs when teacher logs in.
-      // But let's attach the basic listener anyway to at least have reactive updates for owned sections
-      const unsubBase = onSnapshot(baseQuery, () => {
-         fetchTeacherSections();
-      }, (err) => {
+      const unsubBase = onSnapshot(baseQuery, (snap) => processSections(snap.docs), (err) => {
          handleFirestoreError(err, 'list', 'sections');
       });
 
       let unsubSubjectsGroup = () => {};
-      if (userEmail) {
+      if (userEmailLower) {
         const subjectsQuery = query(
           collectionGroup(db, 'subjects'),
-          where("teacherEmail", "==", userEmail)
+          where("teacherEmail", "==", userEmailLower)
         );
-        unsubSubjectsGroup = onSnapshot(subjectsQuery, () => {
-           fetchTeacherSections();
+        unsubSubjectsGroup = onSnapshot(subjectsQuery, async () => {
+           const snap = await getDocs(baseQuery);
+           processSections(snap.docs);
         }, (err) => {
            handleFirestoreError(err, 'list', 'subjects');
         });
@@ -1308,7 +1284,7 @@ export default function App() {
       isSubscribed = false;
       if (unsubscribeSections) unsubscribeSections();
     };
-  }, [currentUser, userProfile]);
+  }, [currentUser, userProfile, globalSubjects]);
 
   // Students & Subjects Listener for Selected Section
   useEffect(() => {
@@ -1421,7 +1397,12 @@ export default function App() {
         );
 
         if (!selectedSubjectId || !matchedSubject) {
-            setSelectedSubjectId(subjectsForSection[0].id);
+            const mySubjects = subjectsForSection.filter(s => (s.teacherEmail || '').toLowerCase() === (currentUser?.email || '').toLowerCase());
+            if (mySubjects.length > 0 && userProfile?.role === 'teacher') {
+                setSelectedSubjectId(mySubjects[0].id);
+            } else {
+                setSelectedSubjectId(subjectsForSection[0].id);
+            }
         } else if (matchedSubject && selectedSubjectId !== matchedSubject.id) {
             // Upgrade name to ID if it matched by name
             setSelectedSubjectId(matchedSubject.id);
@@ -7265,45 +7246,65 @@ function SectionsView({
                       : (section.teacherSubjects || []);
 
                     const isSHS = section.gradeLevel === 11 || section.gradeLevel === 12;
+                    let displayItems: { label: string, targetName: string | null }[] = [];
+                    
+                    const tleNames = subjectsToDisplayNames.filter(n => isTleSubject(n));
+                    const nonTleNames = subjectsToDisplayNames.filter(n => !isTleSubject(n));
+                    
+                    nonTleNames.forEach(n => displayItems.push({ label: n, targetName: n }));
+                    
+                    if (tleNames.length > 0) {
+                      if (tleNames.length === 1) {
+                        displayItems.push({ label: tleNames[0], targetName: tleNames[0] });
+                      } else {
+                        const shortNames = tleNames.map(n => n.replace(/^TLE\s*-\s*/i, '').trim());
+                        displayItems.push({ label: `TLE (${shortNames.join(', ')})`, targetName: null });
+                      }
+                    }
+
                     if (isSHS) {
-                      subjectsToDisplayNames = [...subjectsToDisplayNames].sort((a, b) => {
-                        const subA = sectionSubjects.find(s => s.name === a);
-                        const subB = sectionSubjects.find(s => s.name === b);
+                      displayItems.sort((a, b) => {
+                        const subA = a.targetName ? sectionSubjects.find(s => s.name === a.targetName) : null;
+                        const subB = b.targetName ? sectionSubjects.find(s => s.name === b.targetName) : null;
                         const typeA = subA?.subjectType || 'ELECTIVE';
                         const typeB = subB?.subjectType || 'ELECTIVE';
                         if (typeA === 'CORE' && typeB !== 'CORE') return -1;
                         if (typeA !== 'CORE' && typeB === 'CORE') return 1;
-                        return a.localeCompare(b);
+                        return a.label.localeCompare(b.label);
                       });
                     } else {
-                      subjectsToDisplayNames = [...subjectsToDisplayNames].sort((a, b) => {
-                        const scoreA = getSubjectSortScore(a);
-                        const scoreB = getSubjectSortScore(b);
+                      displayItems.sort((a, b) => {
+                        const scoreA = a.targetName ? getSubjectSortScore(a.targetName) : 99;
+                        const scoreB = b.targetName ? getSubjectSortScore(b.targetName) : 99;
                         if (scoreA !== scoreB) return scoreA - scoreB;
-                        return a.localeCompare(b);
+                        return a.label.localeCompare(b.label);
                       });
                     }
 
                     const isExpanded = expandedSections.has(section.id);
                     
                     if (!isExpanded) {
-                      const subjectsToShow = subjectsToDisplayNames.slice(0, 4);
+                      const subjectsToShow = displayItems.slice(0, 4);
                       return (
                         <div className="mb-4 mt-4">
                           <div className="flex flex-wrap gap-2.5">
-                            {subjectsToShow.map((subj, idx) => (
+                            {subjectsToShow.map((item, idx) => (
                               <button 
                                 key={idx} 
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  onNavigateToSubject(section, subj);
+                                  if (item.targetName) {
+                                    onNavigateToSubject(section, item.targetName);
+                                  } else {
+                                    onSelect(section);
+                                  }
                                 }}
                                 className="text-[11px] items-center flex gap-1 font-medium bg-indigo-50/50 text-indigo-700 px-3 py-1.5 rounded-md border border-indigo-100/50 truncate max-w-full hover:bg-indigo-100 hover:border-indigo-200 transition-colors"
                               >
-                                 {subj}
+                                 {item.label}
                               </button>
                             ))}
-                            {subjectsToDisplayNames.length > 4 && (
+                            {displayItems.length > 4 && (
                                <button 
                                  onClick={(e) => {
                                    e.stopPropagation();
@@ -7313,7 +7314,7 @@ function SectionsView({
                                  }}
                                  className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 transition-colors py-1 pl-1 cursor-pointer"
                                >
-                                 + {subjectsToDisplayNames.length - 4} more
+                                 + {displayItems.length - 4} more
                                </button>
                             )}
                           </div>
@@ -7322,13 +7323,21 @@ function SectionsView({
                     }
 
                     // Expanded Grouped View
-                    const coreNames = sectionSubjects.filter(s => s.subjectType === 'CORE' && subjectsToDisplayNames.includes(s.name)).map(s => s.name);
-                    const appliedNames = sectionSubjects.filter(s => s.subjectType === 'ELECTIVE' && subjectsToDisplayNames.includes(s.name)).map(s => s.name);
-                    const otherNames = subjectsToDisplayNames.filter(n => !coreNames.includes(n) && !appliedNames.includes(n));
+                    const coreItems = displayItems.filter(item => {
+                      if (!item.targetName) return false;
+                      const s = sectionSubjects.find(sub => sub.name === item.targetName);
+                      return s?.subjectType === 'CORE';
+                    });
+                    const appliedItems = displayItems.filter(item => {
+                      if (!item.targetName) return false;
+                      const s = sectionSubjects.find(sub => sub.name === item.targetName);
+                      return s?.subjectType === 'ELECTIVE';
+                    });
+                    const otherItems = displayItems.filter(item => !coreItems.includes(item) && !appliedItems.includes(item));
 
                     return (
                       <div className="mb-6 mt-4 space-y-5 animate-in fade-in zoom-in-95 duration-200">
-                        {coreNames.length > 0 && (
+                        {coreItems.length > 0 && (
                           <div>
                             <div className="flex items-center gap-2 mb-3">
                               <div className="h-px flex-1 bg-slate-100" />
@@ -7336,23 +7345,27 @@ function SectionsView({
                               <div className="h-px flex-1 bg-slate-100" />
                             </div>
                             <div className="flex flex-wrap gap-2.5">
-                              {coreNames.map((subj, idx) => (
+                              {coreItems.map((item, idx) => (
                                 <button 
                                   key={idx} 
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    onNavigateToSubject(section, subj);
+                                    if (item.targetName) {
+                                      onNavigateToSubject(section, item.targetName);
+                                    } else {
+                                      onSelect(section);
+                                    }
                                   }}
                                   className="text-[10px] items-center flex gap-1 font-bold bg-white text-indigo-700 px-3 py-2 rounded-lg border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/50 transition-all shadow-sm"
                                 >
-                                   {subj}
+                                   {item.label}
                                 </button>
                               ))}
                             </div>
                           </div>
                         )}
 
-                        {(appliedNames.length > 0 || otherNames.length > 0) && (
+                        {(appliedItems.length > 0 || otherItems.length > 0) && (
                           <div>
                             <div className="flex items-center gap-2 mb-3">
                               <div className="h-px flex-1 bg-slate-100" />
@@ -7360,16 +7373,20 @@ function SectionsView({
                               <div className="h-px flex-1 bg-slate-100" />
                             </div>
                             <div className="flex flex-wrap gap-2.5">
-                              {[...appliedNames, ...otherNames].map((subj, idx) => (
+                              {[...appliedItems, ...otherItems].map((item, idx) => (
                                 <button 
                                   key={idx} 
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    onNavigateToSubject(section, subj);
+                                    if (item.targetName) {
+                                      onNavigateToSubject(section, item.targetName);
+                                    } else {
+                                      onSelect(section);
+                                    }
                                   }}
                                   className="text-[10px] items-center flex gap-1 font-bold bg-white text-emerald-700 px-3 py-2 rounded-lg border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/50 transition-all shadow-sm"
                                 >
-                                   {subj}
+                                   {item.label}
                                 </button>
                               ))}
                             </div>
@@ -9546,8 +9563,7 @@ function AddLearnerView({
             {isActiveSY && (
               <>
                 {(() => {
-                  const isGrade11or12 = Number(section?.gradeLevel) === 11 || Number(section?.gradeLevel) === 12;
-                  const hasSubjects = isGrade11or12 && (
+                  const hasSubjects = (
                     globalSubjects.some(sub => Number(sub.gradeLevel) === Number(section?.gradeLevel)) ||
                     (subjects || []).some(sub => Number(sub.gradeLevel) === Number(section?.gradeLevel) && sub.sectionId === section?.id)
                   );
@@ -16044,7 +16060,7 @@ function SubjectsView({
                         onChange={e => setPresetTeacherEmail(e.target.value)}
                         className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-medium text-slate-700 outline-none text-slate-800"
                       >
-                        <option value="">Select Teacher...</option>
+                        <option value="">No Assigned Teacher</option>
                         {teacherCandidates.map(c => (
                           <option key={c.uid} value={c.email}>
                             {c.displayName || c.email} ({c.email})
@@ -16054,7 +16070,7 @@ function SubjectsView({
                     ) : (
                       <input 
                         type="email"
-                        placeholder="teacher@example.com"
+                        placeholder="teacher@example.com (Leave blank for no teacher)"
                         value={presetTeacherEmail}
                         onChange={e => setPresetTeacherEmail(e.target.value)}
                         className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-medium text-slate-700 outline-none placeholder:text-slate-400 text-slate-800"
@@ -16250,10 +16266,9 @@ function SubjectsView({
                             value={form.teacherEmail || ''}
                             onChange={e => setForm({...form, teacherEmail: e.target.value})}
                             className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none text-sm font-medium text-slate-900"
-                            required
                           >
-                            <option value="" disabled>Select Teacher...</option>
-                            {form.teacherEmail && !teacherCandidates.some(c => c.email === form.teacherEmail) && (
+                            <option value="">No Assigned Teacher</option>
+                            {form.teacherEmail && !teacherCandidates.some(c => c.email?.toLowerCase() === form.teacherEmail?.toLowerCase()) && (
                               <option value={form.teacherEmail}>{form.teacherEmail}</option>
                             )}
                             {teacherCandidates.map(c => (
@@ -16265,11 +16280,10 @@ function SubjectsView({
                         ) : (
                           <input 
                             type="email"
-                            placeholder="teacher@example.com"
+                            placeholder="teacher@example.com (Leave blank for no teacher)"
                             value={form.teacherEmail || ''}
                             onChange={e => setForm({...form, teacherEmail: e.target.value})}
                             className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none font-medium text-slate-900 placeholder:text-slate-400"
-                            required
                           />
                         )}
                         <p className="text-xs text-slate-500 mt-2">Note: To edit the curriculum details of this subject, navigate to the Global Subjects Directory.</p>
@@ -16339,10 +16353,9 @@ function SubjectsView({
                             value={form.teacherEmail || ''}
                             onChange={e => setForm({...form, teacherEmail: e.target.value})}
                             className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none text-sm font-medium text-slate-900"
-                            required
                           >
-                            <option value="" disabled>Select Teacher...</option>
-                            {form.teacherEmail && !teacherCandidates.some(c => c.email === form.teacherEmail) && (
+                            <option value="">No Assigned Teacher</option>
+                            {form.teacherEmail && !teacherCandidates.some(c => c.email?.toLowerCase() === form.teacherEmail?.toLowerCase()) && (
                               <option value={form.teacherEmail}>{form.teacherEmail}</option>
                             )}
                             {teacherCandidates.map(c => (
@@ -16354,11 +16367,10 @@ function SubjectsView({
                         ) : (
                           <input 
                             type="email"
-                            placeholder="teacher@example.com"
+                            placeholder="teacher@example.com (Leave blank for no teacher)"
                             value={form.teacherEmail || ''}
                             onChange={e => setForm({...form, teacherEmail: e.target.value})}
                             className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none font-medium text-slate-900 placeholder:text-slate-400"
-                            required
                           />
                         )}
                       </div>
@@ -16654,7 +16666,13 @@ function SubjectsView({
                     </td>
                     {selectedSection && (
                       <td className="px-6 py-4 text-center">
-                        <span className="text-[13px] text-slate-600 truncate max-w-[150px] inline-block">{subject.teacherEmail || '-'}</span>
+                        <span className="text-[13px] text-slate-600 truncate max-w-[150px] inline-block">
+                          {(() => {
+                            if (!subject.teacherEmail) return <span className="text-amber-600 font-semibold italic text-xs">No Teacher Assigned</span>;
+                            const tc = teacherCandidates.find(c => c.email?.toLowerCase() === subject.teacherEmail?.toLowerCase());
+                            return tc ? tc.displayName || tc.email : subject.teacherEmail;
+                          })()}
+                        </span>
                       </td>
                     )}
                     <td className="px-6 py-4 text-center">

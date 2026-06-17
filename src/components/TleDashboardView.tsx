@@ -687,52 +687,71 @@ export const TleDashboardView: React.FC<TleDashboardViewProps> = ({
             </div>
 
             <div className="grid grid-cols-1 gap-6">
-              {g910Sections.map(sec => {
-                const secSubjects = sectionSubjectsMap[sec.id] || [];
-                const tleSubjects = secSubjects.filter(sub => isTleSubject(sub.name));
+              {(() => {
+                // Group by TLE component name
+                const compGroups: Record<string, { section: Section; subject: Subject }[]> = {};
+                g910Sections.forEach(sec => {
+                  const secSubjects = sectionSubjectsMap[sec.id] || [];
+                  const tleSubjects = secSubjects.filter(sub => isTleSubject(sub.name));
+                  tleSubjects.forEach(sub => {
+                    if (!compGroups[sub.name]) compGroups[sub.name] = [];
+                    compGroups[sub.name].push({ section: sec, subject: sub });
+                  });
+                });
 
-                return (
-                  <div key={sec.id} className="border border-slate-200/85 rounded-2xl p-5 bg-slate-50/25 flex flex-col gap-4">
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-indigo-100/50 pb-3">
-                      <div>
-                        <span className="text-[10px] bg-indigo-50 border border-indigo-150/60 text-indigo-700 font-extrabold px-2.5 py-0.5 rounded-md uppercase tracking-wider">
-                          Grade {sec.gradeLevel} Section
-                        </span>
-                        <h3 className="text-base font-extrabold text-slate-800 uppercase mt-1">Section: {sec.name}</h3>
-                      </div>
-                      <div className="text-left sm:text-right">
-                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Class Adviser</span>
-                        <span className="text-xs text-slate-600 font-semibold">{sec.adviserName || "N/A"} ({sec.adviserEmail || "N/A"})</span>
-                      </div>
+                const sortedCompNames = Object.keys(compGroups).sort((a,b) => a.localeCompare(b));
+
+                if (sortedCompNames.length === 0) {
+                  return (
+                    <div className="py-12 text-center bg-slate-50 border border-dashed border-slate-200 rounded-2xl">
+                      <AlertCircle size={32} className="text-amber-500 mx-auto mb-3" />
+                      <p className="text-slate-600 font-bold text-sm uppercase tracking-wider">No TLE Components Configured</p>
+                      <p className="text-slate-400 text-xs mt-1 max-w-md mx-auto">Use the "Add New Component" button to configure TLE customization pathways for Grade 9 and Grade 10 classes.</p>
                     </div>
+                  );
+                }
 
-                    {tleSubjects.length === 0 ? (
-                      <div className="py-8 text-center bg-slate-50 border border-dashed border-slate-200 rounded-xl">
-                        <AlertCircle size={24} className="text-amber-500 mx-auto mb-2" />
-                        <p className="text-slate-600 font-bold text-xs uppercase tracking-wider">No TLE Components Configured</p>
-                        <p className="text-slate-400 text-[11px] mt-0.5">Use the "Add New Component" button to configure TLE customization pathways for this class.</p>
+                return sortedCompNames.map(compName => {
+                  const assignments = compGroups[compName];
+                  
+                  return (
+                    <div key={compName} className="border border-slate-200/85 rounded-2xl p-5 bg-slate-50/25 flex flex-col gap-4">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-indigo-100/50 pb-3">
+                        <div>
+                          <span className="text-[10px] bg-indigo-50 border border-indigo-150/60 text-indigo-700 font-extrabold px-2.5 py-0.5 rounded-md uppercase tracking-wider">
+                            TLE Specialization
+                          </span>
+                          <h3 className="text-base font-extrabold text-slate-800 uppercase mt-1">{compName}</h3>
+                        </div>
+                        <div className="text-left sm:text-right">
+                          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Offered In</span>
+                          <span className="text-xs text-slate-600 font-semibold">{assignments.length} Section{assignments.length > 1 ? 's' : ''}</span>
+                        </div>
                       </div>
-                    ) : (
+
                       <div className="overflow-x-auto rounded-xl border border-slate-150">
                         <table className="w-full text-left border-collapse bg-white">
                           <thead>
                             <tr className="bg-slate-50 border-b border-slate-150 text-[10px] font-extrabold uppercase text-slate-400 tracking-wider">
-                              <th className="py-3 px-4">Component / Specialization Name</th>
-                              <th className="py-3 px-4">Assigned Subject Teacher (Gradebook evaluation)</th>
+                              <th className="py-3 px-4">Class Section</th>
+                              <th className="py-3 px-4">Assigned Subject Teacher</th>
                               <th className="py-3 px-1.5 text-center">Enrolled learners</th>
                               <th className="py-3 px-4 text-center">Delete component</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
-                            {tleSubjects.map(sub => {
+                            {assignments.map(({ section: sec, subject: sub }) => {
                               const enrolledCount = allRecords.filter(r => r.section.id === sec.id && r.enrolledTle?.id === sub.id).length;
 
                               return (
                                 <tr key={sub.id} className="hover:bg-slate-50/50 transition-colors">
-                                  {/* Subject Name */}
-                                  <td className="py-3 px-4 font-bold text-slate-800 uppercase flex items-center gap-2">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-600"></span>
-                                    {sub.name}
+                                  {/* Section Name */}
+                                  <td className="py-3 px-4 font-bold text-slate-800 uppercase flex flex-col gap-0.5">
+                                    <div className="flex items-center gap-2">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-600"></span>
+                                      Grade {sec.gradeLevel} - {sec.name}
+                                    </div>
+                                    <span className="text-[9px] text-slate-400 ml-3.5 tracking-wider font-semibold">Adv. {sec.adviserName || 'N/A'}</span>
                                   </td>
 
                                   {/* Assigned Teacher Dropdown */}
@@ -779,10 +798,10 @@ export const TleDashboardView: React.FC<TleDashboardViewProps> = ({
                           </tbody>
                         </table>
                       </div>
-                    )}
-                  </div>
-                );
-              })}
+                    </div>
+                  );
+                });
+              })()}
             </div>
           </div>
         ) : (
