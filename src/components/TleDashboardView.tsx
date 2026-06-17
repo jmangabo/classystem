@@ -26,7 +26,8 @@ import {
   X,
   Plus,
   HelpCircle,
-  FileCheck
+  FileCheck,
+  Info
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -74,7 +75,6 @@ export const TleDashboardView: React.FC<TleDashboardViewProps> = ({
 
   // Add Component Modal state
   const [showAddModal, setShowAddModal] = useState(false);
-  const [newCompSectionId, setNewCompSectionId] = useState("");
   const [newCompName, setNewCompName] = useState("");
   const [newCompCustomName, setNewCompCustomName] = useState("");
   const [newCompTeacherEmail, setNewCompTeacherEmail] = useState("");
@@ -365,13 +365,9 @@ export const TleDashboardView: React.FC<TleDashboardViewProps> = ({
     }
   };
 
-  // Create & assign a new custom or predefined TLE specialization to a JHS section
+  // Create & assign a new custom or predefined TLE specialization to ALL JHS sections
   const handleCreateTleComponent = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newCompSectionId) {
-      setErrorMsg("Please select a target junior high section.");
-      return;
-    }
     const finalName = (newCompName === "Other" ? newCompCustomName : newCompName).trim();
     if (!finalName) {
       setErrorMsg("Please enter or choose a valid TLE specialization name.");
@@ -382,47 +378,63 @@ export const TleDashboardView: React.FC<TleDashboardViewProps> = ({
     setSuccessMsg("");
     setErrorMsg("");
     try {
-      const sec = sections.find(s => s.id === newCompSectionId);
-      if (!sec) throw new Error("Section not found.");
-
-      const existingInSec = (sectionSubjectsMap[sec.id] || []);
-      const dup = existingInSec.find(s => s.name.toUpperCase() === finalName.toUpperCase());
-      if (dup) {
-        setErrorMsg(`"${finalName}" already exists for this JHS section.`);
+      if (g910Sections.length === 0) {
+        setErrorMsg("No Grade 9 or Grade 10 sections found.");
         setLoading(false);
         return;
       }
 
-      // 1. Add new subject to section's template of subjects
-      const subjectsCollRef = collection(db, "sections", sec.id, "subjects");
-      const newSubDoc = await addDoc(subjectsCollRef, {
-        name: finalName,
-        gradeLevel: Number(sec.gradeLevel),
-        group: "Revised K-10 Curriculum",
-        subjectType: "CORE",
-        sectionId: sec.id,
-        schoolId: sec.schoolId || "",
-        teacherEmail: newCompTeacherEmail || sec.adviserEmail || "",
-        wwWeight: 25,
-        ptWeight: 50,
-        taWeight: 25,
-        unit: 1,
-        order: 999
-      });
+      let addedCount = 0;
+      let existingCount = 0;
 
-      // 2. Add to parent section's subjectTeachers map if teacher is assigned
-      if (newCompTeacherEmail) {
-        const secDocRef = doc(db, "sections", sec.id);
-        await updateDoc(secDocRef, {
-          [`subjectTeachers.${newSubDoc.id}`]: newCompTeacherEmail.trim().toLowerCase()
+      for (const sec of g910Sections) {
+        const existingInSec = (sectionSubjectsMap[sec.id] || []);
+        const dup = existingInSec.find(s => s.name.toUpperCase() === finalName.toUpperCase());
+        
+        if (dup) {
+          existingCount++;
+          continue; // Skip if it already exists for this section
+        }
+
+        // 1. Add new subject to section's template of subjects
+        const subjectsCollRef = collection(db, "sections", sec.id, "subjects");
+        const newSubDoc = await addDoc(subjectsCollRef, {
+          name: finalName,
+          gradeLevel: Number(sec.gradeLevel),
+          group: "Revised K-10 Curriculum",
+          subjectType: "CORE",
+          sectionId: sec.id,
+          schoolId: sec.schoolId || "",
+          teacherEmail: newCompTeacherEmail || sec.adviserEmail || "",
+          wwWeight: 25,
+          ptWeight: 50,
+          taWeight: 25,
+          unit: 1,
+          order: 999
         });
+
+        // 2. Add to parent section's subjectTeachers map if teacher is assigned
+        if (newCompTeacherEmail) {
+          const secDocRef = doc(db, "sections", sec.id);
+          await updateDoc(secDocRef, {
+            [`subjectTeachers.${newSubDoc.id}`]: newCompTeacherEmail.trim().toLowerCase()
+          });
+        }
+        
+        addedCount++;
       }
 
-      setSuccessMsg(`Successfully created customized TLE component "${finalName}" under Section ${sec.name}!`);
+      if (addedCount > 0) {
+        setSuccessMsg(`Successfully created customized TLE component "${finalName}" across ${addedCount} sections!${existingCount > 0 ? ` (Skipped ${existingCount} sections where it already existed)` : ''}`);
+      } else if (existingCount > 0) {
+        setErrorMsg(`"${finalName}" already exists in all ${existingCount} Grade 9 & 10 sections.`);
+        setLoading(false);
+        return;
+      }
+      
       setShowAddModal(false);
       
       // Reset modal inputs
-      setNewCompSectionId("");
       setNewCompName("");
       setNewCompCustomName("");
       setNewCompTeacherEmail("");
@@ -523,7 +535,6 @@ export const TleDashboardView: React.FC<TleDashboardViewProps> = ({
         <div className="flex items-center gap-3">
           <button
             onClick={() => {
-              setNewCompSectionId("");
               setNewCompName("");
               setNewCompCustomName("");
               setNewCompTeacherEmail("");
@@ -674,7 +685,6 @@ export const TleDashboardView: React.FC<TleDashboardViewProps> = ({
               </div>
               <button
                 onClick={() => {
-                  setNewCompSectionId("");
                   setNewCompName("");
                   setNewCompCustomName("");
                   setNewCompTeacherEmail("");
@@ -1097,22 +1107,14 @@ export const TleDashboardView: React.FC<TleDashboardViewProps> = ({
               </div>
 
               <form onSubmit={handleCreateTleComponent} className="p-6 space-y-4">
-                {/* Section selection */}
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Target JHS Class Section</label>
-                  <select
-                    required
-                    value={newCompSectionId}
-                    onChange={(e) => setNewCompSectionId(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all text-slate-705 cursor-pointer"
-                  >
-                    <option value="">-- Choose Section --</option>
-                    {g910Sections.map(sec => (
-                      <option key={sec.id} value={sec.id}>
-                        G{sec.gradeLevel} - {sec.name} Class
-                      </option>
-                    ))}
-                  </select>
+                {/* Information banner */}
+                <div className="bg-indigo-50 border border-indigo-100 rounded-xl max-w-full p-4 mb-2">
+                  <div className="flex gap-3 text-indigo-700">
+                    <Info size={18} className="shrink-0 mt-0.5" />
+                    <p className="text-xs font-semibold leading-relaxed">
+                      This component will be automatically created and assigned to <strong className="font-extrabold">{g910Sections.length} Grade 9 & Grade 10 sections</strong> simultaneously.
+                    </p>
+                  </div>
                 </div>
 
                 {/* Component Specialization name */}
