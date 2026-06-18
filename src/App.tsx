@@ -738,6 +738,64 @@ export default function App() {
     return unsub;
   }, [currentUser, userProfile]);
 
+  // Run once-per-app-session database cleanup to clear defaulted JHS section subjects where adviser was assigned by default
+  useEffect(() => {
+    if (!currentUser || !currentUser.email || !userProfile) return;
+
+    const hasRun = localStorage.getItem('jhs_tle_teacher_cleanup_v2');
+    if (hasRun) return;
+
+    const runCleanup = async () => {
+      try {
+        console.log("Starting JHS sections default teacher cleanup...");
+        const sectionsSnap = await getDocs(collection(db, "sections"));
+        let clearedCount = 0;
+
+        const userEmailLower = (currentUser.email || "").trim().toLowerCase();
+        const userUid = currentUser.uid;
+        const userRole = userProfile.role;
+
+        for (const secDoc of sectionsSnap.docs) {
+          const sec = { id: secDoc.id, ...secDoc.data() } as Section;
+          const isJHS = sec.gradeLevel && Number(sec.gradeLevel) <= 10;
+          if (!isJHS) continue;
+
+          // Check if user is authorized to write to this section's subjects under firestore rules
+          const isAuthorized = 
+            userRole === "admin" || 
+            userRole === "system_admin" ||
+            sec.createdBy === userUid || 
+            (sec.adviserEmail || "").trim().toLowerCase() === userEmailLower;
+
+          if (!isAuthorized) continue;
+
+          const adviserEmailNorm = (sec.adviserEmail || "").trim().toLowerCase();
+          
+          // Get the subjects sub-collection
+          const subsSnap = await getDocs(collection(db, "sections", sec.id, "subjects"));
+          for (const subDoc of subsSnap.docs) {
+            const sub = subDoc.data();
+            const teacherEmailNorm = (sub.teacherEmail || "").trim().toLowerCase();
+
+            // Clear defaulted adviser email from CORE or TLE subjects
+            if (adviserEmailNorm && teacherEmailNorm === adviserEmailNorm) {
+              await updateDoc(doc(db, "sections", sec.id, "subjects", subDoc.id), {
+                teacherEmail: ""
+              });
+              clearedCount++;
+            }
+          }
+        }
+        console.log(`Database JHS sections teacher cleanup finished. Cleared ${clearedCount} default assignments.`);
+        localStorage.setItem('jhs_tle_teacher_cleanup_v2', 'true');
+      } catch (err: any) {
+        console.warn("Note: Automatic JHS sections teacher cleanup did not complete entirely:", err.message || err);
+      }
+    };
+
+    runCleanup();
+  }, [currentUser, userProfile]);
+
   useEffect(() => {
     if (!currentUser) {
       setGlobalSettings(null);
@@ -804,6 +862,7 @@ export default function App() {
   const [allStudentEnrollments, setAllStudentEnrollments] = useState<{ student: Student, section: Section }[]>([]);
   const [noApprovedAdminFound, setNoApprovedAdminFound] = useState(false);
   const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(null);
+  const [combinedTleStudents, setCombinedTleStudents] = useState<Student[]>([]);
   const [selectedStudentForReport, setSelectedStudentForReport] = useState<Student | null>(null);
   const [statusChangeTarget, setStatusChangeTarget] = useState<{ student: Student, newStatus: 'Active' | 'Transferred Out' | 'Dropped Out' | 'Retained' | 'Promoted' } | null>(null);
   const [statusChangeDate, setStatusChangeDate] = useState(new Date().toISOString().split('T')[0]);
@@ -1211,7 +1270,7 @@ export default function App() {
           const teacherSections: Section[] = [];
 
           for (const sec of allSections) {
-            let isRelevant = sec.createdBy === currentUser.uid || (sec.adviserEmail || "").toLowerCase() === userEmailLower;
+            let isRelevant = false;
             const teacherSubjectNames = new Set<string>();
             
             // Check custom subjects via collectionGroup
@@ -1409,6 +1468,43 @@ export default function App() {
         }
     }
   }, [subjects, selectedSubjectId, selectedSection?.id]);
+
+  useEffect(() => {
+    if (activeTab !== 'gradebook' && activeTab !== 'summary') return;
+    if (!selectedSection || !selectedSubjectId) {
+      setCombinedTleStudents([]);
+      return;
+    }
+    
+    const isGrade910 = Number(selectedSection.gradeLevel) === 9 || Number(selectedSection.gradeLevel) === 10;
+    const matchedSubject = subjects.find(s => s.id === selectedSubjectId || s.name === selectedSubjectId);
+    const isTle = matchedSubject?.name?.toLowerCase().includes("tle") || false;
+    const activeYear = globalSettings?.activeSchoolYear;
+
+    if (isGrade910 && isTle && activeYear) {
+       const qGroup = query(collectionGroup(db, 'students'));
+       const unsub = onSnapshot(qGroup, snap => {
+         const list = snap.docs.map(d => {
+            const data = d.data() as Student;
+            const refPath = d.ref.path.split('/');
+            const secId = refPath[refPath.length - 3];
+            const sec = sections.find(s => s.id === secId);
+            return { 
+                id: d.id, ...data, sectionId: secId,
+                sectionName: sec ? `Grade ${sec.gradeLevel} - ${sec.name}` : data.sectionName 
+            };
+         }).filter(s => {
+            if (!s.enrolledSubjectIds || !s.enrolledSubjectIds.includes(selectedSubjectId)) return false;
+            const studentSection = sections.find(sec => sec.id === s.sectionId);
+            return studentSection && studentSection.schoolYear === activeYear;
+         });
+         setCombinedTleStudents(list);
+       });
+       return () => unsub();
+    } else {
+       setCombinedTleStudents([]);
+    }
+  }, [selectedSection?.id, selectedSubjectId, activeTab, subjects, globalSettings?.activeSchoolYear, sections]);
 
   // Persistence for dropdowns
   useEffect(() => {
@@ -1705,9 +1801,11 @@ export default function App() {
   };
 
   const updateStudentGrades = async (studentId: string, updates: any, subjectId: string, term: number) => {
-    if (!selectedSection) return;
+    const targetStudent = combinedTleStudents.find(s => s.id === studentId);
+    const secId = targetStudent?.sectionId || selectedSection?.id;
+    if (!secId) return;
     try {
-      const studentDocRef = doc(db, `sections/${selectedSection.id}/students`, studentId);
+      const studentDocRef = doc(db, `sections/${secId}/students`, studentId);
       const studentDoc = await getDoc(studentDocRef);
       if (!studentDoc.exists()) return;
       
@@ -1727,7 +1825,7 @@ export default function App() {
         }
       }, { merge: true });
     } catch (error) {
-      handleFirestoreError(error, 'update', `sections/${selectedSection.id}/students/${studentId}`);
+      handleFirestoreError(error, 'update', `sections/${secId}/students/${studentId}`);
     }
   };
 
@@ -1742,15 +1840,20 @@ export default function App() {
   };
 
   const handleBulkUpdate = async (updatedStudents: Student[], subjectId: string, term: number) => {
-    if (!selectedSection) return;
+    const defaultSecId = selectedSection?.id;
+    if (!defaultSecId && updatedStudents.length > 0 && !updatedStudents[0].sectionId) return;
     const batch = writeBatch(db);
     try {
       updatedStudents.forEach(s => {
-        batch.set(doc(db, `sections/${selectedSection.id}/students`, s.id), s, { merge: true });
+        const targetStudent = combinedTleStudents.find(st => st.id === s.id);
+        const secId = targetStudent?.sectionId || s.sectionId || defaultSecId;
+        if (secId) {
+            batch.set(doc(db, `sections/${secId}/students`, s.id), s, { merge: true });
+        }
       });
       await batch.commit();
     } catch (error) {
-      handleFirestoreError(error, 'write', `sections/${selectedSection.id}/students`);
+      handleFirestoreError(error, 'write', `sections/bulkUpdate/students`);
     }
   };
 
@@ -3324,7 +3427,7 @@ export default function App() {
                   subjects={(userProfile?.role === 'system_admin' || userProfile?.role === 'admin' || userProfile?.role === 'school_head' || isSectionAdviser) ? subjects : editableSubjects}
                   selectedSubjectId={selectedSubjectId}
                   onSelectSubject={setSelectedSubjectId}
-                  students={enrolledStudents}
+                  students={combinedTleStudents.length > 0 ? combinedTleStudents : enrolledStudents}
                   onUpdateGrades={updateStudentGrades}
                   onBulkUpdate={handleBulkUpdate}
                   onUpdateSubject={updateSubjectConfig}
@@ -12373,12 +12476,13 @@ function EnrollSubjectsModal({
           subjectType: "CORE",
           sectionId: section.id,
           schoolId: section.schoolId || "",
-          teacherEmail: section.adviserEmail || "",
+          teacherEmail: "",
           wwWeight: 25,
           ptWeight: 50,
           taWeight: 25,
           unit: 1,
-          order: 999
+          order: 999,
+          offeredTerms: [1, 2, 3, 4]
         });
         matchedSubject = {
           id: newSubjectDoc.id,
@@ -12387,12 +12491,13 @@ function EnrollSubjectsModal({
           group: "Revised K-10 Curriculum",
           subjectType: "CORE",
           sectionId: section.id,
-          teacherEmail: section.adviserEmail || "",
+          teacherEmail: "",
           wwWeight: 25,
           ptWeight: 50,
           taWeight: 25,
           unit: 1,
-          order: 999
+          order: 999,
+          offeredTerms: [1, 2, 3, 4]
         };
       }
       
@@ -14120,6 +14225,11 @@ function GradebookView({
               <div className="flex items-center justify-between gap-1">
                 <div className="flex flex-col gap-1">
                   <span className={isDroppedOrTransferred ? 'line-through text-slate-400' : ''}>{formatStudentName(student)}</span>
+                  {student.sectionName && (
+                    <span className="text-[9px] text-slate-500 font-medium">
+                      {(student as any).sectionName}
+                    </span>
+                  )}
                   {isTransferredOut && (
                     <span className="text-[8px] bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded-full w-fit font-black uppercase tracking-widest">
                       Transferred {student.dropoutDate ? `(${new Date(student.dropoutDate).toLocaleDateString(undefined, { month: 'short' })})` : ''}{student.dropoutReason ? ` - ${student.dropoutReason}` : ''}
@@ -16977,7 +17087,8 @@ function MATATAGReportCardModal({
         });
         if (sub) {
           processedSubjectIds.add(sub.id);
-          list.push({ type: 'subject', subject: sub });
+          const mappedTleSub = isTleSubject(sub.name) ? { ...sub, name: "Technology and Livelihood Education (TLE)" } : sub;
+          list.push({ type: 'subject', subject: mappedTleSub });
         }
       }
     });
@@ -16990,7 +17101,8 @@ function MATATAGReportCardModal({
         if (isJHS && isTle && (!student.enrolledSubjectIds || !student.enrolledSubjectIds.includes(s.id))) {
           return; // Skip non-enrolled JHS TLE subjects
         }
-        list.push({ type: 'subject', subject: s });
+        const mappedTleSub = isTle ? { ...s, name: "Technology and Livelihood Education (TLE)" } : s;
+        list.push({ type: 'subject', subject: mappedTleSub });
       }
     });
 
@@ -19660,7 +19772,7 @@ function SummarySheetView({
         
         matchingSubjects.forEach(sub => {
           processedSubjectIds.add(sub.id);
-          cols.push({ type: 'subject', subject: sub, id: sub.id, name: sub.name });
+          cols.push({ type: 'subject', subject: sub, id: sub.id, name: isTleSubject(sub.name) ? "Technology and Livelihood Education (TLE)" : sub.name });
         });
       }
     });
@@ -19668,7 +19780,7 @@ function SummarySheetView({
     // Add remaining subjects
     subjects.forEach(s => {
       if (!processedSubjectIds.has(s.id)) {
-        cols.push({ type: 'subject', subject: s, id: s.id, name: s.name });
+        cols.push({ type: 'subject', subject: s, id: s.id, name: isTleSubject(s.name) ? "Technology and Livelihood Education (TLE)" : s.name });
       }
     });
 

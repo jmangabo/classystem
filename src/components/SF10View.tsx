@@ -783,7 +783,7 @@ export function SF10View({
            isMapehComponent = true;
         }
 
-        return { id: s.id, name: s.name, grades, final, isMapehComponent, offeredTerms: s.offeredTerms, unit: s.unit };
+        return { id: s.id, name: isTleSubject(s.name) ? 'Technology and Livelihood Education (TLE)' : s.name, grades, final, isMapehComponent, offeredTerms: s.offeredTerms, unit: s.unit };
       });
 
       const validFinals = processedSubjects.filter(f => !f.isMapehComponent && f.final > 0);
@@ -1665,7 +1665,7 @@ const AcademicYearTable: React.FC<AcademicYearTableProps> = ({ section, student,
          isMapehComponent = true;
       }
 
-      return { id: s.id, name: s.name, grades, terms, final, isMapehComponent, offeredTerms: s.offeredTerms, unit: s.unit };
+      return { id: s.id, name: isTleSubject(s.name) ? 'Technology and Livelihood Education (TLE)' : s.name, grades, terms, final, isMapehComponent, offeredTerms: s.offeredTerms, unit: s.unit };
     });
   }, [student, subjects, termMode, semMode]);
 

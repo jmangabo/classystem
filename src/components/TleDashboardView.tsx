@@ -8,7 +8,8 @@ import {
   deleteDoc,
   deleteField,
   query,
-  where
+  where,
+  onSnapshot
 } from "firebase/firestore";
 import { db } from "../firebase";
 import { isTleSubject } from "../utils";
@@ -78,6 +79,8 @@ export const TleDashboardView: React.FC<TleDashboardViewProps> = ({
   const [newCompName, setNewCompName] = useState("");
   const [newCompCustomName, setNewCompCustomName] = useState("");
   const [newCompTeacherEmail, setNewCompTeacherEmail] = useState("");
+  const [newCompOfferedTerms, setNewCompOfferedTerms] = useState<number[]>([1, 2, 3, 4]);
+  const [newCompGradeLevels, setNewCompGradeLevels] = useState<number[]>([9, 10]);
 
   // Teachers state
   const [teachers, setTeachers] = useState<any[]>([]);
@@ -89,16 +92,16 @@ export const TleDashboardView: React.FC<TleDashboardViewProps> = ({
   const [selectedStatus, setSelectedStatus] = useState<"unassigned" | "assigned" | "all">("unassigned");
   const [selectedSex, setSelectedSex] = useState<string>("");
 
-  // Fetch teachers inside TLE tracker
+  // Fetch teachers inside TLE tracker reactively
   useEffect(() => {
-    const schoolId = currentUser?.schoolId || (sections && sections[0]?.schoolId);
+    const schoolId = currentUser?.schoolId || sections.find(s => s.schoolId)?.schoolId;
     if (!schoolId) return;
 
     const q = query(
       collection(db, "users"),
       where("schoolId", "==", schoolId)
     );
-    getDocs(q).then((snap) => {
+    const unsub = onSnapshot(q, (snap) => {
       const list: any[] = [];
       snap.forEach((d) => {
         const u = d.data();
@@ -108,10 +111,12 @@ export const TleDashboardView: React.FC<TleDashboardViewProps> = ({
       });
       list.sort((a, b) => (a.displayName || a.email || "").localeCompare(b.displayName || b.email || ""));
       setTeachers(list);
-    }).catch(err => {
+    }, (err) => {
       console.error("Error loading teachers in TLE dashboard: ", err);
     });
-  }, [currentUser, sections]);
+
+    return () => unsub();
+  }, [currentUser?.schoolId, sections]);
 
   // Filter G9/G10 active sections for filter drop-downs
   const g910Sections = useMemo(() => {
@@ -230,12 +235,13 @@ export const TleDashboardView: React.FC<TleDashboardViewProps> = ({
             subjectType: "CORE",
             sectionId: section.id,
             schoolId: section.schoolId || "",
-            teacherEmail: section.adviserEmail || "",
+            teacherEmail: "",
             wwWeight: 25,
             ptWeight: 50,
             taWeight: 25,
             unit: 1,
-            order: 999
+            order: 999,
+            offeredTerms: [1, 2, 3, 4]
           });
           targetSubjectId = newDocRef.id;
         } else {
@@ -384,7 +390,7 @@ export const TleDashboardView: React.FC<TleDashboardViewProps> = ({
     }
   };
 
-  // Create & assign a new custom or predefined TLE specialization to ALL JHS sections
+  // Create & assign a new custom or predefined TLE specialization to Selected JHS sections
   const handleCreateTleComponent = async (e: React.FormEvent) => {
     e.preventDefault();
     const finalName = (newCompName === "Other" ? newCompCustomName : newCompName).trim();
@@ -392,13 +398,22 @@ export const TleDashboardView: React.FC<TleDashboardViewProps> = ({
       setErrorMsg("Please enter or choose a valid TLE specialization name.");
       return;
     }
+    if (newCompOfferedTerms.length === 0) {
+      setErrorMsg("Please select at least one Offered Term (1-4).");
+      return;
+    }
+    if (newCompGradeLevels.length === 0) {
+      setErrorMsg("Please select at least one Offered Grade Level.");
+      return;
+    }
 
     setLoading(true);
     setSuccessMsg("");
     setErrorMsg("");
     try {
-      if (g910Sections.length === 0) {
-        setErrorMsg("No Grade 9 or Grade 10 sections found.");
+      const targetSections = g910Sections.filter(sec => newCompGradeLevels.includes(Number(sec.gradeLevel)));
+      if (targetSections.length === 0) {
+        setErrorMsg("No Grade 9 or Grade 10 sections found for the selected grade levels.");
         setLoading(false);
         return;
       }
@@ -406,7 +421,7 @@ export const TleDashboardView: React.FC<TleDashboardViewProps> = ({
       let addedCount = 0;
       let existingCount = 0;
 
-      for (const sec of g910Sections) {
+      for (const sec of targetSections) {
         const existingInSec = (sectionSubjectsMap[sec.id] || []);
         const dup = existingInSec.find(s => s.name.toUpperCase() === finalName.toUpperCase());
         
@@ -424,12 +439,13 @@ export const TleDashboardView: React.FC<TleDashboardViewProps> = ({
           subjectType: "CORE",
           sectionId: sec.id,
           schoolId: sec.schoolId || "",
-          teacherEmail: newCompTeacherEmail || sec.adviserEmail || "",
+          teacherEmail: newCompTeacherEmail || "",
           wwWeight: 25,
           ptWeight: 50,
           taWeight: 25,
           unit: 1,
-          order: 999
+          order: 999,
+          offeredTerms: newCompOfferedTerms
         });
 
         // 2. Add to parent section's subjectTeachers map if teacher is assigned
@@ -446,7 +462,7 @@ export const TleDashboardView: React.FC<TleDashboardViewProps> = ({
       if (addedCount > 0) {
         setSuccessMsg(`Successfully created customized TLE component "${finalName}" across ${addedCount} sections!${existingCount > 0 ? ` (Skipped ${existingCount} sections where it already existed)` : ''}`);
       } else if (existingCount > 0) {
-        setErrorMsg(`"${finalName}" already exists in all ${existingCount} Grade 9 & 10 sections.`);
+        setErrorMsg(`"${finalName}" already exists in all ${existingCount} selected Grade sections.`);
         setLoading(false);
         return;
       }
@@ -457,6 +473,8 @@ export const TleDashboardView: React.FC<TleDashboardViewProps> = ({
       setNewCompName("");
       setNewCompCustomName("");
       setNewCompTeacherEmail("");
+      setNewCompOfferedTerms([1, 2, 3, 4]);
+      setNewCompGradeLevels([9, 10]);
 
       await refreshData();
     } catch (err: any) {
@@ -797,6 +815,12 @@ export const TleDashboardView: React.FC<TleDashboardViewProps> = ({
                                             👤 {t.displayName || t.name || t.email} ({t.email})
                                           </option>
                                         ))}
+                                        {/* Display assigned teacher email option if not found in registered teachers list to dodge empty/none selection fallback */}
+                                        {sub.teacherEmail && !teachers.some(t => (t.email || "").trim().toLowerCase() === sub.teacherEmail.trim().toLowerCase()) && (
+                                          <option value={sub.teacherEmail}>
+                                            👤 {sub.teacherEmail} (External/Not Registered)
+                                          </option>
+                                        )}
                                       </select>
                                     </div>
                                   </td>
@@ -965,8 +989,8 @@ export const TleDashboardView: React.FC<TleDashboardViewProps> = ({
                       {filteredRecords.map(({ student, section, enrolledTle, sectionSubjects }) => {
                         const isSaving = isSavingId === student.id;
 
-                        // Retrieve the assigned TLE subject teacher's email/display-name
-                        const subTeacherUser = enrolledTle ? teachers.find(t => t.email === enrolledTle.teacherEmail) : null;
+                        // Retrieve the assigned TLE subject teacher's email/display-name with case-insensitive check
+                        const subTeacherUser = enrolledTle ? teachers.find(t => (t.email || "").trim().toLowerCase() === (enrolledTle.teacherEmail || "").trim().toLowerCase()) : null;
                         const teacherLabel = subTeacherUser ? (subTeacherUser.displayName || subTeacherUser.name || enrolledTle.teacherEmail) : (enrolledTle?.teacherEmail || "");
 
                         return (
@@ -1152,7 +1176,7 @@ export const TleDashboardView: React.FC<TleDashboardViewProps> = ({
                   <div className="flex gap-3 text-indigo-700">
                     <Info size={18} className="shrink-0 mt-0.5" />
                     <p className="text-xs font-semibold leading-relaxed">
-                      This component will be automatically created and assigned to <strong className="font-extrabold">{g910Sections.length} Grade 9 & Grade 10 sections</strong> simultaneously.
+                      This component will be automatically created and assigned to <strong className="font-extrabold">{g910Sections.filter(sec => newCompGradeLevels.includes(Number(sec.gradeLevel))).length} sections</strong> of the selected grade levels simultaneously.
                     </p>
                   </div>
                 </div>
@@ -1204,6 +1228,82 @@ export const TleDashboardView: React.FC<TleDashboardViewProps> = ({
                       </option>
                     ))}
                   </select>
+                </div>
+
+                {/* Offered Grade Levels selection */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase text-slate-500 tracking-wider block">Offered Grade Levels</label>
+                  <div className="flex gap-2.5">
+                    {[9, 10].map((grade) => {
+                      const isSelected = newCompGradeLevels.includes(grade);
+                      return (
+                        <button
+                          key={grade}
+                          type="button"
+                          onClick={() => {
+                            if (isSelected) {
+                              setNewCompGradeLevels(prev => prev.filter(g => g !== grade));
+                            } else {
+                              setNewCompGradeLevels(prev => [...prev, grade].sort());
+                            }
+                          }}
+                          className={`flex-1 py-2 text-xs font-bold rounded-xl border transition-all cursor-pointer ${
+                            isSelected
+                              ? "bg-indigo-600 border-indigo-600 text-white shadow-sm"
+                              : "bg-slate-50 border-slate-250 text-slate-600 hover:bg-slate-100 hover:border-slate-350"
+                          }`}
+                        >
+                          Grade {grade}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Offered Terms selection */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase text-slate-500 tracking-wider block">Offered Terms (Select 1-4)</label>
+                  <div className="flex gap-2.5">
+                    {[1, 2, 3, 4].map((term) => {
+                      const isSelected = newCompOfferedTerms.includes(term);
+                      return (
+                        <button
+                          key={term}
+                          type="button"
+                          onClick={() => {
+                            if (isSelected) {
+                              setNewCompOfferedTerms(prev => prev.filter(t => t !== term));
+                            } else {
+                              setNewCompOfferedTerms(prev => [...prev, term].sort());
+                            }
+                          }}
+                          className={`flex-1 py-2 text-xs font-bold rounded-xl border transition-all cursor-pointer ${
+                            isSelected
+                              ? "bg-indigo-600 border-indigo-600 text-white shadow-sm"
+                              : "bg-slate-50 border-slate-250 text-slate-600 hover:bg-slate-100 hover:border-slate-350"
+                          }`}
+                        >
+                          Term {term}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="flex gap-4 mt-1.5 text-[10px] font-semibold text-slate-400">
+                    <button
+                      type="button"
+                      onClick={() => setNewCompOfferedTerms([1, 2, 3, 4])}
+                      className="hover:text-indigo-600 cursor-pointer transition-colors"
+                    >
+                      ✓ Select All Terms
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNewCompOfferedTerms([])}
+                      className="hover:text-rose-600 cursor-pointer transition-colors"
+                    >
+                      ✗ Clear Terms
+                    </button>
+                  </div>
                 </div>
 
                 {/* Form Actions */}
