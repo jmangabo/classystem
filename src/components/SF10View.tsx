@@ -23,7 +23,7 @@ import html2canvas from 'html2canvas-pro';
 import * as XLSX from 'xlsx-js-style';
 import { Student, Section, Subject, TermNumber, UserProfile } from '../types';
 import { calculateGrade } from '../lib/calculations';
-import { formatStudentName, getSubjectSortScore, isTleSubject } from '../utils';
+import { formatStudentName, getSubjectSortScore, isTleSubject, getTleDisplayName } from '../utils';
 import { db, safeGetDoc as getDoc, safeGetDocs as getDocs } from '../firebase';
 import { collectionGroup, query, where, onSnapshot, doc, collection, updateDoc, writeBatch, addDoc, deleteField } from 'firebase/firestore';
 
@@ -783,7 +783,7 @@ export function SF10View({
            isMapehComponent = true;
         }
 
-        return { id: s.id, name: isTleSubject(s.name) ? 'Technology and Livelihood Education (TLE)' : s.name, grades, final, isMapehComponent, offeredTerms: s.offeredTerms, unit: s.unit };
+        return { id: s.id, name: isTleSubject(s.name) ? getTleDisplayName(s.name) : s.name, grades, final, isMapehComponent, offeredTerms: s.offeredTerms, unit: s.unit };
       });
 
       const validFinals = processedSubjects.filter(f => !f.isMapehComponent && f.final > 0);
@@ -1665,7 +1665,7 @@ const AcademicYearTable: React.FC<AcademicYearTableProps> = ({ section, student,
          isMapehComponent = true;
       }
 
-      return { id: s.id, name: isTleSubject(s.name) ? 'Technology and Livelihood Education (TLE)' : s.name, grades, terms, final, isMapehComponent, offeredTerms: s.offeredTerms, unit: s.unit };
+      return { id: s.id, name: isTleSubject(s.name) ? getTleDisplayName(s.name) : s.name, grades, terms, final, isMapehComponent, offeredTerms: s.offeredTerms, unit: s.unit };
     });
   }, [student, subjects, termMode, semMode]);
 

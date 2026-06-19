@@ -508,7 +508,7 @@ import {
 } from "firebase/firestore";
 import { auth, db, handleFirestoreError, safeGetDoc as getDoc, safeGetDocs as getDocs } from "./firebase";
 import { Subject, Student, Course, TermNumber, RatedValue, Section, UserProfile, School, Eligibility, AnecdotalRecord } from "./types";
-import { formatStudentName, capitalizeName, capitalizeFirst, getSubjectSortScore, printHTMLContent, isTleSubject } from "./utils";
+import { formatStudentName, capitalizeName, capitalizeFirst, getSubjectSortScore, printHTMLContent, isTleSubject, getTleDisplayName } from "./utils";
 import { INITIAL_STUDENTS, DEFAULT_TERM_DATA } from "./constants";
 import { AttendanceCard } from "./components/AttendanceCard";
 import { DailyAttendanceTracker } from "./components/DailyAttendanceTracker";
@@ -1294,6 +1294,10 @@ export default function App() {
                   }
                 }
               }
+            }
+
+            if ((sec.adviserEmail || '').toLowerCase() === userEmailLower) {
+              isRelevant = true;
             }
 
             if (isRelevant) {
@@ -2932,7 +2936,10 @@ export default function App() {
         onNavigateToSubject={(section, subjName) => {
            setSelectedSection(section);
            setActiveTab('gradebook');
-           const subjectObj = subjects.find(s => s.name === subjName && s.sectionId === section.id);
+           let subjectObj = subjects.find(s => s.name === subjName && s.sectionId === section.id);
+           if (!subjectObj) {
+              subjectObj = subjects.find(s => getTleDisplayName(s.name) === subjName && s.sectionId === section.id);
+           }
            setSelectedSubjectId(subjectObj ? subjectObj.id : subjName);
         }}
         subjects={subjects}
@@ -6159,6 +6166,84 @@ function SectionsView({
     return true;
   });
 
+  const renderItems = useMemo(() => {
+    type RenderItem = { type: 'section', section: Section } | { type: 'tle-group', key: string, tleName: string, gradeLevels: number[], sections: Section[], isExpired: boolean };
+    const items: RenderItem[] = [];
+    const tleGroups = new Map<string, { tleName: string, gradeLevels: Set<number>, sections: Section[], isExpired: boolean }>();
+
+    filteredSections.forEach(section => {
+      const isExpired = section.schoolId ? expiredSchoolIds.includes(section.schoolId) : false;
+      
+      if (user?.role === 'teacher' && (section.gradeLevel == 9 || section.gradeLevel == 10)) {
+        const isAdviser = (section.adviserEmail || "").trim().toLowerCase() === (user?.email || "").trim().toLowerCase();
+        
+        if (!isAdviser) {
+          const userEmail = (user?.email || "").trim().toLowerCase();
+          const sectionSubjects = subjects.filter(s => s.sectionId === section.id);
+          
+          const teacherTleSubjects: string[] = [];
+          sectionSubjects.forEach(sub => {
+            if ((sub.teacherEmail || "").trim().toLowerCase() === userEmail && isTleSubject(sub.name)) {
+              const dName = getTleDisplayName(sub.name);
+              if (!teacherTleSubjects.includes(dName)) teacherTleSubjects.push(dName);
+            }
+          });
+
+          if (section.subjectTeachers) {
+             for (const [subjId, tEmail] of Object.entries(section.subjectTeachers)) {
+               if (typeof tEmail === 'string' && tEmail.trim().toLowerCase() === userEmail) {
+                 const gSubj = globalSubjects.find(g => g.id === subjId);
+                 if (gSubj && isTleSubject(gSubj.name)) {
+                    const dName = getTleDisplayName(gSubj.name);
+                    if (!teacherTleSubjects.includes(dName)) teacherTleSubjects.push(dName);
+                 }
+               }
+             }
+          }
+
+          if (teacherTleSubjects.length > 0) {
+            let teachesNonTle = false;
+            sectionSubjects.forEach(sub => {
+               if ((sub.teacherEmail || "").trim().toLowerCase() === userEmail && !isTleSubject(sub.name)) teachesNonTle = true;
+            });
+            if (section.subjectTeachers) {
+               for (const [subjId, tEmail] of Object.entries(section.subjectTeachers)) {
+                 if (typeof tEmail === 'string' && tEmail.trim().toLowerCase() === userEmail) {
+                   const gSubj = globalSubjects.find(g => g.id === subjId);
+                   if (gSubj && !isTleSubject(gSubj.name)) teachesNonTle = true;
+                 }
+               }
+            }
+            
+            let teacherSubjectsFromFallback = section.teacherSubjects || [];
+            if (teacherSubjectsFromFallback.some(n => !isTleSubject(n))) teachesNonTle = true;
+
+            if (!teachesNonTle) {
+              teacherTleSubjects.forEach(tleName => {
+                 const groupKey = tleName;
+                 if (!tleGroups.has(groupKey)) {
+                   tleGroups.set(groupKey, { tleName, gradeLevels: new Set([Number(section.gradeLevel)]), sections: [], isExpired });
+                 } else {
+                   tleGroups.get(groupKey)!.gradeLevels.add(Number(section.gradeLevel));
+                   tleGroups.get(groupKey)!.isExpired = tleGroups.get(groupKey)!.isExpired || isExpired;
+                 }
+                 tleGroups.get(groupKey)!.sections.push(section);
+              });
+              return;
+            }
+          }
+        }
+      }
+      items.push({ type: 'section', section });
+    });
+
+    tleGroups.forEach((group, key) => {
+      items.unshift({ type: 'tle-group', key, tleName: group.tleName, gradeLevels: Array.from(group.gradeLevels).sort((a, b) => a - b), sections: group.sections, isExpired: group.isExpired });
+    });
+    
+    return items;
+  }, [filteredSections, user, subjects, globalSubjects, expiredSchoolIds]);
+
   const schoolYears = useMemo(() => {
     const list = Array.from(new Set(sections.map(s => s.schoolYear).filter(Boolean)));
     if (globalSettings?.activeSchoolYear && !list.includes(globalSettings.activeSchoolYear)) {
@@ -7249,7 +7334,73 @@ function SectionsView({
                 </div>
               </div>
             ) : (
-              filteredSections.map((section) => {
+              renderItems.map((item) => {
+                if (item.type === 'tle-group') {
+                  const { key, tleName, gradeLevels, sections, isExpired } = item;
+                  return (
+                    <motion.div 
+                      key={key}
+                      whileHover={isExpired ? {} : { y: -4 }}
+                      className={`flex flex-col bg-slate-50 p-6 rounded-2xl border-2 border-indigo-100 shadow-sm transition-all duration-300 relative overflow-hidden`}
+                    >
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-100/30 rounded-bl-full -z-10 transition-colors"></div>
+                      
+                      <div className="flex justify-between items-start mb-5 relative z-10">
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-sm shrink-0">
+                            <Users size={24} />
+                          </div>
+                          <div>
+                            <div className="flex items-center flex-wrap gap-2">
+                               <span className="text-[10px] font-semibold bg-white text-indigo-700 px-2 py-0.5 rounded-md border border-indigo-200">
+                                 Combined TLE Class
+                               </span>
+                               <span className="text-[10px] font-semibold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md border border-slate-200">
+                                 {gradeLevels.length === 1 ? `Grade ${gradeLevels[0]}` : `Grades ${gradeLevels.join(' & ')}`}
+                               </span>
+                               {isExpired && (
+                                 <span className="text-[10px] font-semibold bg-red-50 text-red-600 px-2 py-0.5 rounded-md border border-red-200">Expired</span>
+                               )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <h3 className="text-xl font-bold text-slate-900 tracking-tight leading-tight mb-4 group-hover:text-indigo-700 transition-colors">{tleName}</h3>
+                      <div className="flex-1 space-y-4 mb-5">
+                         <div className="p-3 bg-white border border-indigo-50 rounded-xl">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2.5">Enrolled Sections ({sections.length})</p>
+                            <div className="flex flex-wrap gap-2">
+                              {sections.map(section => (
+                                <button
+                                   key={section.id}
+                                   onClick={() => {
+                                     onNavigateToSubject(section, tleName);
+                                   }}
+                                   className="text-[11px] items-center flex gap-1.5 font-bold bg-indigo-50/50 hover:bg-indigo-600 hover:text-white text-indigo-700 px-3 py-2 rounded-lg border border-indigo-100 transition-colors"
+                                >
+                                  {section.name} <ArrowRight size={12} />
+                                </button>
+                              ))}
+                            </div>
+                         </div>
+                      </div>
+                      
+                      <div className="flex items-center justify-between border-t border-slate-200/60 pt-4 mt-auto">
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 h-6 rounded-full bg-slate-200/50 flex items-center justify-center text-slate-500 shrink-0">
+                            <User size={12} />
+                          </div>
+                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 truncate">
+                            Grouped by Specialization
+                          </p>
+                        </div>
+                      </div>
+                    </motion.div>
+                  );
+                }
+                
+                const { section } = item;
                 const isExpired = section.schoolId ? expiredSchoolIds.includes(section.schoolId) : false;
                 return (
                 <motion.div 
@@ -7357,9 +7508,25 @@ function SectionsView({
                   {(() => {
                     const sectionSubjects = subjects.filter(s => s.sectionId === section.id);
                     const userEmail = (user?.email || "").trim().toLowerCase();
-                    let subjectsToDisplayNames = (user?.role === 'admin' || user?.role === 'system_admin') 
-                      ? sectionSubjects.filter(sub => (sub.teacherEmail || "").trim().toLowerCase() === userEmail).map(s => s.name)
+                    
+                    const localItems = sectionSubjects.filter(sub => (sub.teacherEmail || "").trim().toLowerCase() === userEmail).map(s => s.name);
+                    const globalItems: string[] = [];
+                    if (section.subjectTeachers) {
+                      for (const [subjId, tEmail] of Object.entries(section.subjectTeachers)) {
+                        if (typeof tEmail === 'string' && tEmail.trim().toLowerCase() === userEmail) {
+                          const gSubj = globalSubjects.find(g => g.id === subjId);
+                          if (gSubj && !globalItems.includes(gSubj.name)) globalItems.push(gSubj.name);
+                        }
+                      }
+                    }
+
+                    let subjectsToDisplayNames = (user?.role === 'admin' || user?.role === 'system_admin' || user?.role === 'teacher') 
+                      ? [...new Set([...localItems, ...globalItems])]
                       : (section.teacherSubjects || []);
+
+                    if (user?.role === 'teacher' && subjectsToDisplayNames.length === 0 && section.teacherSubjects && section.teacherSubjects.length > 0) {
+                      subjectsToDisplayNames = section.teacherSubjects;
+                    }
 
                     const isSHS = section.gradeLevel === 11 || section.gradeLevel === 12;
                     let displayItems: { label: string, targetName: string | null }[] = [];
@@ -7373,7 +7540,12 @@ function SectionsView({
                       if (tleNames.length === 1) {
                         displayItems.push({ label: tleNames[0], targetName: tleNames[0] });
                       } else {
-                        const shortNames = tleNames.map(n => n.replace(/^TLE\s*-\s*/i, '').trim());
+                        const shortNames = tleNames.map(n => {
+                          let stripped = n.replace(/^Technology\s+and\s+Livelihood\s+Education\s*(\(\s*TLE\s*-\s*)?/i, '').replace(/^\s*-\s*/, '').replace(/\)?$/, '').trim();
+                          if (stripped.startsWith('TLE - ')) stripped = stripped.replace(/^TLE\s*-\s*/i, '').trim();
+                          if (stripped.startsWith('TLE')) stripped = stripped.replace(/^TLE\s*/i, '').trim();
+                          return stripped || 'General';
+                        });
                         displayItems.push({ label: `TLE (${shortNames.join(', ')})`, targetName: null });
                       }
                     }
@@ -17087,7 +17259,7 @@ function MATATAGReportCardModal({
         });
         if (sub) {
           processedSubjectIds.add(sub.id);
-          const mappedTleSub = isTleSubject(sub.name) ? { ...sub, name: "Technology and Livelihood Education (TLE)" } : sub;
+          const mappedTleSub = isTleSubject(sub.name) ? { ...sub, name: getTleDisplayName(sub.name) } : sub;
           list.push({ type: 'subject', subject: mappedTleSub });
         }
       }
@@ -17101,7 +17273,7 @@ function MATATAGReportCardModal({
         if (isJHS && isTle && (!student.enrolledSubjectIds || !student.enrolledSubjectIds.includes(s.id))) {
           return; // Skip non-enrolled JHS TLE subjects
         }
-        const mappedTleSub = isTle ? { ...s, name: "Technology and Livelihood Education (TLE)" } : s;
+        const mappedTleSub = isTle ? { ...s, name: getTleDisplayName(s.name) } : s;
         list.push({ type: 'subject', subject: mappedTleSub });
       }
     });
@@ -19772,7 +19944,7 @@ function SummarySheetView({
         
         matchingSubjects.forEach(sub => {
           processedSubjectIds.add(sub.id);
-          cols.push({ type: 'subject', subject: sub, id: sub.id, name: isTleSubject(sub.name) ? "Technology and Livelihood Education (TLE)" : sub.name });
+          cols.push({ type: 'subject', subject: sub, id: sub.id, name: isTleSubject(sub.name) ? getTleDisplayName(sub.name) : sub.name });
         });
       }
     });
@@ -19780,7 +19952,7 @@ function SummarySheetView({
     // Add remaining subjects
     subjects.forEach(s => {
       if (!processedSubjectIds.has(s.id)) {
-        cols.push({ type: 'subject', subject: s, id: s.id, name: isTleSubject(s.name) ? "Technology and Livelihood Education (TLE)" : s.name });
+        cols.push({ type: 'subject', subject: s, id: s.id, name: isTleSubject(s.name) ? getTleDisplayName(s.name) : s.name });
       }
     });
 
@@ -24073,6 +24245,35 @@ function AdminUsersView({
                                 <span className="size-1.5 bg-indigo-500 rounded-full animate-ping shrink-0" />
                                 <span>Show Lodged Assignments ({adviserSections.length + assignedSubjects.length})</span>
                               </button>
+                            )}
+
+                            {u.role === 'teacher' && (adviserSections.length > 0 || assignedSubjects.length > 0) && (
+                              <div className="mt-2.5 space-y-1 max-w-sm">
+                                {adviserSections.length > 0 && (
+                                  <div className="flex flex-wrap items-center gap-1">
+                                    <span className="text-[8.5px] font-extrabold uppercase text-slate-400 tracking-wider">Advisory:</span>
+                                    {adviserSections.map(sec => (
+                                      <span key={sec.id} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-100 text-[9px] font-bold">
+                                        🏫 {sec.name}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                                {assignedSubjects.length > 0 && (
+                                  <div className="flex flex-wrap items-center gap-1">
+                                    <span className="text-[8.5px] font-extrabold uppercase text-slate-400 tracking-wider">Loads:</span>
+                                    {assignedSubjects.map(sub => {
+                                      const sec = sectionMap.get(sub.sectionId || '');
+                                      const secLabel = sec ? ` (${sec.name})` : '';
+                                      return (
+                                        <span key={sub.id} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-800 border border-indigo-100 text-[9px] font-bold">
+                                          📖 {sub.name}{secLabel}
+                                        </span>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
                             )}
                          </div>
                       </div>

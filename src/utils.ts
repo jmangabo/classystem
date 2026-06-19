@@ -37,6 +37,17 @@ export function isTleSubject(name: string | undefined): boolean {
          upper.includes("HORTICULTURE");
 }
 
+export function getTleDisplayName(name: string | undefined): string {
+  if (!name) return "Technology and Livelihood Education (TLE)";
+  let specName = name.replace(/^TLE\s*-\s*/i, '').trim();
+  // If the specName is already a full title or includes "Technology and Livelihood", strip down redundant prefixes
+  specName = specName.replace(/^Technology\s+and\s+Livelihood\s+Education\s*\(?|^\(?TLE\)?/i, '').replace(/^\s*-\s*/, '').replace(/\)$/, '').trim();
+  if (specName.toUpperCase() !== 'TLE' && specName) {
+    return `Technology and Livelihood Education (TLE - ${specName})`;
+  }
+  return "Technology and Livelihood Education (TLE)";
+}
+
 export const getSubjectSortScore = (name: string): number => {
   if (!name) return 1000;
   
