@@ -46,6 +46,18 @@ export const transmuteGrade = (initial: number): number => {
 
 export const calculateGrade = (student: Student, subject: Subject, term: TermNumber) => {
   const data = student.grades?.[subject.id]?.[term] || JSON.parse(JSON.stringify(DEFAULT_TERM_DATA));
+  
+  if (data.manualFinalGrade && data.manualFinalGrade > 0) {
+     return {
+        ww: { total: 0, ps: 0, ws: 0, max: 0 },
+        pt: { total: 0, ps: 0, ws: 0, max: 0 },
+        ta: { total: 0, ps: 0, ws: 0, max: 0 },
+        initial: data.manualFinalGrade,
+        final: data.manualFinalGrade,
+        hasData: true
+     };
+  }
+
   const calc = (cat: string, weight: number) => {
     const component = (data[cat as keyof typeof data] || { scores: [], maxScores: [] }) as any;
     const total = (component.scores || []).reduce((a: number, b: number) => a + b, 0);
@@ -72,13 +84,14 @@ export const calculateGrade = (student: Student, subject: Subject, term: TermNum
 
   const rawGrade = ww.ws + pt.ws + taWs;
   const transmutedValue = transmuteGrade(rawGrade);
+  const computedFinal = subject.isZeroBasedGrading ? Math.round(rawGrade) : transmutedValue;
   const hasData = ww.max > 0 || pt.max > 0 || taMax > 0;
 
   return {
     ww, pt, 
     ta: { total: taTotal, ps: taPs, ws: taWs, max: taMax },
     initial: rawGrade,
-    final: hasData ? transmutedValue : 0,
+    final: hasData ? computedFinal : 0,
     hasData
   };
 };

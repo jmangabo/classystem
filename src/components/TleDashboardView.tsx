@@ -4,6 +4,7 @@ import {
   getDocs, 
   addDoc, 
   doc, 
+  setDoc,
   updateDoc,
   deleteDoc,
   deleteField,
@@ -329,7 +330,7 @@ export const TleDashboardView: React.FC<TleDashboardViewProps> = ({
       const email = teacherEmail.trim().toLowerCase();
       // 1. Update individual subject doc's teacherEmail field
       const subjectDocRef = doc(db, "sections", sectionId, "subjects", subjectId);
-      await updateDoc(subjectDocRef, { teacherEmail: email });
+      await setDoc(subjectDocRef, { teacherEmail: email }, { merge: true });
 
       // 2. Update parent section.subjectTeachers map field
       const sectionDocRef = doc(db, "sections", sectionId);

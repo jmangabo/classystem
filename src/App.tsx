@@ -1424,6 +1424,10 @@ export default function App() {
     const secTeachers = selectedSection.subjectTeachers || {};
     const enrolledIds = new Set(students.flatMap(s => s.enrolledSubjectIds || []));
     
+    // Map of section subjects by ID for overrides
+    const secSubjMap = new Map();
+    sectionSubjects.forEach(s => secSubjMap.set(s.id, s));
+    
     const list = [
       ...globalSubjects
         .filter(s => 
@@ -1431,12 +1435,19 @@ export default function App() {
           globalIds.includes(s.id) ||
           enrolledIds.has(s.id)
         )
-        .map(s => ({
-          ...s,
-          sectionId: selectedSection.id,
-          teacherEmail: secTeachers[s.id] || ''
-        })),
-      ...sectionSubjects.map(s => ({
+        .map(s => {
+           const override = secSubjMap.get(s.id);
+           if (override) {
+             secSubjMap.delete(s.id); // Remove so it's not rendered twice
+             return { ...s, ...override, sectionId: selectedSection.id, teacherEmail: secTeachers[s.id] || override.teacherEmail || '' };
+           }
+           return {
+             ...s,
+             sectionId: selectedSection.id,
+             teacherEmail: secTeachers[s.id] || ''
+           };
+        }),
+      ...Array.from(secSubjMap.values()).map(s => ({
         ...s,
         teacherEmail: secTeachers[s.id] || s.teacherEmail
       }))
@@ -1836,8 +1847,16 @@ export default function App() {
   const updateSubjectConfig = async (subjectId: string, updates: any) => {
     if (!selectedSection) return;
     try {
+      const subject = subjects.find(s => s.id === subjectId);
+      const mergedUpdates = { ...updates };
+      if (subject) {
+        if (subject.teacherEmail) mergedUpdates.teacherEmail = subject.teacherEmail;
+        if (subject.name) mergedUpdates.name = subject.name;
+        if (subject.schoolId) mergedUpdates.schoolId = subject.schoolId;
+        if (subject.sectionId) mergedUpdates.sectionId = subject.sectionId;
+      }
       const subjRef = doc(db, `sections/${selectedSection.id}/subjects`, subjectId);
-      await updateDoc(subjRef, updates);
+      await setDoc(subjRef, mergedUpdates, { merge: true });
     } catch (err) {
       handleFirestoreError(err, 'update', `sections/${selectedSection.id}/subjects/${subjectId}`);
     }
@@ -3011,11 +3030,11 @@ export default function App() {
       return;
     }
     try {
-      await updateDoc(doc(db, `sections/${selectedSection.id}/subjects`, id), {
+      await setDoc(doc(db, `sections/${selectedSection.id}/subjects`, id), {
         ...s,
         schoolId: selectedSection.schoolId || userProfile?.schoolId || "",
         teacherEmail: s.teacherEmail ? s.teacherEmail.trim().toLowerCase() : ""
-      });
+      }, { merge: true });
     } catch (error) {
       handleFirestoreError(error, 'update', `sections/${selectedSection.id}/subjects/${id}`);
     }
@@ -6177,60 +6196,59 @@ function SectionsView({
       if (user?.role === 'teacher' && (section.gradeLevel == 9 || section.gradeLevel == 10)) {
         const isAdviser = (section.adviserEmail || "").trim().toLowerCase() === (user?.email || "").trim().toLowerCase();
         
-        if (!isAdviser) {
-          const userEmail = (user?.email || "").trim().toLowerCase();
-          const sectionSubjects = subjects.filter(s => s.sectionId === section.id);
-          
-          const teacherTleSubjects: string[] = [];
-          sectionSubjects.forEach(sub => {
-            if ((sub.teacherEmail || "").trim().toLowerCase() === userEmail && isTleSubject(sub.name)) {
-              const dName = getTleDisplayName(sub.name);
-              if (!teacherTleSubjects.includes(dName)) teacherTleSubjects.push(dName);
-            }
-          });
-
-          if (section.subjectTeachers) {
-             for (const [subjId, tEmail] of Object.entries(section.subjectTeachers)) {
-               if (typeof tEmail === 'string' && tEmail.trim().toLowerCase() === userEmail) {
-                 const gSubj = globalSubjects.find(g => g.id === subjId);
-                 if (gSubj && isTleSubject(gSubj.name)) {
-                    const dName = getTleDisplayName(gSubj.name);
-                    if (!teacherTleSubjects.includes(dName)) teacherTleSubjects.push(dName);
-                 }
-               }
-             }
+        const userEmail = (user?.email || "").trim().toLowerCase();
+        const sectionSubjects = subjects.filter(s => s.sectionId === section.id);
+        
+        const teacherTleSubjects: string[] = [];
+        sectionSubjects.forEach(sub => {
+          if ((sub.teacherEmail || "").trim().toLowerCase() === userEmail && isTleSubject(sub.name)) {
+            const dName = getTleDisplayName(sub.name);
+            if (!teacherTleSubjects.includes(dName)) teacherTleSubjects.push(dName);
           }
+        });
 
-          if (teacherTleSubjects.length > 0) {
-            let teachesNonTle = false;
-            sectionSubjects.forEach(sub => {
-               if ((sub.teacherEmail || "").trim().toLowerCase() === userEmail && !isTleSubject(sub.name)) teachesNonTle = true;
-            });
-            if (section.subjectTeachers) {
-               for (const [subjId, tEmail] of Object.entries(section.subjectTeachers)) {
-                 if (typeof tEmail === 'string' && tEmail.trim().toLowerCase() === userEmail) {
-                   const gSubj = globalSubjects.find(g => g.id === subjId);
-                   if (gSubj && !isTleSubject(gSubj.name)) teachesNonTle = true;
-                 }
-               }
+        if (section.subjectTeachers) {
+            for (const [subjId, tEmail] of Object.entries(section.subjectTeachers)) {
+              if (typeof tEmail === 'string' && tEmail.trim().toLowerCase() === userEmail) {
+                const gSubj = globalSubjects.find(g => g.id === subjId);
+                if (gSubj && isTleSubject(gSubj.name)) {
+                  const dName = getTleDisplayName(gSubj.name);
+                  if (!teacherTleSubjects.includes(dName)) teacherTleSubjects.push(dName);
+                }
+              }
             }
-            
-            let teacherSubjectsFromFallback = section.teacherSubjects || [];
-            if (teacherSubjectsFromFallback.some(n => !isTleSubject(n))) teachesNonTle = true;
+        }
 
-            if (!teachesNonTle) {
-              teacherTleSubjects.forEach(tleName => {
-                 const groupKey = tleName;
-                 if (!tleGroups.has(groupKey)) {
-                   tleGroups.set(groupKey, { tleName, gradeLevels: new Set([Number(section.gradeLevel)]), sections: [], isExpired });
-                 } else {
-                   tleGroups.get(groupKey)!.gradeLevels.add(Number(section.gradeLevel));
-                   tleGroups.get(groupKey)!.isExpired = tleGroups.get(groupKey)!.isExpired || isExpired;
-                 }
-                 tleGroups.get(groupKey)!.sections.push(section);
-              });
-              return;
-            }
+        if (teacherTleSubjects.length > 0) {
+          teacherTleSubjects.forEach(tleName => {
+              const groupKey = tleName;
+              if (!tleGroups.has(groupKey)) {
+                tleGroups.set(groupKey, { tleName, gradeLevels: new Set([Number(section.gradeLevel)]), sections: [], isExpired });
+              } else {
+                tleGroups.get(groupKey)!.gradeLevels.add(Number(section.gradeLevel));
+                tleGroups.get(groupKey)!.isExpired = tleGroups.get(groupKey)!.isExpired || isExpired;
+              }
+              tleGroups.get(groupKey)!.sections.push(section);
+          });
+          
+          let teachesNonTle = false;
+          sectionSubjects.forEach(sub => {
+              if ((sub.teacherEmail || "").trim().toLowerCase() === userEmail && !isTleSubject(sub.name)) teachesNonTle = true;
+          });
+          if (section.subjectTeachers) {
+              for (const [subjId, tEmail] of Object.entries(section.subjectTeachers)) {
+                if (typeof tEmail === 'string' && tEmail.trim().toLowerCase() === userEmail) {
+                  const gSubj = globalSubjects.find(g => g.id === subjId);
+                  if (gSubj && !isTleSubject(gSubj.name)) teachesNonTle = true;
+                }
+              }
+          }
+          
+          let teacherSubjectsFromFallback = section.teacherSubjects || [];
+          if (teacherSubjectsFromFallback.some(n => !isTleSubject(n))) teachesNonTle = true;
+
+          if (!teachesNonTle && !isAdviser) {
+            return;
           }
         }
       }
