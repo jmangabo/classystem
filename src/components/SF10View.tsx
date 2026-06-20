@@ -41,7 +41,9 @@ export const getEligibilityTitle = (gradeLevel?: number) => {
 export const getSortedSubjectsForSection = (subjects: Subject[], gradeLevel: number): Subject[] => {
   if (gradeLevel >= 11) {
     const core = subjects.filter(s => (s.subjectType || 'CORE') === 'CORE');
-    const electives = subjects.filter(s => s.subjectType === 'ELECTIVE').sort((a, b) => a.name.localeCompare(b.name));
+    const applied = subjects.filter(s => s.subjectType === 'APPLIED').sort((a, b) => a.name.localeCompare(b.name));
+    const specialized = subjects.filter(s => s.subjectType === 'SPECIALIZED').sort((a, b) => a.name.localeCompare(b.name));
+    const otherElectives = subjects.filter(s => s.subjectType === 'ELECTIVE').sort((a, b) => a.name.localeCompare(b.name));
 
     const getSHSCoreScore = (name: string): number => {
       const n = name.trim();
@@ -58,7 +60,7 @@ export const getSortedSubjectsForSection = (subjects: Subject[], gradeLevel: num
       return a.name.localeCompare(b.name);
     });
 
-    return [...sortedCore, ...electives];
+    return [...sortedCore, ...applied, ...specialized, ...otherElectives];
   }
 
   return [...subjects].sort((a, b) => {
@@ -761,7 +763,7 @@ export function SF10View({
 
         const valid = grades.filter(g => g > 0);
         let final = 0;
-        if (s.subjectType === 'ELECTIVE' && s.offeredTerms && s.offeredTerms.length > 0) {
+        if ((s.subjectType === 'ELECTIVE' || s.subjectType === 'APPLIED' || s.subjectType === 'SPECIALIZED') && s.offeredTerms && s.offeredTerms.length > 0) {
            final = valid.length > 0 ? Math.round(valid.reduce((a, b) => a + b, 0) / s.offeredTerms.length) : 0;
         } else {
            final = valid.length > 0 ? Math.round(valid.reduce((a, b) => a + b, 0) / terms.length) : 0;
@@ -783,7 +785,7 @@ export function SF10View({
            isMapehComponent = true;
         }
 
-        return { id: s.id, name: isTleSubject(s.name) ? getTleDisplayName(s.name) : s.name, grades, final, isMapehComponent, offeredTerms: s.offeredTerms, unit: s.unit };
+        return { id: s.id, name: isTleSubject(s.name) ? getTleDisplayName(s.name) : s.name, grades, final, isMapehComponent, offeredTerms: s.offeredTerms, unit: s.unit, subjectType: s.subjectType || 'CORE' };
       });
 
       const validFinals = processedSubjects.filter(f => !f.isMapehComponent && f.final > 0);
@@ -823,7 +825,28 @@ export function SF10View({
       r++;
 
       // Subject Rows
+      let lastType = '';
       processedSubjects.forEach(f => {
+         const isGrade11or12 = currentGradeLevel >= 11;
+         const currentType = (f.subjectType || 'CORE');
+         
+         if (isGrade11or12 && lastType !== currentType) {
+           let typeTitle = 'Core Subjects';
+           if (currentType === 'APPLIED') typeTitle = 'Applied Subjects';
+           else if (currentType === 'SPECIALIZED') typeTitle = 'Specialized Subjects';
+           else if (currentType === 'ELECTIVE') typeTitle = 'Elective Subjects';
+           lastType = currentType;
+           const groupRow = [];
+           const colCount = termMode === 3 ? 6 : 7;
+           groupRow.push(createCell(typeTitle, { bold: true, italic: true, align: "left", bg: "E2EFDA" }));
+           for (let i = 1; i < colCount; i++) {
+             groupRow.push(createCell("", { bg: "E2EFDA" }));
+           }
+           data.push(groupRow);
+           addMerge(r, 0, r, colCount - 1);
+           r++;
+         }
+
          const isComp = f.isMapehComponent;
          const rowBg = isComp ? "F2F2F2" : "FFFFFF";
          const namePrefix = isComp ? "   * " : "";
@@ -1665,7 +1688,7 @@ const AcademicYearTable: React.FC<AcademicYearTableProps> = ({ section, student,
          isMapehComponent = true;
       }
 
-      return { id: s.id, name: isTleSubject(s.name) ? getTleDisplayName(s.name) : s.name, grades, terms, final, isMapehComponent, offeredTerms: s.offeredTerms, unit: s.unit };
+      return { id: s.id, name: isTleSubject(s.name) ? getTleDisplayName(s.name) : s.name, grades, terms, final, isMapehComponent, offeredTerms: s.offeredTerms, unit: s.unit, subjectType: s.subjectType || 'CORE' };
     });
   }, [student, subjects, termMode, semMode]);
 
@@ -1721,13 +1744,31 @@ const AcademicYearTable: React.FC<AcademicYearTableProps> = ({ section, student,
                  </tr>
               </thead>
               <tbody className="text-[10px]">
-                 {finalGrades.map(f => (
-                   <tr key={f.id} className="h-8">
-                      <td className={`px-3 font-medium text-slate-900 border border-slate-600 truncate ${f.isMapehComponent ? 'pl-8 italic' : ''}`}>{f.name}</td>
-                      {f.grades.map((g, i) => {
-                         const termNum = f.terms[i];
-                         const isGrade11or12 = (typeof section.gradeLevel === 'string' ? parseInt(section.gradeLevel) : (section.gradeLevel as number || 7)) >= 11;
-                         const isNotOffered = isGrade11or12 && f.offeredTerms && f.offeredTerms.length > 0 && !f.offeredTerms.includes(termNum as TermNumber);
+                 {finalGrades.map((f, index) => {
+                   const isGrade11or12 = (typeof section.gradeLevel === 'string' ? parseInt(section.gradeLevel) : (section.gradeLevel as number || 7)) >= 11;
+                   const currentType = (f.subjectType || 'CORE');
+                   const prevType = index > 0 ? (finalGrades[index - 1].subjectType || 'CORE') : null;
+                   const shouldShowHeader = isGrade11or12 && currentType !== prevType;
+                   
+                   let typeTitle = 'Core Subjects';
+                   if (currentType === 'APPLIED') typeTitle = 'Applied Subjects';
+                   else if (currentType === 'SPECIALIZED') typeTitle = 'Specialized Subjects';
+                   else if (currentType === 'ELECTIVE') typeTitle = 'Elective Subjects';
+
+                   return (
+                     <React.Fragment key={f.id}>
+                       {shouldShowHeader && (
+                         <tr className="bg-slate-100">
+                           <td colSpan={semMode === 'all' && termMode === 4 ? 7 : 6} className="px-3 py-1.5 font-bold italic text-slate-800 border border-slate-600 text-xs text-left">
+                             {typeTitle}
+                           </td>
+                         </tr>
+                       )}
+                       <tr className="h-8">
+                          <td className={`px-3 font-medium text-slate-900 border border-slate-600 truncate ${f.isMapehComponent ? 'pl-8 italic' : ''}`}>{f.name}</td>
+                          {f.grades.map((g, i) => {
+                             const termNum = f.terms[i];
+                             const isNotOffered = isGrade11or12 && f.offeredTerms && f.offeredTerms.length > 0 && !f.offeredTerms.includes(termNum as TermNumber);
 
                          if (isNotOffered) {
                            return (
@@ -1744,7 +1785,9 @@ const AcademicYearTable: React.FC<AcademicYearTableProps> = ({ section, student,
                          {f.isMapehComponent ? '' : (f.final > 0 ? (f.final >= 75 ? 'Passed' : 'Failed') : '--')}
                       </td>
                    </tr>
-                 ))}
+                   </React.Fragment>
+                   );
+                 })}
               </tbody>
               <tfoot>
                  <tr className="bg-slate-50 h-10">

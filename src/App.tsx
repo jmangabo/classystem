@@ -7637,7 +7637,7 @@ function SectionsView({
                     const appliedItems = displayItems.filter(item => {
                       if (!item.targetName) return false;
                       const s = sectionSubjects.find(sub => sub.name === item.targetName);
-                      return s?.subjectType === 'ELECTIVE';
+                      return s?.subjectType === 'ELECTIVE' || s?.subjectType === 'APPLIED' || s?.subjectType === 'SPECIALIZED';
                     });
                     const otherItems = displayItems.filter(item => !coreItems.includes(item) && !appliedItems.includes(item));
 
@@ -9356,7 +9356,7 @@ function AddLearnerModal({
                          </div>
                          <div>
                             <p className="text-sm font-bold text-slate-900 leading-tight">{subj.name}</p>
-                            <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">{subj.group || (subj.subjectType === 'CORE' ? 'Core Course' : 'Applied/Specialized')}</p>
+                            <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">{subj.group || (subj.subjectType || 'CORE')}</p>
                          </div>
                        </label>
                      );
@@ -12893,7 +12893,7 @@ function EnrollSubjectsModal({
                         )}
                       </div>
                       <p className="text-[9px] text-emerald-600 font-extrabold uppercase tracking-wide mt-1">
-                        {subj.group || (subj.subjectType === 'CORE' ? 'Core Course' : 'Applied/Specialized')}
+                        {subj.group || subj.subjectType || 'CORE'}
                       </p>
                     </div>
                     <button
@@ -12945,7 +12945,7 @@ function EnrollSubjectsModal({
                         )}
                       </div>
                       <p className="text-[9px] text-indigo-500 font-extrabold uppercase tracking-wide mt-1">
-                        {subj.group || (subj.subjectType === 'CORE' ? 'Core Course' : 'Applied/Specialized')}
+                        {subj.group || subj.subjectType || 'CORE'}
                       </p>
                     </div>
                     <button
@@ -16500,7 +16500,7 @@ function SubjectsView({
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-2xl bg-white rounded-3xl shadow-[0_10px_40px_rgb(0,0,0,0.1)] overflow-hidden flex flex-col"
+              className="relative w-full max-w-4xl bg-white rounded-3xl shadow-[0_10px_40px_rgb(0,0,0,0.1)] overflow-hidden flex flex-col"
             >
               <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white relative z-10">
                 <div>
@@ -16691,20 +16691,34 @@ function SubjectsView({
 
                     <div className="space-y-1.5">
                       <label className="text-xs font-bold text-slate-700">Subject Type</label>
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                         <button
                           type="button"
                           onClick={() => setForm({...form, subjectType: 'CORE'})}
-                          className={`py-2 px-3 rounded-lg text-sm font-semibold transition-all border ${form.subjectType === 'CORE' ? 'bg-indigo-50 border-indigo-200 text-indigo-700 shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+                          className={`py-2 px-3 rounded-lg text-xs font-semibold transition-all border ${form.subjectType === 'CORE' ? 'bg-indigo-50 border-indigo-200 text-indigo-700 shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
                         >
                           Core
                         </button>
                         <button
                           type="button"
                           onClick={() => setForm({...form, subjectType: 'ELECTIVE'})}
-                          className={`py-2 px-3 rounded-lg text-sm font-semibold transition-all border ${form.subjectType === 'ELECTIVE' ? 'bg-amber-50 border-amber-200 text-amber-700 shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+                          className={`py-2 px-3 rounded-lg text-xs font-semibold transition-all border ${form.subjectType === 'ELECTIVE' ? 'bg-amber-50 border-amber-200 text-amber-700 shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
                         >
                           Elective
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setForm({...form, subjectType: 'APPLIED'})}
+                          className={`py-2 px-3 rounded-lg text-xs font-semibold transition-all border ${form.subjectType === 'APPLIED' ? 'bg-emerald-50 border-emerald-200 text-emerald-700 shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+                        >
+                          Applied
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setForm({...form, subjectType: 'SPECIALIZED'})}
+                          className={`py-2 px-3 rounded-lg text-xs font-semibold transition-all border ${form.subjectType === 'SPECIALIZED' ? 'bg-pink-50 border-pink-200 text-pink-700 shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+                        >
+                          Specialized
                         </button>
                       </div>
                     </div>
@@ -16954,7 +16968,12 @@ function SubjectsView({
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex flex-col gap-1.5 items-start">
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md w-fit border ${subject.subjectType === 'CORE' ? 'bg-indigo-50 text-indigo-600 border-indigo-100/50' : 'bg-amber-50 text-amber-600 border-amber-100/50'}`}>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md w-fit border ${
+                          (subject.subjectType || 'CORE') === 'CORE' ? 'bg-indigo-50 text-indigo-600 border-indigo-100/50' : 
+                          subject.subjectType === 'ELECTIVE' ? 'bg-amber-50 text-amber-600 border-amber-100/50' :
+                          subject.subjectType === 'APPLIED' ? 'bg-emerald-50 text-emerald-600 border-emerald-100/50' :
+                          'bg-pink-50 text-pink-600 border-pink-100/50'
+                        }`}>
                           {subject.subjectType || 'CORE'}
                         </span>
                         {subject.offeredTerms && subject.offeredTerms.length > 0 && (
@@ -17168,7 +17187,10 @@ function MATATAGReportCardModal({
     // For Senior High School (Grade 11 & 12)
     if (section.gradeLevel >= 11) {
       const core = subjects.filter(s => (s.subjectType || 'CORE') === 'CORE');
-      const electives = subjects.filter(s => s.subjectType === 'ELECTIVE');
+      const applied = subjects.filter(s => s.subjectType === 'APPLIED').sort((a, b) => a.name.localeCompare(b.name));
+      const specialized = subjects.filter(s => s.subjectType === 'SPECIALIZED').sort((a, b) => a.name.localeCompare(b.name));
+      const otherElectives = subjects.filter(s => s.subjectType === 'ELECTIVE').sort((a, b) => a.name.localeCompare(b.name));
+      const electives = [...applied, ...specialized, ...otherElectives];
       
       const commComponents = core.filter(s => 
         COMMUNICATION_COMPONENTS.some(cc => s.name.toLowerCase() === cc.toLowerCase())
@@ -17686,10 +17708,46 @@ function MATATAGReportCardModal({
         }
       }
       const totalCols = numTerms === 4 ? 4 : 3;
-      const totalRows = displaySubjectsList.reduce((acc, entry) => acc + 1 + (entry.type === 'mapeh' ? entry.components.length : 0), 0);
+      const isGrade11or12Check = typeof section.gradeLevel === 'string' ? parseInt(section.gradeLevel) >= 11 : section.gradeLevel >= 11;
+      const getSubjectGroup = (entry: any) => {
+        if (!entry) return null;
+        if (entry.type === 'mapeh' && entry.subject.id === 'comm-calc') return 'CORE';
+        return entry.subject.subjectType || 'CORE';
+      };
+      
+      const totalRows = displaySubjectsList.reduce((acc, entry, idx) => {
+        let headers = 0;
+        if (isGrade11or12Check) {
+           const currentGroup = getSubjectGroup(entry);
+           const prevGroup = getSubjectGroup(idx > 0 ? displaySubjectsList[idx - 1] : null);
+           if (currentGroup !== prevGroup) headers = 1;
+        }
+        return acc + 1 + (entry.type === 'mapeh' ? entry.components.length : 0) + headers;
+      }, 0);
 
       let academicsRowsHtml = "";
+      let lastTypeHTML = '';
+
       displaySubjectsList.forEach((entry, idx) => {
+        if (isGrade11or12Check) {
+           const currentGroup = getSubjectGroup(entry);
+           if (currentGroup !== lastTypeHTML) {
+             let typeLabel = 'Core Subjects';
+             if (currentGroup === 'APPLIED') typeLabel = 'Applied Subjects';
+             else if (currentGroup === 'SPECIALIZED') typeLabel = 'Specialized Subjects';
+             else if (currentGroup === 'ELECTIVE') typeLabel = 'Elective Subjects';
+             else if (currentGroup !== 'CORE') typeLabel = 'Applied and Specialized Subjects';
+             
+             lastTypeHTML = currentGroup;
+             academicsRowsHtml += `
+               <tr style="background-color: #f1f5f9;">
+                 <td colspan="${totalCols + 2}" style="border: 1px solid #1a365d; padding: 4px 8px; font-weight: bold; font-style: italic; font-size: 8pt; text-align: left;">
+                   ${typeLabel}
+                 </td>
+               </tr>
+             `;
+           }
+        }
         const q1 = getEntryGrades(entry, 1);
         const q2 = getEntryGrades(entry, 2);
         const q3 = getEntryGrades(entry, 3);
@@ -18262,7 +18320,38 @@ function MATATAGReportCardModal({
     dataRows.push(academicHeaders);
 
     // Academics Rows
+    let lastExcelType = '';
+    const isGrade11or12CheckExcel = typeof section.gradeLevel === 'string' ? parseInt(section.gradeLevel) >= 11 : section.gradeLevel >= 11;
+    const getSubjectGroupExcel = (entry: any) => {
+      if (!entry) return null;
+      if (entry.type === 'mapeh' && entry.subject.id === 'comm-calc') return 'CORE';
+      return entry.subject.subjectType || 'CORE';
+    };
+
     displaySubjectsList.forEach((entry) => {
+      if (isGrade11or12CheckExcel) {
+         const currentGroup = getSubjectGroupExcel(entry);
+         if (currentGroup !== lastExcelType) {
+           let typeLabel = 'Core Subjects';
+           if (currentGroup === 'APPLIED') typeLabel = 'Applied Subjects';
+           else if (currentGroup === 'SPECIALIZED') typeLabel = 'Specialized Subjects';
+           else if (currentGroup === 'ELECTIVE') typeLabel = 'Elective Subjects';
+           else if (currentGroup !== 'CORE') typeLabel = 'Applied and Specialized Subjects';
+           
+           lastExcelType = currentGroup;
+           const headerRow = [
+             createCell(typeLabel, { bold: true, italic: true, bg: "F1F5F9", size: 9 })
+           ];
+           for (let q = 1; q <= numTerms + 2; q++) {
+             headerRow.push(createCell("", { bg: "F1F5F9" })); // match span
+           }
+           padRowWithNone(headerRow, maxCols);
+           const rIndex = dataRows.length;
+           dataRows.push(headerRow);
+           merges.push({ s: { r: rIndex, c: 0 }, e: { r: rIndex, c: numTerms + 2 } });
+         }
+      }
+
       const qGrades = Array.from({ length: numTerms }, (_, i) => getEntryGrades(entry, (i + 1) as any));
       const fin = getEntryGrades(entry, 'final');
       const isMapehParent = entry.type === 'mapeh';
@@ -19516,7 +19605,17 @@ function MATATAGReportCardModal({
                        }
                      }
                      const totalCols = numTerms === 4 ? 4 : 3;
-                     const totalRows = displaySubjectsList.reduce((acc, entry) => acc + 1 + (entry.type === 'mapeh' ? entry.components.length : 0), 0);
+                     const isGrade11or12Check = typeof section.gradeLevel === 'string' ? parseInt(section.gradeLevel) >= 11 : section.gradeLevel >= 11;
+                     const totalRows = displaySubjectsList.reduce((acc, entry, idx) => {
+                       let headers = 0;
+                       if (isGrade11or12Check) {
+                          const currentType = (entry.type === 'mapeh' && entry.subject.id === 'comm-calc') ? 'CORE' : (entry.subject.subjectType === 'CORE' ? 'CORE' : 'OTHER');
+                          const prevEntry = idx > 0 ? displaySubjectsList[idx - 1] : null;
+                          const prevType = prevEntry ? ((prevEntry.type === 'mapeh' && prevEntry.subject.id === 'comm-calc') ? 'CORE' : (prevEntry.subject.subjectType === 'CORE' ? 'CORE' : 'OTHER')) : null;
+                          if (currentType !== prevType) headers = 1;
+                       }
+                       return acc + 1 + (entry.type === 'mapeh' ? entry.components.length : 0) + headers;
+                     }, 0);
 
                      return displaySubjectsList.map((entry, idx) => {
                        const q1 = getEntryGrades(entry, 1);
@@ -19531,8 +19630,28 @@ function MATATAGReportCardModal({
                          return true;
                        };
 
+                       const isGrade11or12 = typeof section.gradeLevel === 'string' ? parseInt(section.gradeLevel) >= 11 : section.gradeLevel >= 11;
+                       const currentType = (entry.type === 'mapeh' && entry.subject.id === 'comm-calc') ? 'CORE' : (entry.subject.subjectType || 'CORE');
+                       const prevEntry = idx > 0 ? displaySubjectsList[idx - 1] : null;
+                       const prevType = prevEntry ? ((prevEntry.type === 'mapeh' && prevEntry.subject.id === 'comm-calc') ? 'CORE' : (prevEntry.subject.subjectType || 'CORE')) : null;
+                       const shouldShowHeader = isGrade11or12 && currentType !== prevType;
+                       const totalHeaderCols = 2 + (semView === 'all' ? numTerms : (numTerms === 4 ? 2 : 3)); // Subject Area + Final + Terms
+
+                       let typeLabel = 'Core Subjects';
+                       if (currentType === 'APPLIED') typeLabel = 'Applied Subjects';
+                       else if (currentType === 'SPECIALIZED') typeLabel = 'Specialized Subjects';
+                       else if (currentType === 'ELECTIVE') typeLabel = 'Elective Subjects';
+                       else if (currentType !== 'CORE') typeLabel = 'Applied and Specialized Subjects';
+
                        return (
                          <React.Fragment key={entry.subject.id || idx}>
+                           {shouldShowHeader && (
+                             <tr className="bg-slate-100 print:bg-gray-100">
+                               <td colSpan={totalHeaderCols} className="border border-black px-3 py-1.5 font-bold italic text-slate-800 print:text-black text-[10px] text-left">
+                                 {typeLabel}
+                               </td>
+                             </tr>
+                           )}
                            <tr className={`font-bold text-[10px] ${entry.type === 'mapeh' ? 'bg-slate-100 print:bg-gray-100' : 'even:bg-slate-50 print:even:bg-gray-50'}`} style={{ WebkitPrintColorAdjust: 'exact' }}>
                              <td className="border border-black p-2 pl-3 uppercase">{entry.subject.name}</td>
                              
@@ -19828,8 +19947,10 @@ function SummarySheetView({
     const gradeLevel = parseInt(selectedSection.gradeLevel?.toString() || "0");
     if (gradeLevel >= 11) {
        const core = subjects.filter(s => (s.subjectType || 'CORE') === 'CORE').sort((a, b) => a.name.localeCompare(b.name));
-       const electives = subjects.filter(s => s.subjectType === 'ELECTIVE').sort((a, b) => a.name.localeCompare(b.name));
-       return [...core, ...electives];
+       const applied = subjects.filter(s => s.subjectType === 'APPLIED').sort((a, b) => a.name.localeCompare(b.name));
+       const specialized = subjects.filter(s => s.subjectType === 'SPECIALIZED').sort((a, b) => a.name.localeCompare(b.name));
+       const otherElectives = subjects.filter(s => s.subjectType === 'ELECTIVE').sort((a, b) => a.name.localeCompare(b.name));
+       return [...core, ...applied, ...specialized, ...otherElectives];
     }
 
     // K-10 Logic (Based on Class Card)
@@ -19854,7 +19975,10 @@ function SummarySheetView({
     const gradeLevel = parseInt(selectedSection.gradeLevel?.toString() || "0");
     if (gradeLevel >= 11) {
        const core = sortedSubjects.filter(s => (s.subjectType || 'CORE') === 'CORE');
-       const electives = sortedSubjects.filter(s => s.subjectType === 'ELECTIVE');
+       const applied = sortedSubjects.filter(s => s.subjectType === 'APPLIED');
+       const specialized = sortedSubjects.filter(s => s.subjectType === 'SPECIALIZED');
+       const otherElectives = sortedSubjects.filter(s => s.subjectType === 'ELECTIVE');
+       const electives = [...applied, ...specialized, ...otherElectives];
        
        const commCompNames = ["Effective Communication", "Mabisang Komunikasyon"];
        const commComponents = core.filter(s => commCompNames.some(cn => s.name.toLowerCase() === cn.toLowerCase()));

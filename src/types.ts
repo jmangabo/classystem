@@ -136,7 +136,7 @@ export interface Subject {
     | 'Revised K-10 Curriculum';
   name: string;
   gradeLevel: number;
-  subjectType: 'CORE' | 'ELECTIVE';
+  subjectType: 'CORE' | 'ELECTIVE' | 'APPLIED' | 'SPECIALIZED';
   teacherEmail?: string;
   wwWeight: number;
   ptWeight: number;
