@@ -15,6 +15,68 @@ import { motion, AnimatePresence } from 'motion/react';
 import jsPDF from 'jspdf';
 import * as XLSX from 'xlsx';
 
+export const getOffensePenalty = (level: 'level1' | 'level2' | 'level3', offenseCount: number): string => {
+  if (level === 'level2') {
+    if (offenseCount === 1) return "Suspension from classes for five (5) days, Summon of Parents, and referral to the Social Welfare Development Office";
+    if (offenseCount === 2) return "Non-readmission";
+    return "Exclusion";
+  } else if (level === 'level3') {
+    return "Exclusion";
+  } else {
+    // Default to level 1 for safety
+    if (offenseCount === 1) return "Written reprimand and Summon of Parents";
+    if (offenseCount === 2) return "Suspension from classes for three (3) days";
+    return "Suspension from classes for five (5) days";
+  }
+};
+
+export const LEVEL_OFFENSES = {
+  level1: [
+    "Uttering profanities / swearwords against a learner",
+    "Disruptive behavior and/or pranks against a learner",
+    "Grabbing belongings of another learner without permission",
+    "Punching, pinching another learner which does not result in physical injuries",
+    "Fighting a learner which does not result in physical injuries"
+  ],
+  level2: [
+    "Stalking behavior against a learner",
+    "Catcalling, wolf-whistling, persistent unwanted invitations or sexist remarks/slurs against a learner",
+    "Assaulting or inflicting slight physical injuries to another learner",
+    "Theft or stealing learner's belongings",
+    "Intimidating or threatening a learner"
+  ],
+  level3: [
+    "Inflicting physical injuries to another learner when the victim is incapacitated or requires medical intervention for 10 days or more",
+    "Offensive physical/body gestures, flashing, indecent exposure, public masturbation, groping, or similar lewd sexual actions",
+    "Uploading and sharing recorded or live videos which degrades, demeans or shames other learners",
+    "Uploading and sharing recorded/live video, photo, or voice with sexual content in the social media or to any person"
+  ]
+};
+
+export const CATEGORY_OFFENSES: Record<string, string[]> = {
+  academic: [
+    "Consistently submitting school assignments/projects past the deadline",
+    "Displaying lack of focus, sleeping in class, or disengagement during lectures",
+    "Showing significant improvement in class participation and test scores",
+    "Failing multiple quizzes and needs remedial class support"
+  ],
+  social: [
+    "Struggles to cooperate with classmates during group/collaborative activities",
+    "Exhibiting signs of extreme anxiety, withdrawal from interactive school activities",
+    "Initiating a friendly peer mentoring support system for struggling classmates",
+    "Showing outstanding emotional mature leadership qualities during school events"
+  ],
+  attendance: [
+    "Chronic tardiness during the first subject period in the morning",
+    "Unexcused cutting of classes / escaping school compound during active school hours",
+    "Frequent absences due to family/health issues, requiring modular/alternative delivery mode"
+  ],
+  other: [
+    "Demonstrating active participation in environmental cleanups / solid waste program",
+    "Exemplifying the core school values through honesty or returning lost/found valuable items"
+  ]
+};
+
 interface AnecdotalRecordsViewProps {
   currentUser: any;
   userProfile: UserProfile | null;
@@ -36,6 +98,7 @@ export function AnecdotalRecordsView({
 }: AnecdotalRecordsViewProps) {
   // State variables
   const [records, setRecords] = useState<AnecdotalRecord[]>([]);
+  const [allSchoolRecords, setAllSchoolRecords] = useState<AnecdotalRecord[]>([]);
   const [loading, setLoading] = useState(true);
   
   // Filtering states
@@ -47,6 +110,7 @@ export function AnecdotalRecordsView({
   
   // UI Panels / Modal states
   const [showForm, setShowForm] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
   const [editingRecord, setEditingRecord] = useState<AnecdotalRecord | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   
@@ -59,6 +123,7 @@ export function AnecdotalRecordsView({
   const [formSubjectId, setFormSubjectId] = useState('');
   const [formObservation, setFormObservation] = useState('');
   const [formActionTaken, setFormActionTaken] = useState('');
+  const [formBehaviorLevel, setFormBehaviorLevel] = useState<'level1' | 'level2' | 'level3'>('level1');
 
   // Reading & Opening a record for Intervention Resolution
   const [readRecord, setReadRecord] = useState<AnecdotalRecord | null>(null);
@@ -227,6 +292,7 @@ export function AnecdotalRecordsView({
 
     const unsub = onSnapshot(q, (snap) => {
       const list = snap.docs.map(d => ({ id: d.id, ...d.data() }) as AnecdotalRecord);
+      setAllSchoolRecords(list);
       
       // Filter list on-the-fly based on permissions
       // If teacher role and not admin/system_admin, only show entries in their classes or ones they made
@@ -260,6 +326,7 @@ export function AnecdotalRecordsView({
       setFormCategory('behavioral');
       setFormObservation('');
       setFormActionTaken('');
+      setFormBehaviorLevel('level1');
       setFormDate(new Date().toISOString().split('T')[0]);
       setFormTime(new Date().toTimeString().split(' ')[0].substring(0, 5));
       setEditingRecord(null);
@@ -276,6 +343,7 @@ export function AnecdotalRecordsView({
     setFormDate(new Date().toISOString().split('T')[0]);
     setFormTime(new Date().toTimeString().split(' ')[0].substring(0, 5));
     setFormCategory('behavioral');
+    setFormBehaviorLevel('level1');
     setFormSubjectId('');
     setFormObservation('');
     setFormActionTaken('');
@@ -336,7 +404,8 @@ export function AnecdotalRecordsView({
       createdBy: currentUser?.uid || '',
       createdByName: userProfile?.displayName || currentUser?.email || 'Teacher',
       schoolId: activeSection?.schoolId || userProfile?.schoolId || undefined,
-      createdAt: editingRecord ? editingRecord.createdAt : new Date().toISOString()
+      createdAt: editingRecord ? editingRecord.createdAt : new Date().toISOString(),
+      behaviorLevel: formCategory === 'behavioral' ? formBehaviorLevel : undefined
     };
 
     // Clean undefined values to prevent Firestore unsupported data type errors
@@ -381,6 +450,7 @@ export function AnecdotalRecordsView({
     setFormDate(r.date);
     setFormTime(r.time || '');
     setFormCategory(r.category);
+    setFormBehaviorLevel(r.behaviorLevel || 'level1');
     setFormSubjectId(r.subjectId || '');
     setFormObservation(r.observation);
     setFormActionTaken(r.actionTaken || '');
@@ -658,6 +728,13 @@ export function AnecdotalRecordsView({
         {/* CTA Actions */}
         <div className="flex items-center gap-2 self-start md:self-center">
           <button
+            onClick={() => setShowGuide(true)}
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-semibold rounded-xl transition-all shadow-sm active:scale-95 whitespace-nowrap hidden sm:flex"
+          >
+            <AlertTriangle size={16} />
+            <span>Disciplinary Interventions Guide</span>
+          </button>
+          <button
             onClick={openNewRecordForm}
             className="flex items-center gap-1.5 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-xl transition-all shadow-md active:scale-95 whitespace-nowrap"
           >
@@ -756,8 +833,8 @@ export function AnecdotalRecordsView({
                 className="px-3 py-2 bg-slate-50 border border-slate-200 text-xs font-semibold rounded-xl text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
                 <option value="all">⭐ All Managed Sections</option>
-                {sections.map(s => (
-                  <option key={s.id} value={s.id}>Class: {s.name} ({s.schoolYear})</option>
+                {sections.map((s, i) => (
+                  <option key={`filter-sec-${s.id}-${i}`} value={s.id}>Class: {s.name} ({s.schoolYear})</option>
                 ))}
               </select>
 
@@ -778,17 +855,17 @@ export function AnecdotalRecordsView({
                     <>
                       {maleStudents.length > 0 && (
                         <optgroup label="Male Learners">
-                          {maleStudents.map(s => <option key={s.id} value={s.id}>{formatStudentName(s)}</option>)}
+                          {maleStudents.map((s, i) => <option key={`filter-male-${s.id}-${i}`} value={s.id}>{formatStudentName(s)}</option>)}
                         </optgroup>
                       )}
                       {femaleStudents.length > 0 && (
                         <optgroup label="Female Learners">
-                          {femaleStudents.map(s => <option key={s.id} value={s.id}>{formatStudentName(s)}</option>)}
+                          {femaleStudents.map((s, i) => <option key={`filter-female-${s.id}-${i}`} value={s.id}>{formatStudentName(s)}</option>)}
                         </optgroup>
                       )}
                       {otherStudents.length > 0 && (
                         <optgroup label="Other">
-                          {otherStudents.map(s => <option key={s.id} value={s.id}>{formatStudentName(s)}</option>)}
+                          {otherStudents.map((s, i) => <option key={`filter-other-${s.id}-${i}`} value={s.id}>{formatStudentName(s)}</option>)}
                         </optgroup>
                       )}
                     </>
@@ -891,9 +968,16 @@ export function AnecdotalRecordsView({
                 const isAdviserOfThisSection = (matchingSection?.adviserEmail || "").trim().toLowerCase() === (currentUser?.email || userProfile?.email || "").trim().toLowerCase();
                 const canEdit = isCreator;
                 const canDelete = isCreator || isSystemAdmin || isAdviserOfThisSection;
+                
+                let offenseCount = 0;
+                if (r.category === 'behavioral') {
+                  const sbr = allSchoolRecords.filter(sr => sr.studentId === r.studentId && sr.category === 'behavioral');
+                  sbr.sort((a,b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+                  offenseCount = sbr.findIndex(sr => sr.id === r.id) + 1;
+                }
 
                 return (
-                  <div key={r.id} className="relative group/timeline-card">
+                  <div key={`${r.id}-${index}`} className="relative group/timeline-card">
                     {/* Circle dot Indicator */}
                     <span className={`absolute -left-[31px] top-4 w-2.5 h-2.5 rounded-full ${catInfo.dot} border-[3px] border-white shadow ring-2 ring-slate-100 transition-transform group-hover/timeline-card:scale-125 z-10`} />
 
@@ -909,6 +993,11 @@ export function AnecdotalRecordsView({
                           <span className="text-[9px] font-mono text-slate-400 bg-slate-100 px-2 py-0.5 rounded">
                             ID: {r.id.substring(0, 5).toUpperCase()}
                           </span>
+                          {offenseCount > 0 && (
+                            <span className="text-[10px] font-black uppercase text-white bg-rose-600 px-2.5 py-0.5 rounded shadow-sm">
+                               {offenseCount === 1 ? '1st' : offenseCount === 2 ? '2nd' : offenseCount === 3 ? '3rd' : `${offenseCount}th`} Offense
+                            </span>
+                          )}
                           <span className={`text-[9px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded border ${catInfo.bg}`}>
                             {catInfo.title}
                           </span>
@@ -946,6 +1035,18 @@ export function AnecdotalRecordsView({
                             </p>
                           </div>
                           
+                          {r.category === 'behavioral' && (
+                            <div className="border-t border-rose-100 pt-2.5 mt-2 bg-rose-50/20 px-2 py-1.5 rounded-lg border border-rose-100/50">
+                              <span className="text-[9px] font-black text-rose-600 block uppercase tracking-wider">DepEd Prescribed Action / Penalty:</span>
+                              <p className="text-xs text-rose-950 font-extrabold mt-1">
+                                {getOffensePenalty(r.behaviorLevel || 'level1', offenseCount)}
+                              </p>
+                              <span className="text-[9px] text-slate-500 font-bold block mt-1 uppercase tracking-wide">
+                                Classification: {r.behaviorLevel === 'level3' ? 'Third Level - Extreme' : r.behaviorLevel === 'level2' ? 'Second Level - Serious' : 'First Level - Minor Bullying'}
+                              </span>
+                            </div>
+                          )}
+
                           {r.actionTaken && (
                             <div className="border-t border-slate-100 pt-2.5 mt-2">
                               <span className="text-[9px] font-bold text-emerald-500 block uppercase tracking-wider">Action Taken / Resolution:</span>
@@ -1081,8 +1182,8 @@ export function AnecdotalRecordsView({
                     className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none text-xs font-semibold focus:ring-2 focus:ring-indigo-500 bg-slate-50 disabled:opacity-50"
                   >
                     <option value="">-- Select Section Class --</option>
-                    {sections.map(s => (
-                      <option key={s.id} value={s.id}>{s.name} ({s.schoolYear})</option>
+                    {sections.map((s, i) => (
+                      <option key={`form-sec-${s.id}-${i}`} value={s.id}>{s.name} ({s.schoolYear})</option>
                     ))}
                   </select>
                 </div>
@@ -1108,17 +1209,17 @@ export function AnecdotalRecordsView({
                         <>
                           {maleStudents.length > 0 && (
                             <optgroup label="Male Learners">
-                              {maleStudents.map(s => <option key={s.id} value={s.id}>{formatStudentName(s)} ({s.lrn || 'N/A'})</option>)}
+                              {maleStudents.map((s, i) => <option key={`form-male-${s.id}-${i}`} value={s.id}>{formatStudentName(s)} ({s.lrn || 'N/A'})</option>)}
                             </optgroup>
                           )}
                           {femaleStudents.length > 0 && (
                             <optgroup label="Female Learners">
-                              {femaleStudents.map(s => <option key={s.id} value={s.id}>{formatStudentName(s)} ({s.lrn || 'N/A'})</option>)}
+                              {femaleStudents.map((s, i) => <option key={`form-female-${s.id}-${i}`} value={s.id}>{formatStudentName(s)} ({s.lrn || 'N/A'})</option>)}
                             </optgroup>
                           )}
                           {otherStudents.length > 0 && (
                             <optgroup label="Other">
-                              {otherStudents.map(s => <option key={s.id} value={s.id}>{formatStudentName(s)} ({s.lrn || 'N/A'})</option>)}
+                              {otherStudents.map((s, i) => <option key={`form-other-${s.id}-${i}`} value={s.id}>{formatStudentName(s)} ({s.lrn || 'N/A'})</option>)}
                             </optgroup>
                           )}
                         </>
@@ -1175,7 +1276,17 @@ export function AnecdotalRecordsView({
                       <button
                         type="button"
                         key={item.value}
-                        onClick={() => setFormCategory(item.value as any)}
+                        onClick={() => {
+                          setFormCategory(item.value as any);
+                          if (item.value === 'behavioral') {
+                            setFormObservation(LEVEL_OFFENSES[formBehaviorLevel][0]);
+                          } else {
+                            const templates = CATEGORY_OFFENSES[item.value];
+                            if (templates && templates.length > 0) {
+                              setFormObservation(templates[0]);
+                            }
+                          }
+                        }}
                         className={`px-3 py-2.5 rounded-xl border-2 text-[11px] font-bold text-left transition-all relative ${
                           formCategory === item.value 
                             ? `${item.activeBg} ${item.border} ${item.text} scale-102 ring-2 ring-indigo-50/50` 
@@ -1186,6 +1297,106 @@ export function AnecdotalRecordsView({
                       </button>
                     ))}
                   </div>
+                  {formCategory === 'behavioral' && (
+                    <div className="pt-2 space-y-3">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Disciplinary Level (Category of Offense)</label>
+                          <select
+                            value={formBehaviorLevel}
+                            onChange={(e) => {
+                              const newLevel = e.target.value as 'level1' | 'level2' | 'level3';
+                              setFormBehaviorLevel(newLevel);
+                              setFormObservation(LEVEL_OFFENSES[newLevel][0]);
+                            }}
+                            className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none text-xs font-black focus:ring-2 focus:ring-rose-500 bg-slate-50 text-slate-800"
+                          >
+                            <option value="level1">First Level - Minor Bullying Acts & Precursors</option>
+                            <option value="level2">Second Level - Serious Bullying Acts</option>
+                            <option value="level3">Third Level - Extreme / Unresolvable Acts</option>
+                          </select>
+                        </div>
+
+                        {/* Dropdown for specific predefined incident under behavioral level */}
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Predefined Incident / Offense Type</label>
+                          <select
+                            value={LEVEL_OFFENSES[formBehaviorLevel].includes(formObservation) ? formObservation : ""}
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                setFormObservation(e.target.value);
+                              }
+                            }}
+                            className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none text-xs font-bold focus:ring-2 focus:ring-rose-500 bg-rose-50/60 text-rose-950"
+                          >
+                            {LEVEL_OFFENSES[formBehaviorLevel].map((item, idx) => (
+                              <option key={`offense-option-${idx}`} value={item}>
+                                {item.length > 55 ? `${item.substring(0, 55)}...` : item}
+                              </option>
+                            ))}
+                            {!LEVEL_OFFENSES[formBehaviorLevel].includes(formObservation) && (
+                              <option value="">-- Custom description typed below --</option>
+                            )}
+                          </select>
+                        </div>
+
+                        {formStudentId && (() => {
+                           const prevCount = allSchoolRecords.filter(r => r.studentId === formStudentId && r.category === 'behavioral' && (!editingRecord || r.id !== editingRecord.id)).length;
+                           const nextOffense = prevCount + 1;
+                           return (
+                             <div className="bg-rose-50 border border-rose-100 p-3.5 rounded-xl flex items-start gap-3 shadow-inner">
+                               <AlertTriangle className="text-rose-500 shrink-0 mt-0.5" size={16} />
+                               <div className="space-y-1">
+                                 <p className="text-xs font-black text-rose-800 uppercase tracking-tight">
+                                   {nextOffense === 1 ? "1st Offense" : `${nextOffense}${nextOffense === 2 ? 'nd' : nextOffense === 3 ? 'rd' : 'th'} Offense`}
+                                 </p>
+                                 <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">
+                                   Prescribed Disciplinary Intervention / Penalty:
+                                 </p>
+                                 <p className="text-[11.5px] font-black text-rose-950 bg-white/80 p-2.5 rounded-lg border border-rose-150 leading-relaxed shadow-sm">
+                                   {getOffensePenalty(formBehaviorLevel, nextOffense)}
+                                 </p>
+                                 <p className="text-[10px] font-semibold text-rose-600/90 mt-1 leading-relaxed">
+                                   Learner current total prior records: {prevCount}. Please document any corresponding parental notification or actions.
+                                 </p>
+                               </div>
+                             </div>
+                           );
+                        })()}
+                        <button
+                          type="button"
+                          onClick={() => setShowGuide(true)}
+                          className="flex items-center justify-center gap-1.5 w-full px-4 py-2 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 text-xs font-semibold rounded-xl transition-all shadow-sm active:scale-95"
+                        >
+                          <AlertTriangle size={16} />
+                          <span>View Disciplinary Interventions Guide</span>
+                        </button>
+                     </div>
+                  )}
+
+                  {/* Dropdown for other active categories */}
+                  {formCategory !== 'behavioral' && CATEGORY_OFFENSES[formCategory] && (
+                    <div className="pt-2 space-y-1">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Predefined Incident / Behavior Template</label>
+                      <select
+                        value={CATEGORY_OFFENSES[formCategory].includes(formObservation) ? formObservation : ""}
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            setFormObservation(e.target.value);
+                          }
+                        }}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none text-xs font-bold focus:ring-2 focus:ring-indigo-500 bg-indigo-50/60 text-indigo-950"
+                      >
+                        {CATEGORY_OFFENSES[formCategory].map((tmpl, idx) => (
+                          <option key={`tmpl-option-${idx}`} value={tmpl}>
+                            {tmpl.length > 55 ? `${tmpl.substring(0, 55)}...` : tmpl}
+                          </option>
+                        ))}
+                        {!CATEGORY_OFFENSES[formCategory].includes(formObservation) && (
+                          <option value="">-- Custom description typed below --</option>
+                        )}
+                      </select>
+                    </div>
+                  )}
                 </div>
 
                 {/* Optional Subject Context */}
@@ -1197,8 +1408,8 @@ export function AnecdotalRecordsView({
                     className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none text-xs font-semibold focus:ring-2 focus:ring-indigo-500 bg-slate-50"
                   >
                     <option value="">-- No Subject Context --</option>
-                    {formSubjects.map(sub => (
-                      <option key={sub.id} value={sub.id}>{sub.name}</option>
+                    {formSubjects.map((sub, i) => (
+                      <option key={`form-sub-${sub.id}-${i}`} value={sub.id}>{sub.name}</option>
                     ))}
                   </select>
                 </div>
@@ -1380,6 +1591,159 @@ export function AnecdotalRecordsView({
             </motion.div>
           </>
         )}
+
+        {/* Disciplinary Interventions Guide Modal */}
+        <AnimatePresence>
+          {showGuide && (
+            <>
+              {/* Backdrop */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 0.5 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setShowGuide(false)}
+                className="fixed inset-0 bg-slate-900 backdrop-blur-sm z-[150]"
+              />
+
+              {/* Modal window */}
+              <div className="fixed inset-0 overflow-y-auto z-[160] flex items-center justify-center p-4">
+                <motion.div
+                  initial={{ scale: 0.95, opacity: 0, y: 15 }}
+                  animate={{ scale: 1, opacity: 1, y: 0 }}
+                  exit={{ scale: 0.95, opacity: 0, y: 15 }}
+                  transition={{ type: 'spring', damping: 25, stiffness: 350 }}
+                  className="w-full max-w-4xl bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[90vh]"
+                >
+                  <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between sticky top-0 shrink-0">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 bg-indigo-100 text-indigo-700 rounded-xl flex items-center justify-center shadow-inner">
+                        <AlertTriangle size={20} />
+                      </div>
+                      <div>
+                        <h2 className="text-sm font-black text-slate-900 uppercase tracking-tight">Levels of Disciplinary Intervention & Penalties</h2>
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block">Reference Guide for Teachers & Advisers</span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setShowGuide(false)}
+                      className="p-2 hover:bg-slate-200 text-slate-500 hover:text-slate-800 rounded-full transition-colors bg-white shadow-sm border border-slate-200"
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+
+                  <div className="p-6 overflow-y-auto bg-slate-50/50 space-y-6">
+                    {/* First Level */}
+                    <div className="bg-white border-l-4 border-rose-400 rounded-r-xl shadow-sm overflow-hidden">
+                      <div className="bg-rose-50 px-5 py-3 border-b border-rose-100">
+                        <h3 className="text-sm font-black text-rose-800 uppercase tracking-tight">First Level of Disciplinary Intervention</h3>
+                        <p className="text-[11px] font-bold text-rose-600/80 uppercase tracking-wider mt-0.5">including Precursors to Bullying</p>
+                      </div>
+                      <div className="p-5 flex flex-col md:flex-row gap-6">
+                        <div className="flex-1 space-y-2">
+                          <p className="text-xs text-slate-700 font-semibold leading-relaxed">
+                            This level of discipline applies to precursors to bullying or bullying behaviors that can be classified as <strong>"minor bullying acts"</strong> such as, but not limited to:
+                          </p>
+                          <ul className="text-[11px] text-slate-600 font-medium space-y-1.5 pl-4 list-decimal marker:font-black marker:text-rose-500">
+                            <li>Uttering profanities / swearwords against a learner;</li>
+                            <li>Disruptive behavior and/or pranks against a learner;</li>
+                            <li>Grabbing belongings of another learner without permission;</li>
+                            <li>Punching, pinching another learner which does not result in physical injuries; and</li>
+                            <li>Fighting a learner which does not result in physical injuries.</li>
+                          </ul>
+                        </div>
+                        <div className="md:w-1/3 bg-slate-50 rounded-xl p-4 border border-slate-100 h-fit space-y-2.5 shrink-0">
+                          <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-200 pb-1.5">Penalties</h4>
+                          <div className="space-y-2">
+                            <div>
+                              <span className="text-[9px] font-bold uppercase text-slate-500 block">First Offense:</span>
+                              <span className="text-[11px] font-semibold text-slate-800 block">Written reprimand and Summon of Parents</span>
+                            </div>
+                            <div>
+                              <span className="text-[9px] font-bold uppercase text-slate-500 block">Second Offense:</span>
+                              <span className="text-[11px] font-semibold text-slate-800 block">Suspension from classes for three (3) days</span>
+                            </div>
+                            <div>
+                              <span className="text-[9px] font-bold uppercase text-slate-500 block">Third/Subsequent:</span>
+                              <span className="text-[11px] font-semibold text-slate-800 block">Suspension from classes for five (5) days</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Second Level */}
+                    <div className="bg-white border-l-4 border-amber-500 rounded-r-xl shadow-sm overflow-hidden">
+                      <div className="bg-amber-50 px-5 py-3 border-b border-amber-100">
+                        <h3 className="text-sm font-black text-amber-800 uppercase tracking-tight">Second Level of Disciplinary Intervention</h3>
+                      </div>
+                      <div className="p-5 flex flex-col md:flex-row gap-6">
+                        <div className="flex-1 space-y-2">
+                          <p className="text-xs text-slate-700 font-semibold leading-relaxed">
+                            This level of discipline applies to bullying behaviors that can be classified as <strong>"serious bullying acts"</strong> such as, but not limited to:
+                          </p>
+                          <ul className="text-[11px] text-slate-600 font-medium space-y-1.5 pl-4 list-decimal marker:font-black marker:text-amber-500">
+                            <li>Stalking;</li>
+                            <li>Catcalling, wolf-whistling, unwanted invitations, misogynistic, transphobic, homophobic and sexist slurs, persistent uninvited comments or gestures on a person's appearance, relentless requests for personal details, statement of sexual comments and suggestions against a learner;</li>
+                            <li>Assaulting or inflicting slight physical injuries to another learner;</li>
+                            <li>Theft or stealing learner's belongings; and</li>
+                            <li>Intimidating or threatening a learner.</li>
+                          </ul>
+                        </div>
+                        <div className="md:w-1/3 bg-slate-50 rounded-xl p-4 border border-slate-100 h-fit space-y-2.5 shrink-0">
+                          <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-200 pb-1.5">Penalties</h4>
+                          <div className="space-y-2">
+                            <div>
+                              <span className="text-[9px] font-bold uppercase text-slate-500 block">First Offense:</span>
+                              <span className="text-[11px] font-semibold text-slate-800 block">Suspension from classes for five (5) days, Summon of Parents, and referral to the Social Welfare Development Office</span>
+                            </div>
+                            <div>
+                              <span className="text-[9px] font-bold uppercase text-slate-500 block">Second Offense:</span>
+                              <span className="text-[11px] font-semibold text-slate-800 block">Non-readmission</span>
+                            </div>
+                            <div>
+                              <span className="text-[9px] font-bold uppercase text-slate-500 block">Third/Subsequent:</span>
+                              <span className="text-[11px] font-semibold text-slate-800 block">Exclusion</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Third Level */}
+                    <div className="bg-white border-l-4 border-indigo-600 rounded-r-xl shadow-sm overflow-hidden">
+                      <div className="bg-indigo-50 px-5 py-3 border-b border-indigo-100">
+                        <h3 className="text-sm font-black text-indigo-900 uppercase tracking-tight">Third Level of Disciplinary Intervention</h3>
+                      </div>
+                      <div className="p-5 flex flex-col md:flex-row gap-6">
+                        <div className="flex-1 space-y-2">
+                          <p className="text-xs text-slate-700 font-semibold leading-relaxed">
+                            This level of discipline applies to acts of bullying that cannot be resolved by the teacher at the classroom level or by the Learner Formation Officer, such as, but not limited to:
+                          </p>
+                          <ul className="text-[11px] text-slate-600 font-medium space-y-1.5 pl-4 list-decimal marker:font-black marker:text-indigo-600">
+                            <li>Inflicting physical injuries to another learner when the victim is incapacitated or requires medical intervention for 10 days or more;</li>
+                            <li>Offensive physical or body gestures at someone, and exposing private parts for the sexual gratification of the respondent with the effect of demeaning, harassing, threatening or intimidating the offended party, including flashing of private parts, public masturbation, groping, and similar lewd sexual actions;</li>
+                            <li>Uploading and sharing recorded or live videos which degrades, demeans or shames other learners; and</li>
+                            <li>Uploading and sharing one's or another student's recorded/live video, photo, or voice with sexual content in the social media or to any person willing to pay for purposes of gain or profit.</li>
+                          </ul>
+                        </div>
+                        <div className="md:w-1/3 bg-slate-50 rounded-xl p-4 border border-slate-100 h-fit space-y-2.5 shrink-0">
+                          <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-200 pb-1.5">Penalties</h4>
+                          <div className="space-y-2">
+                            <div>
+                              <span className="text-[9px] font-bold uppercase text-slate-500 block">First Offense:</span>
+                              <span className="text-[11px] font-semibold text-slate-800 block">Exclusion</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              </div>
+            </>
+          )}
+        </AnimatePresence>
 
         {/* Delete Confirmation Modal */}
         {deleteConfirmId && (

@@ -521,7 +521,7 @@ import { AdminSchoolYearView } from "./components/AdminSchoolYearView";
 import { FeedbackModal } from "./components/FeedbackModal";
 import { AdminFeedbackDashboard } from "./components/AdminFeedbackDashboard";
 import { AdminStudentListView } from "./components/AdminStudentListView";
-import { AnecdotalRecordsView } from "./components/AnecdotalRecordsView";
+import { AnecdotalRecordsView, getOffensePenalty } from "./components/AnecdotalRecordsView";
 import { PTAFeesManagementView } from "./components/PTAFeesManagementView";
 import { TleDashboardView } from "./components/TleDashboardView";
 
@@ -7121,7 +7121,7 @@ function SectionsView({
                                               const teacherName = sub.teacherEmail || 'No Teacher Assigned';
                                               
                                               return (
-                                                <div key={sub.id} className="bg-white p-3 rounded-xl border border-slate-200 flex flex-col justify-between gap-2.5 transition-all shadow-xs group hover:border-indigo-200">
+                                                <div key={`${sub.id}-${sub.sectionId || ''}`} className="bg-white p-3 rounded-xl border border-slate-200 flex flex-col justify-between gap-2.5 transition-all shadow-xs group hover:border-indigo-200">
                                                   <div className="flex items-start justify-between gap-2">
                                                     <div className="min-w-0 flex-1">
                                                       <h6 className="font-extrabold text-slate-800 text-xs truncate" title={sub.name}>{sub.name}</h6>
@@ -15448,7 +15448,7 @@ function DashboardView({
                 const isSubjectFullyComplete = offered.every(t => sub.finalizedTerms?.includes(t));
                 
                 return (
-                  <div key={sub.id} className="bg-white p-3 rounded-xl border border-indigo-100 flex flex-col justify-between gap-2.5 hover:border-indigo-300 transition-all shadow-3xs animate-in fade-in duration-200">
+                  <div key={`${sub.id}-${sub.sectionId || ''}`} className="bg-white p-3 rounded-xl border border-indigo-100 flex flex-col justify-between gap-2.5 hover:border-indigo-300 transition-all shadow-3xs animate-in fade-in duration-200">
                     <div className="flex items-start justify-between gap-2">
                        <div className="min-w-0">
                          <h6 className="font-extrabold text-slate-900 text-xs truncate" title={sub.name}>{sub.name}</h6>
@@ -15614,7 +15614,7 @@ function DashboardView({
                                     const teacherName = sub.teacherEmail || 'No Teacher Assigned';
                                     
                                     return (
-                                      <div key={sub.id} className="bg-white p-3 rounded-xl border border-slate-200 flex flex-col justify-between gap-2.5 transition-all shadow-xs group hover:border-indigo-200">
+                                      <div key={`${sub.id}-${sub.sectionId || ''}`} className="bg-white p-3 rounded-xl border border-slate-200 flex flex-col justify-between gap-2.5 transition-all shadow-xs group hover:border-indigo-200">
                                         <div className="flex items-start justify-between gap-2">
                                           <div className="min-w-0 flex-1">
                                             <h6 className="font-extrabold text-slate-800 text-xs truncate" title={sub.name}>{sub.name}</h6>
@@ -22394,6 +22394,13 @@ function StudentPortal({
                           const matchedEnrollment = allEnrollments.find(e => e.section.id === record.sectionId);
                           const sy = matchedEnrollment?.section.schoolYear || section.schoolYear;
                           
+                          let offenseCount = 0;
+                          if (record.category === 'behavioral') {
+                            const sbr = anecdotalRecords.filter(sr => sr.studentId === record.studentId && sr.category === 'behavioral');
+                            sbr.sort((a,b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
+                            offenseCount = sbr.findIndex(sr => sr.id === record.id) + 1;
+                          }
+                          
                           return (
                             <div key={record.id} className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm hover:border-slate-300 transition-all space-y-4">
                               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-100 pb-3">
@@ -22403,6 +22410,13 @@ function StudentPortal({
                                     <span className={`w-1.5 h-1.5 rounded-full \${badge.dot}`} />
                                     {badge.title}
                                   </span>
+                                  
+                                  {/* Offense Badge */}
+                                  {offenseCount > 0 && (
+                                    <span className="text-[10px] font-black uppercase text-white bg-rose-600 px-2.5 py-0.5 rounded shadow-sm">
+                                      {offenseCount === 1 ? '1st' : offenseCount === 2 ? '2nd' : offenseCount === 3 ? '3rd' : `${offenseCount}th`} Offense
+                                    </span>
+                                  )}
                                   
                                   {/* School Year Badge */}
                                   <span className="bg-indigo-50 border border-indigo-100/60 text-indigo-700 px-2 py-0.5 rounded text-[9px] font-black uppercase font-bold">
@@ -22435,6 +22449,21 @@ function StudentPortal({
                                   {record.observation}
                                 </p>
                               </div>
+
+                              {record.category === 'behavioral' && (
+                                <div className="space-y-1.5 text-xs bg-rose-50/10 p-4 border border-rose-100 rounded-xl">
+                                  <h4 className="text-[10px] font-black text-rose-600 uppercase tracking-widest flex items-center gap-1">
+                                    <AlertTriangle size={12} className="text-rose-500" />
+                                    DepEd Prescribed Action / Penalty
+                                  </h4>
+                                  <p className="text-rose-950 font-extrabold text-xs leading-relaxed">
+                                    {getOffensePenalty(record.behaviorLevel || 'level1', offenseCount)}
+                                  </p>
+                                  <span className="text-[9px] text-slate-500 font-bold block uppercase tracking-wider">
+                                    Classification: {record.behaviorLevel === 'level3' ? 'Third Level - Extreme' : record.behaviorLevel === 'level2' ? 'Second Level - Serious' : 'First Level - Minor Bullying'}
+                                  </span>
+                                </div>
+                              )}
 
                               {record.actionTaken && (
                                 <div className="space-y-1.5 text-xs">
@@ -22493,7 +22522,7 @@ function StudentPortal({
                            <div key={record.id} style={{ borderTop: index > 0 ? '1px solid #e2e8f0' : 'none', paddingTop: index > 0 ? '20px' : '0' }}>
                              <div className="flex" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                <span className="uppercase font-bold text-indigo-600 text-xs" style={{ textTransform: 'uppercase', fontWeight: '700', color: '#4f46e5', fontSize: '12px' }}>
-                                 {index + 1}. SY {sy} &bull; {badge.title.toUpperCase()}
+                                 {index + 1}. SY {sy} &bull; {badge.title.toUpperCase()}{(() => { const sbr = anecdotalRecords.filter(sr => sr.studentId === record.studentId && sr.category === 'behavioral'); sbr.sort((a,b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime()); const count = sbr.findIndex(sr => sr.id === record.id) + 1; return record.category === 'behavioral' && count > 0 ? " (" + (count === 1 ? '1ST' : count === 2 ? '2ND' : count === 3 ? '3RD' : `${count}TH`) + " OFFENSE)" : ""; })()}
                                </span>
                                <span className="text-slate-400 font-bold" style={{ fontSize: '11px', color: '#94a3b8' }}>
                                  {record.date} {record.time ? `@ \${record.time}` : ''}
@@ -23799,7 +23828,7 @@ function AdminUsersView({
                                       const sec = sectionMap.get(sub.sectionId || '');
                                       const secLabel = sec ? `${sec.name}` : 'Unknown';
                                       return (
-                                        <div key={sub.id} className="flex items-center justify-between p-3 bg-indigo-50/40 border border-indigo-100/50 rounded-xl">
+                                        <div key={`${sub.id}-${sub.sectionId || ''}`} className="flex items-center justify-between p-3 bg-indigo-50/40 border border-indigo-100/50 rounded-xl">
                                           <div>
                                             <p className="text-xs font-semibold text-slate-800">{sub.name}</p>
                                             <p className="text-[10px] text-slate-400 mt-0.5">Section Name: <span className="font-bold text-slate-600">{secLabel}</span></p>
@@ -23971,7 +24000,7 @@ function AdminUsersView({
                             </thead>
                             <tbody>
                               {oSubjects.map(sub => (
-                                <tr key={sub.id} className="border-b border-slate-850 hover:bg-slate-800/30 transition-colors">
+                                <tr key={`${sub.id}-${sub.sectionId || ''}`} className="border-b border-slate-850 hover:bg-slate-800/30 transition-colors">
                                   <td className="p-4 font-black text-rose-300">{sub.name}</td>
                                   <td className="p-4 font-mono text-slate-400">{sub.sectionId || 'N/A (Missing)'}</td>
                                   <td className="p-4 text-slate-400 font-semibold">{sub.teacherEmail || 'No teacher assigned'}</td>
@@ -24408,7 +24437,7 @@ function AdminUsersView({
                                       const sec = sectionMap.get(sub.sectionId || '');
                                       const secLabel = sec ? ` (${sec.name})` : '';
                                       return (
-                                        <span key={sub.id} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-800 border border-indigo-100 text-[9px] font-bold">
+                                        <span key={`${sub.id}-${sub.sectionId || ''}`} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-800 border border-indigo-100 text-[9px] font-bold">
                                           📖 {sub.name}{secLabel}
                                         </span>
                                       );

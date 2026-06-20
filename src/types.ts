@@ -242,6 +242,7 @@ export interface AnecdotalRecord {
   status?: 'Pending' | 'Ongoing' | 'Resolved';
   guidancePersonnelName?: string;
   documents?: string[];
+  behaviorLevel?: 'level1' | 'level2' | 'level3';
 }
 
 export interface PTAFee {
