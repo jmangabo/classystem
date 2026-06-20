@@ -51,6 +51,7 @@ export function AnecdotalRecordsView({
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   
   // Form input states
+  const [formSectionId, setFormSectionId] = useState<string>('');
   const [formStudentId, setFormStudentId] = useState('');
   const [formDate, setFormDate] = useState(new Date().toISOString().split('T')[0]);
   const [formTime, setFormTime] = useState(new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' }));
@@ -86,7 +87,9 @@ export function AnecdotalRecordsView({
 
   // Loaded section metadata
   const [allStudents, setAllStudents] = useState<Student[]>([]);
-  const [allSubjects, setAllSubjects] = useState<Subject[]>([]);
+  
+  const [formStudents, setFormStudents] = useState<Student[]>([]);
+  const [formSubjects, setFormSubjects] = useState<Subject[]>([]);
   
   // Refs for PDF exports
   const printContainerRef = useRef<HTMLDivElement>(null);
@@ -95,20 +98,63 @@ export function AnecdotalRecordsView({
   const isTeacher = userProfile?.role === 'teacher';
   const isAdminOrSysAdmin = userProfile?.role === 'admin' || userProfile?.role === 'system_admin';
 
-  // Fetch section subjects
+  const [globalSubjects, setGlobalSubjects] = useState<Subject[]>([]);
+
+  // Fetch global subjects once
   useEffect(() => {
-    if (!selectedSectionId || selectedSectionId === 'all') {
-      setAllSubjects([]);
+    const unsub = onSnapshot(collection(db, 'global_subjects'), (snap) => {
+      setGlobalSubjects(snap.docs.map(d => ({ id: d.id, ...d.data() }) as Subject));
+    });
+    return () => unsub();
+  }, []);
+
+  const [sectionSubjects, setSectionSubjects] = useState<Subject[]>([]);
+
+  // Fetch form subjects and students
+  useEffect(() => {
+    if (!formSectionId || formSectionId === 'all') {
+      setSectionSubjects([]);
+      setFormStudents([]);
       return;
     }
-    const q = query(collection(db, `sections/${selectedSectionId}/subjects`));
-    const unsub = onSnapshot(q, (snap) => {
-      setAllSubjects(snap.docs.map(d => ({ id: d.id, ...d.data() }) as Subject));
+    
+    // Subjects
+    const qSub = query(collection(db, `sections/${formSectionId}/subjects`));
+    const unsubSub = onSnapshot(qSub, (snap) => {
+      setSectionSubjects(snap.docs.map(d => ({ id: d.id, ...d.data() }) as Subject));
     }, (err) => {
       console.error("Error loading subjects:", err);
     });
-    return () => unsub();
-  }, [selectedSectionId]);
+    
+    // Students
+    const qStu = query(collection(db, `sections/${formSectionId}/students`));
+    const unsubStu = onSnapshot(qStu, (snap) => {
+      setFormStudents(snap.docs.map(d => ({ id: d.id, ...d.data() }) as Student));
+    }, (err) => {
+      console.error("Error loading form students:", err);
+    });
+    
+    return () => {
+      unsubSub();
+      unsubStu();
+    };
+  }, [formSectionId]);
+
+  useEffect(() => {
+    if (!formSectionId || formSectionId === 'all') {
+      setFormSubjects([]);
+      return;
+    }
+    
+    const activeSection = sections.find(s => s.id === formSectionId);
+    if (activeSection) {
+      const globalIds = activeSection.globalSubjectIds || [];
+      const activeGlobalSubjects = globalSubjects.filter(gs => globalIds.includes(gs.id));
+      setFormSubjects([...sectionSubjects, ...activeGlobalSubjects]);
+    } else {
+      setFormSubjects(sectionSubjects);
+    }
+  }, [sectionSubjects, sections, globalSubjects, formSectionId]);
 
   // Handle cross-section student lists for Admin roles
   useEffect(() => {
@@ -187,8 +233,9 @@ export function AnecdotalRecordsView({
   useEffect(() => {
     if (preselectedStudent) {
       setFormStudentId(preselectedStudent.id);
-      if (selectedSection) {
-        setSelectedSectionId(selectedSection.id);
+      const sectionId = preselectedStudent.sectionId || selectedSection?.id;
+      if (sectionId) {
+        setFormSectionId(sectionId);
       }
       setFormCategory('behavioral');
       setFormObservation('');
@@ -203,7 +250,9 @@ export function AnecdotalRecordsView({
   // Clean form input resets
   const openNewRecordForm = () => {
     setEditingRecord(null);
-    setFormStudentId(preselectedStudent?.id || (allStudents[0]?.id || ''));
+    const initialSectionId = selectedSectionId !== 'all' ? selectedSectionId : (sections[0]?.id || '');
+    setFormSectionId(initialSectionId);
+    setFormStudentId('');
     setFormDate(new Date().toISOString().split('T')[0]);
     setFormTime(new Date().toTimeString().split(' ')[0].substring(0, 5));
     setFormCategory('behavioral');
@@ -233,15 +282,15 @@ export function AnecdotalRecordsView({
       return;
     }
 
-    const selectedStudentObj = allStudents.find(s => s.id === formStudentId);
+    const selectedStudentObj = formStudents.find(s => s.id === formStudentId) || allStudents.find(s => s.id === formStudentId);
     if (!selectedStudentObj) {
       alert("Invalid student selected.");
       return;
     }
 
     // Determine section context
-    const studentSectionId = selectedSectionId && selectedSectionId !== 'all' 
-      ? selectedSectionId 
+    const studentSectionId = formSectionId && formSectionId !== 'all' 
+      ? formSectionId 
       : selectedStudentObj.sectionId || selectedSection?.id || '';
     
     const activeSection = sections.find(s => s.id === studentSectionId) || selectedSection;
@@ -250,7 +299,7 @@ export function AnecdotalRecordsView({
       return;
     }
 
-    const subjectObj = allSubjects.find(sub => sub.id === formSubjectId);
+    const subjectObj = formSubjects.find(sub => sub.id === formSubjectId);
 
     const recordData: Omit<AnecdotalRecord, 'id'> = {
       studentId: selectedStudentObj.id,
@@ -307,7 +356,7 @@ export function AnecdotalRecordsView({
   // Populate form with existing data when editing
   const initiateEdit = (r: AnecdotalRecord) => {
     setEditingRecord(r);
-    setSelectedSectionId(r.sectionId);
+    setFormSectionId(r.sectionId);
     setFormStudentId(r.studentId);
     setFormDate(r.date);
     setFormTime(r.time || '');
@@ -981,14 +1030,14 @@ export function AnecdotalRecordsView({
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Class Section</label>
                   <select
                     disabled={!!editingRecord}
-                    value={selectedSectionId}
+                    value={formSectionId}
                     onChange={(e) => {
-                      setSelectedSectionId(e.target.value);
+                      setFormSectionId(e.target.value);
                       setFormStudentId(''); // reset selection
                     }}
                     className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none text-xs font-semibold focus:ring-2 focus:ring-indigo-500 bg-slate-50 disabled:opacity-50"
                   >
-                    <option value="all">-- Select Section Class --</option>
+                    <option value="">-- Select Section Class --</option>
                     {sections.map(s => (
                       <option key={s.id} value={s.id}>{s.name} ({s.schoolYear})</option>
                     ))}
@@ -1006,7 +1055,7 @@ export function AnecdotalRecordsView({
                     className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none text-xs font-semibold focus:ring-2 focus:ring-indigo-500 bg-slate-50 disabled:opacity-50"
                   >
                     <option value="">-- Choose Student --</option>
-                    {allStudents.map(s => (
+                    {formStudents.map(s => (
                       <option key={s.id} value={s.id}>{formatStudentName(s)} ({s.lrn || 'N/A'})</option>
                     ))}
                   </select>
@@ -1082,7 +1131,7 @@ export function AnecdotalRecordsView({
                     className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none text-xs font-semibold focus:ring-2 focus:ring-indigo-500 bg-slate-50"
                   >
                     <option value="">-- No Subject Context --</option>
-                    {allSubjects.map(sub => (
+                    {formSubjects.map(sub => (
                       <option key={sub.id} value={sub.id}>{sub.name}</option>
                     ))}
                   </select>
