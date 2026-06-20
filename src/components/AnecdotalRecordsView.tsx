@@ -147,14 +147,34 @@ export function AnecdotalRecordsView({
     }
     
     const activeSection = sections.find(s => s.id === formSectionId);
+    let allSubjectsForSection = sectionSubjects;
+
     if (activeSection) {
       const globalIds = activeSection.globalSubjectIds || [];
-      const activeGlobalSubjects = globalSubjects.filter(gs => globalIds.includes(gs.id));
-      setFormSubjects([...sectionSubjects, ...activeGlobalSubjects]);
-    } else {
-      setFormSubjects(sectionSubjects);
+      const activeGlobalSubjects = globalSubjects.filter(gs => 
+        globalIds.includes(gs.id) || (Number(gs.gradeLevel) === Number(activeSection.gradeLevel))
+      );
+      allSubjectsForSection = [...sectionSubjects, ...activeGlobalSubjects];
     }
-  }, [sectionSubjects, sections, globalSubjects, formSectionId]);
+    
+    // De-duplicate subjects
+    const uniqueMap = new Map<string, Subject>();
+    allSubjectsForSection.forEach(sub => {
+       if (!uniqueMap.has(sub.id)) {
+           uniqueMap.set(sub.id, sub);
+       }
+    });
+    const uniqueSubjects = Array.from(uniqueMap.values());
+
+    if (isTeacher && userProfile?.email) {
+       setFormSubjects(uniqueSubjects.filter(sub => {
+         const assignedTeacher = activeSection?.subjectTeachers?.[sub.id] || sub.teacherEmail;
+         return assignedTeacher === userProfile.email;
+       }));
+    } else {
+       setFormSubjects(uniqueSubjects);
+    }
+  }, [sectionSubjects, sections, globalSubjects, formSectionId, isTeacher, userProfile?.email]);
 
   // Handle cross-section student lists for Admin roles
   useEffect(() => {
@@ -748,9 +768,32 @@ export function AnecdotalRecordsView({
                 className="px-3 py-2 bg-slate-50 border border-slate-200 text-xs font-semibold rounded-xl text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 max-w-[200px]"
               >
                 <option value="all">👤 Filter by Learner (All)</option>
-                {allStudents.map(s => (
-                  <option key={s.id} value={s.id}>{formatStudentName(s)}</option>
-                ))}
+                {(() => {
+                  const sorted = [...allStudents].sort((a, b) => formatStudentName(a).localeCompare(formatStudentName(b)));
+                  const maleStudents = sorted.filter(s => s.sex?.toLowerCase() === 'male');
+                  const femaleStudents = sorted.filter(s => s.sex?.toLowerCase() === 'female');
+                  const otherStudents = sorted.filter(s => s.sex?.toLowerCase() !== 'male' && s.sex?.toLowerCase() !== 'female');
+                  
+                  return (
+                    <>
+                      {maleStudents.length > 0 && (
+                        <optgroup label="Male Learners">
+                          {maleStudents.map(s => <option key={s.id} value={s.id}>{formatStudentName(s)}</option>)}
+                        </optgroup>
+                      )}
+                      {femaleStudents.length > 0 && (
+                        <optgroup label="Female Learners">
+                          {femaleStudents.map(s => <option key={s.id} value={s.id}>{formatStudentName(s)}</option>)}
+                        </optgroup>
+                      )}
+                      {otherStudents.length > 0 && (
+                        <optgroup label="Other">
+                          {otherStudents.map(s => <option key={s.id} value={s.id}>{formatStudentName(s)}</option>)}
+                        </optgroup>
+                      )}
+                    </>
+                  );
+                })()}
               </select>
 
               {/* Reset triggers */}
@@ -1055,9 +1098,32 @@ export function AnecdotalRecordsView({
                     className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none text-xs font-semibold focus:ring-2 focus:ring-indigo-500 bg-slate-50 disabled:opacity-50"
                   >
                     <option value="">-- Choose Student --</option>
-                    {formStudents.map(s => (
-                      <option key={s.id} value={s.id}>{formatStudentName(s)} ({s.lrn || 'N/A'})</option>
-                    ))}
+                    {(() => {
+                      const sorted = [...formStudents].sort((a, b) => formatStudentName(a).localeCompare(formatStudentName(b)));
+                      const maleStudents = sorted.filter(s => s.sex?.toLowerCase() === 'male');
+                      const femaleStudents = sorted.filter(s => s.sex?.toLowerCase() === 'female');
+                      const otherStudents = sorted.filter(s => s.sex?.toLowerCase() !== 'male' && s.sex?.toLowerCase() !== 'female');
+                      
+                      return (
+                        <>
+                          {maleStudents.length > 0 && (
+                            <optgroup label="Male Learners">
+                              {maleStudents.map(s => <option key={s.id} value={s.id}>{formatStudentName(s)} ({s.lrn || 'N/A'})</option>)}
+                            </optgroup>
+                          )}
+                          {femaleStudents.length > 0 && (
+                            <optgroup label="Female Learners">
+                              {femaleStudents.map(s => <option key={s.id} value={s.id}>{formatStudentName(s)} ({s.lrn || 'N/A'})</option>)}
+                            </optgroup>
+                          )}
+                          {otherStudents.length > 0 && (
+                            <optgroup label="Other">
+                              {otherStudents.map(s => <option key={s.id} value={s.id}>{formatStudentName(s)} ({s.lrn || 'N/A'})</option>)}
+                            </optgroup>
+                          )}
+                        </>
+                      );
+                    })()}
                   </select>
                   {preselectedStudent && (
                     <span className="text-[9px] font-black text-indigo-500 uppercase mt-1 block">
