@@ -279,6 +279,82 @@
         "cashierEmails": { "type": "array" },
         "schoolId": { "type": "string" }
       }
+    },
+    "GuidanceAppointment": {
+      "title": "Guidance Appointment",
+      "description": "Meeting request between a student/parent and guidance counselor",
+      "type": "object",
+      "properties": {
+        "studentId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "time": { "type": "string" },
+        "mode": { "type": "string" },
+        "reason": { "type": "string" },
+        "status": { "type": "string" },
+        "requestedByRole": { "type": "string" },
+        "requestedByName": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["studentId", "studentName", "date", "time", "reason", "status", "createdAt"]
+    },
+    "GuidanceConcern": {
+      "title": "Guidance Concern / Incident Report",
+      "description": "Report detailing a student or counseling concern, potentially anonymous",
+      "type": "object",
+      "properties": {
+        "category": { "type": "string" },
+        "details": { "type": "string" },
+        "isAnonymous": { "type": "boolean" },
+        "contactInfo": { "type": "string" },
+        "byUser": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["category", "details", "isAnonymous", "status", "createdAt"]
+    },
+    "GuidanceReferral": {
+      "title": "Guidance Referral",
+      "description": "Official referral of a learner to the guidance counselor by a teacher or staff member",
+      "type": "object",
+      "properties": {
+        "studentId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "referredBy": { "type": "string" },
+        "referrerRole": { "type": "string" },
+        "reason": { "type": "string" },
+        "urgency": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["studentId", "studentName", "referredBy", "reason", "urgency", "status", "createdAt"]
+    },
+    "GuidanceMessage": {
+      "title": "Guidance Message",
+      "description": "Instant messaging transaction for secure peer/adviser/counselor communication",
+      "type": "object",
+      "properties": {
+        "senderId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "senderRole": { "type": "string" },
+        "text": { "type": "string" },
+        "channel": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["senderId", "senderName", "text", "channel", "timestamp"]
+    },
+    "GuidanceAssessment": {
+      "title": "Guidance Mental/Career Self-Assessment",
+      "description": "Result of self-administered career pathing or mental safety inventory logs",
+      "type": "object",
+      "properties": {
+        "studentId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "assessmentTitle": { "type": "string" },
+        "result": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" }
+      },
+      "required": ["studentId", "studentName", "assessmentTitle", "result", "date"]
     }
   },
   "firestore": {
@@ -329,6 +405,26 @@
     "settings/{settingId}": {
       "schema": "Settings",
       "description": "System-wide and school-wide configuration"
+    },
+    "guidance_appointments/{apptId}": {
+      "schema": "GuidanceAppointment",
+      "description": "Registered counseling meeting slots"
+    },
+    "guidance_concerns/{concernId}": {
+      "schema": "GuidanceConcern",
+      "description": "Peer or advisory anonymous and logged concern details"
+    },
+    "guidance_referrals/{referralId}": {
+      "schema": "GuidanceReferral",
+      "description": "Active counselor references logged by school teachers"
+    },
+    "guidance_messages/{msgId}": {
+      "schema": "GuidanceMessage",
+      "description": "Real-time communication lines with counselor"
+    },
+    "guidance_assessments/{assessmentId}": {
+      "schema": "GuidanceAssessment",
+      "description": "Logs of self-screening forms submitted by students"
     }
   }
 }

@@ -266,5 +266,41 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow write: if isTeacher() || isAdmin() || isSystemAdmin();
     }
+
+    // 9. Guidance Counseling Rules
+    match /guidance_appointments/{apptId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isTeacher() || isAdmin() || isSystemAdmin();
+    }
+
+    match /guidance_concerns/{concernId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isTeacher() || isAdmin() || isSystemAdmin();
+      allow delete: if isAdmin() || isSystemAdmin();
+    }
+
+    match /guidance_referrals/{referralId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isTeacher() || isAdmin() || isSystemAdmin();
+      allow delete: if isAdmin() || isSystemAdmin();
+    }
+
+    match /guidance_messages/{msgId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isTeacher() || isAdmin() || isSystemAdmin();
+      allow delete: if isAdmin() || isSystemAdmin();
+    }
+
+    match /guidance_assessments/{assessmentId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isTeacher() || isAdmin() || isSystemAdmin();
+      allow delete: if isAdmin() || isSystemAdmin();
+    }
   }
 }

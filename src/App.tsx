@@ -2648,6 +2648,9 @@ export default function App() {
          isFeedbackOpen={showFeedbackModal}
          onCloseFeedback={() => setShowFeedbackModal(false)}
          user={userProfile}
+         currentUser={currentUser}
+         sections={sections}
+         students={students}
        />;
     } else {
        return <StudentLinkingView userProfile={userProfile} onLinked={(id, type) => { findStudentEnrollments([{ val: id, type }]); }} onLogout={handleLogout} />;
@@ -3385,8 +3388,8 @@ export default function App() {
       </div>
 
       {/* Workspace Area */}
-      <main className={`flex-1 overflow-x-hidden overflow-y-auto bg-[#fcfdfe] scroll-smooth custom-scrollbar ${['gradebook', 'summary', 'dashboard', 'subjects', 'enroll', 'guide', 'sf8', 'transfers', 'sf10', 'observed-values', 'anecdotes', 'pta', 'tle-dashboard'].includes(activeTab) ? 'p-0' : 'p-6 md:p-12'}`}>
-        <div className={`${['gradebook', 'summary', 'dashboard', 'subjects', 'enroll', 'guide', 'sf8', 'transfers', 'sf10', 'observed-values', 'anecdotes', 'pta', 'tle-dashboard'].includes(activeTab) ? 'w-full' : 'max-w-full 2xl:max-w-[1600px] mx-auto w-full'}`}>
+      <main className={`flex-1 overflow-x-hidden overflow-y-auto bg-[#fcfdfe] scroll-smooth custom-scrollbar ${['gradebook', 'summary', 'dashboard', 'subjects', 'enroll', 'guide', 'sf8', 'transfers', 'sf10', 'observed-values', 'pta', 'tle-dashboard'].includes(activeTab) ? 'p-0' : 'p-6 md:p-12'}`}>
+        <div className={`${['gradebook', 'summary', 'dashboard', 'subjects', 'enroll', 'guide', 'sf8', 'transfers', 'sf10', 'observed-values', 'pta', 'tle-dashboard'].includes(activeTab) ? 'w-full' : 'max-w-full 2xl:max-w-[1600px] mx-auto w-full'}`}>
           <AnimatePresence mode="wait">
             {activeTab === 'tle-dashboard' && (
               <motion.div
@@ -6657,13 +6660,13 @@ function SectionsView({
                       </div>
                       <div className="w-px h-8 bg-slate-200 mx-2"></div>
                        <button 
-                        onClick={onShowFeedback}
-                        className="p-2 bg-white rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-100 transition-all shadow-sm"
-                        title="Submit Feedback"
-                        id="admin_header_feedback_button"
-                      >
-                        <MessageSquare size={16} />
-                      </button>
+                         onClick={onShowFeedback}
+                         className="p-2 bg-white rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-100 transition-all shadow-sm"
+                         title="Submit Feedback"
+                         id="admin_header_feedback_button"
+                       >
+                         <MessageSquare size={16} />
+                       </button>
                    </div>
                 </div>
               </div>
@@ -21415,7 +21418,10 @@ function StudentPortal({
   onShowFeedback,
   isFeedbackOpen,
   onCloseFeedback,
-  user
+  user,
+  currentUser,
+  sections,
+  students
 }: { 
   student: Student, 
   section: Section, 
@@ -21427,7 +21433,10 @@ function StudentPortal({
   onShowFeedback: () => void,
   isFeedbackOpen: boolean,
   onCloseFeedback: () => void,
-  user: UserProfile | null
+  user: UserProfile | null,
+  currentUser: any,
+  sections: Section[],
+  students: Student[]
 }) { 
   const [activeTab, setActiveTab] = useState<'grades' | 'profile' | 'attendance' | 'contributions' | 'anecdotal'>('grades');
   const [showReportCard, setShowReportCard] = useState(false);
@@ -21687,36 +21696,36 @@ function StudentPortal({
              )}
 
              <div className="flex flex-col sm:flex-row items-center justify-between gap-6 border-b border-slate-100 pb-8">
-                <div className="flex items-center bg-slate-100/50 p-1.5 rounded-2xl border border-slate-200/50">
+                <div className="flex items-center bg-slate-100/50 p-1.5 rounded-2xl border border-slate-200/50 flex-wrap gap-1">
                   <button 
                     onClick={() => setActiveTab('grades')}
-                    className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'grades' ? 'bg-white text-slate-900 shadow-sm border border-slate-200/20' : 'text-slate-400 hover:text-slate-600'}`}
+                    className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'grades' ? 'bg-white text-slate-900 shadow-sm border border-slate-200/20' : 'text-slate-400 hover:text-slate-600'}`}
                   >
                     Grades
                   </button>
                   <button 
                     onClick={() => setActiveTab('profile')}
-                    className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'profile' ? 'bg-white text-slate-900 shadow-sm border border-slate-200/20' : 'text-slate-400 hover:text-slate-600'}`}
+                    className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'profile' ? 'bg-white text-slate-900 shadow-sm border border-slate-200/20' : 'text-slate-400 hover:text-slate-600'}`}
                   >
                     Profile
                   </button>
                   {hasCalendarMatch && (
                     <button 
                       onClick={() => setActiveTab('attendance')}
-                      className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'attendance' ? 'bg-white text-slate-900 shadow-sm border border-slate-200/20' : 'text-slate-400 hover:text-slate-600'}`}
+                      className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'attendance' ? 'bg-white text-slate-900 shadow-sm border border-slate-200/20' : 'text-slate-400 hover:text-slate-600'}`}
                     >
                       Attendance
                     </button>
                   )}
                   <button 
                     onClick={() => setActiveTab('contributions')}
-                    className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'contributions' ? 'bg-white text-slate-900 shadow-sm border border-slate-200/20' : 'text-slate-400 hover:text-slate-600'}`}
+                    className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'contributions' ? 'bg-white text-slate-900 shadow-sm border border-slate-200/20' : 'text-slate-400 hover:text-slate-600'}`}
                   >
                     Contributions
                   </button>
                   <button 
                     onClick={() => setActiveTab('anecdotal')}
-                    className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'anecdotal' ? 'bg-white text-slate-900 shadow-sm border border-slate-200/20' : 'text-slate-400 hover:text-slate-600'}`}
+                    className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'anecdotal' ? 'bg-white text-slate-900 shadow-sm border border-slate-200/20' : 'text-slate-400 hover:text-slate-600'}`}
                   >
                     Anecdotal
                   </button>

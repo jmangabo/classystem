@@ -1,0 +1,33 @@
+    const unsubscribeStudents = onSnapshot(qStudents, (snap) => {
+    const unsubscribeSubjects = onSnapshot(qSubjects, (snap) => {
+    const unsubscribe = onSnapshot(q, (snap) => {
+  onSnapshot, 
+    const unsub = onSnapshot(query(collection(db, 'settings'), where('id', '==', `pta_config_${userProfile.schoolId}`)), (snap) => {
+    const unsub = onSnapshot(doc(db, "settings", "general"), (docSnap) => {
+    const unsub = onSnapshot(q, (snap) => {
+    const unsub = onSnapshot(collection(db, 'global_subjects'), (snap) => {
+    const unsub = onSnapshot(q, (snap) => {
+    const unsub = onSnapshot(q, (snap) => {
+    const unsub = onSnapshot(q, (snap) => {
+      unsubscribeSections = onSnapshot(q!, (snapshot) => {
+      const unsubBase = onSnapshot(baseQuery, (snap) => processSections(snap.docs), (err) => {
+        unsubSubjectsGroup = onSnapshot(subjectsQuery, async () => {
+        const unsub = onSnapshot(q, (snapshot) => {
+    const studentsUnsub = onSnapshot(
+    const sectionSubjectsUnsub = onSnapshot(
+       const unsub = onSnapshot(qGroup, snap => {
+    const unsub = onSnapshot(doc(db, "sections", selectedSection.id), (snap) => {
+      const unsub = onSnapshot(collection(db, 'schools'), (snap) => {
+    const unsub = onSnapshot(q, (snap) => {
+    const unsub = onSnapshot(doc(db, "settings", "general"), (docSnap) => {
+    const unsub = onSnapshot(q, (snap) => {
+    const unsub = onSnapshot(q, (snap) => {
+    const unsub = onSnapshot(q, (snap) => {
+    const unsubRecords = onSnapshot(recordsQ, (snap) => {
+        unsubFallback = onSnapshot(fallbackQ, (fallbackSnap) => {
+    const unsubFees = onSnapshot(feesQ, (snap) => {
+    const unsubPayments = onSnapshot(paymentsQ, (snap) => {
+    const unsub = onSnapshot(q, (snap) => {
+    const unsub = onSnapshot(q, (snap) => {
+    const unsub = onSnapshot(q, (snap) => {
+    const unsub = onSnapshot(q, (snap) => {

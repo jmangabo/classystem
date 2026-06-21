@@ -3,9 +3,7 @@ import { getAuth } from 'firebase/auth';
 import { 
   getFirestore,
   initializeFirestore, 
-  persistentLocalCache,
-  persistentSingleTabManager,
-  persistentMultipleTabManager,
+  memoryLocalCache,
   doc, 
   getDocFromServer,
   getDoc as firestoreGetDoc, 
@@ -28,25 +26,18 @@ const app = initializeApp(firebaseConfig);
 // Enable stable connectivity settings with extremely robust fallback mechanisms for sandboxed iFrame restrictions
 let dbInstance;
 try {
-  // 1. Try single-tab caching (much more stable in cross-origin / iframe environments)
-  dbInstance = initializeFirestore(app, {
-    experimentalForceLongPolling: true,
-    localCache: persistentLocalCache({
-      tabManager: persistentSingleTabManager({ forceOwnership: true })
-    })
-  }, firebaseConfig.firestoreDatabaseId);
+  // Initialize Firestore with default settings which auto-detect persistent/IndexedDB cache and fall back gracefully to memory
+  dbInstance = initializeFirestore(app, {}, firebaseConfig.firestoreDatabaseId);
 } catch (error: any) {
   if (error.message?.includes('already been initialized') || error.code === 'failed-precondition') {
-    dbInstance = getFirestore(app);
+    dbInstance = getFirestore(app, firebaseConfig.firestoreDatabaseId);
   } else {
     try {
-      // 2. Try simple online-only if iframe strictly restricts IndexedDB access
-      console.warn("Falling back to standard memory-based Firestore because cache initialization failed:", error);
       dbInstance = initializeFirestore(app, {
-        experimentalForceLongPolling: true
+        localCache: memoryLocalCache()
       }, firebaseConfig.firestoreDatabaseId);
     } catch (fallbackError: any) {
-      dbInstance = getFirestore(app);
+      dbInstance = getFirestore(app, firebaseConfig.firestoreDatabaseId);
     }
   }
 }

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   Plus, Search, FileText, Calendar, Clock, User, BookOpen, Tag, Filter, X, 
   HelpCircle, Trash2, Edit2, ChevronDown, CheckCircle, BarChart2, MessageSquare, 
-  ArrowLeft, Download, AlertCircle, Sparkles, AlertTriangle, Printer, Loader2
+  ArrowLeft, Download, AlertCircle, Sparkles, AlertTriangle, Printer, Loader2, Shield
 } from 'lucide-react';
 import { 
   collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, 
@@ -159,19 +159,53 @@ export function AnecdotalRecordsView({
   // Refs for PDF exports
   const printContainerRef = useRef<HTMLDivElement>(null);
   
-  // Roles permissions info
-  const isTeacher = userProfile?.role === 'teacher';
-  const isAdminOrSysAdmin = userProfile?.role === 'admin' || userProfile?.role === 'system_admin';
+  // We can filter the simulated roles based on actual logged-in user role
+  const getAllowedSimulatedRoles = () => {
+    const actualRole = (userProfile?.role || 'teacher') as string;
+    const allOptions = [
+      { value: 'system_admin', label: 'System Admin' },
+      { value: 'admin', label: 'Admin' },
+      { value: 'school_head', label: 'School Head / Principal' },
+      { value: 'guidance_designate', label: 'Guidance Counselor' },
+      { value: 'teacher', label: 'Teacher' }
+    ];
+
+    if (actualRole === 'system_admin' || actualRole === 'admin') {
+      return allOptions; // Can simulate everything
+    }
+    if (actualRole === 'school_head') {
+      return allOptions.filter(o => ['school_head', 'guidance_designate', 'teacher'].includes(o.value));
+    }
+    if (actualRole === 'guidance_designate') {
+      return allOptions.filter(o => ['guidance_designate', 'teacher'].includes(o.value));
+    }
+    if (actualRole === 'teacher') {
+      return allOptions.filter(o => ['teacher'].includes(o.value));
+    }
+    return [ { value: 'teacher', label: 'Teacher' } ];
+  };
+
+  const initialRole = userProfile?.role || 'teacher';
+  const allowedRoles = getAllowedSimulatedRoles();
+  const defaultRole = allowedRoles.some(r => r.value === initialRole) ? initialRole : (allowedRoles[0]?.value || 'teacher');
+  const [activeRole, setActiveRole] = useState<string>(defaultRole);
+
+  // Roles permissions info based on active simulated role
+  const isTeacher = activeRole === 'teacher';
+  const isAdminOrSysAdmin = activeRole === 'admin' || activeRole === 'system_admin';
 
   const [globalSubjects, setGlobalSubjects] = useState<Subject[]>([]);
 
   // Fetch global subjects once
   useEffect(() => {
+    if (!currentUser) return;
     const unsub = onSnapshot(collection(db, 'global_subjects'), (snap) => {
       setGlobalSubjects(snap.docs.map(d => ({ id: d.id, ...d.data() }) as Subject));
+    }, (err) => {
+      console.warn("AnecdotalRecordsView global subjects load warnings:", err);
     });
     return () => unsub();
-  }, []);
+  }, [currentUser]);
 
   const [sectionSubjects, setSectionSubjects] = useState<Subject[]>([]);
 
@@ -297,7 +331,7 @@ export function AnecdotalRecordsView({
       // Filter list on-the-fly based on permissions
       // If teacher role and not admin/system_admin, only show entries in their classes or ones they made
       let filtered = list;
-      if (userProfile?.role === 'teacher') {
+      if (activeRole === 'teacher') {
         const allowedSectionIds = new Set(sections.map(s => s.id));
         filtered = list.filter(r => 
           r.createdBy === currentUser?.uid || 
@@ -313,7 +347,7 @@ export function AnecdotalRecordsView({
     });
 
     return () => unsub();
-  }, [currentUser, userProfile, sections, selectedSection]);
+  }, [currentUser, userProfile, sections, selectedSection, activeRole]);
 
   // Monitor preselectedStudent and automatically trigger the form slide-over
   useEffect(() => {
@@ -726,7 +760,24 @@ export function AnecdotalRecordsView({
         </div>
 
         {/* CTA Actions */}
-        <div className="flex items-center gap-2 self-start md:self-center">
+        <div className="flex flex-wrap items-center gap-2 self-start md:self-center">
+          {/* Dynamic Sandbox Simulator */}
+          <div className="bg-amber-50/70 border border-amber-200/55 px-3 py-1.5 rounded-xl flex items-center gap-2 mr-2">
+            <div className="flex items-center gap-1 shrink-0">
+              <Shield size={13} className="text-amber-600 animate-pulse" />
+              <span className="text-[9px] font-black uppercase tracking-wider text-amber-800">Evaluating Sandbox Roles</span>
+            </div>
+            <select 
+              value={activeRole} 
+              onChange={(e) => setActiveRole(e.target.value)}
+              className="bg-white text-slate-800 px-2.5 py-0.5 rounded-lg border border-slate-200 outline-none text-[10px] font-black cursor-pointer hover:bg-slate-50 transition-all text-amber-900 font-sans"
+            >
+              {allowedRoles.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
+
           <button
             onClick={() => setShowGuide(true)}
             className="flex items-center gap-1.5 px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-semibold rounded-xl transition-all shadow-sm active:scale-95 whitespace-nowrap hidden sm:flex"
@@ -963,7 +1014,7 @@ export function AnecdotalRecordsView({
               {filteredRecords.map((r, index) => {
                 const catInfo = getCategoryDetails(r.category);
                 const isCreator = r.createdBy === currentUser?.uid;
-                const isSystemAdmin = userProfile?.role === 'system_admin' || userProfile?.role === 'admin';
+                const isSystemAdmin = activeRole === 'system_admin' || activeRole === 'admin';
                 const matchingSection = sections.find(s => s.id === r.sectionId);
                 const isAdviserOfThisSection = (matchingSection?.adviserEmail || "").trim().toLowerCase() === (currentUser?.email || userProfile?.email || "").trim().toLowerCase();
                 const canEdit = isCreator;
@@ -1070,7 +1121,7 @@ export function AnecdotalRecordsView({
                       <div className="flex flex-col sm:flex-row md:flex-col items-stretch md:items-end gap-2 self-end md:self-start md:border-l md:border-slate-100 md:pl-4">
                         {(() => {
                           const matchingSection = sections.find(s => s.id === r.sectionId);
-                          const userRole = currentUser?.role || userProfile?.role;
+                          const userRole = activeRole;
                           const isAdviserOfThisSection = (matchingSection?.adviserEmail || "").trim().toLowerCase() === (currentUser?.email || userProfile?.email || "").trim().toLowerCase();
                           const isAuthorizedRole = userRole === 'school_head' || userRole === 'guidance_designate' || isAdviserOfThisSection;
                           
@@ -1533,7 +1584,7 @@ export function AnecdotalRecordsView({
                 {/* ACTION TAKEN / INTERVENTIONS CONDUCTED */}
                 {(() => {
                   const matchingSection = sections.find(s => s.id === readRecord.sectionId);
-                  const userRole = currentUser?.role || userProfile?.role;
+                  const userRole = activeRole;
                   const isAdviserOfThisSection = (matchingSection?.adviserEmail || "").trim().toLowerCase() === (currentUser?.email || userProfile?.email || "").trim().toLowerCase();
                   const canSaveAction = readRecord.createdBy === currentUser?.uid || isAdminOrSysAdmin || isAdviserOfThisSection || userRole === 'school_head' || userRole === 'guidance_designate';
 
