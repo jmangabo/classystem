@@ -1,0 +1,158 @@
+3900:            onReasonChange={setStatusChangeReason}
+4044:                  onChange={(e) => onDateChange(e.target.value)}
+4060:                  onChange={(e) => onReasonChange(e.target.value)}
+4226:              onChange={e => setForm({...form, name: e.target.value})}
+4235:              onChange={e => setForm({...form, grade: e.target.value === "" ? "" : parseInt(e.target.value)})}
+4251:                onChange={e => {
+4278:                onChange={e => setForm({...form, adviserName: e.target.value})}
+4289:              onChange={e => setForm({...form, adviserEmail: e.target.value})}
+4308:                onChange={e => setForm({...form, schoolId: e.target.value})}
+4320:                onChange={e => setForm({...form, schoolId: e.target.value})}
+4380:              onChange={e => setForm({...form, schoolYear: e.target.value})}
+4390:              onChange={e => setForm({...form, schoolYear: e.target.value})}
+6805:                          onChange={handleDashboardFileUpload}
+6933:                      onChange={e => setFilters({...filters, schoolYear: e.target.value})}
+6981:                          onChange={e => setFilters({...filters, region: e.target.value})}
+6992:                          onChange={e => setFilters({...filters, division: e.target.value})}
+7003:                          onChange={e => setFilters({...filters, district: e.target.value})}
+7014:                          onChange={e => setFilters({...filters, visibility: e.target.value})}
+7902:                          onChange={(e) => setFormActionTaken(e.target.value)}
+8079:                    onChange={(e) => setRequestDeletionReason(e.target.value)}
+8091:                    onChange={(e) => setDisapprovalReason(e.target.value)}
+8321:                    onChange={(e) => setBulkFirstAttendanceDateDashboard(e.target.value)}
+8363:                              onChange={() => {
+8572:            onChange={e => updateEligibility({ type: e.target.value as any })}
+8593:                onChange={e => updateEligibility({ genAvg: e.target.value })}
+8603:                onChange={e => updateEligibility({ citation: e.target.value })}
+8612:                onChange={e => updateEligibility({ elemSchoolName: e.target.value })}
+8621:                onChange={e => updateEligibility({ elemSchoolId: e.target.value })}
+8630:                onChange={e => updateEligibility({ elemSchoolAddress: e.target.value })}
+8645:                onChange={e => updateEligibility({ genAvg: e.target.value })}
+8655:                onChange={e => updateEligibility({ hsCompletionDate: e.target.value })}
+8664:                onChange={e => updateEligibility({ hsSchoolName: e.target.value })}
+8673:                onChange={e => updateEligibility({ hsSchoolAddress: e.target.value })}
+8688:                onChange={e => updateEligibility({ genAvg: e.target.value })}
+8698:                onChange={e => updateEligibility({ jhsCompletionDate: e.target.value })}
+8707:                onChange={e => updateEligibility({ jhsSchoolName: e.target.value })}
+8716:                onChange={e => updateEligibility({ jhsSchoolAddress: e.target.value })}
+8730:                onChange={e => updateEligibility({ peptRating: e.target.value })}
+8740:                onChange={e => updateEligibility({ peptDate: e.target.value })}
+8754:                onChange={e => updateEligibility({ alsRating: e.target.value })}
+8763:                onChange={e => updateEligibility({ alsCenterInfo: e.target.value })}
+8776:              onChange={e => updateEligibility({ othersSpecify: e.target.value })}
+8978:                onChange={e => setSearchLrn(e.target.value)}
+9027:                  onChange={handleImageFileChange}
+9049:                    onChange={e => setForm({...form, lastName: capitalizeName(e.target.value)})}
+9060:                    onChange={e => setForm({...form, firstName: capitalizeName(e.target.value)})}
+9071:                    onChange={e => setForm({...form, middleName: capitalizeName(e.target.value)})}
+9082:                    onChange={e => setForm({...form, extension: capitalizeName(e.target.value)})}
+9095:                    onChange={e => setForm({...form, lrn: e.target.value})}
+9105:                    onChange={e => {
+9132:                onChange={e => setForm({...form, email: e.target.value})}
+9148:                  onChange={e => setForm({...form, age: e.target.value})}
+9157:                  onChange={e => setForm({...form, sex: e.target.value})}
+9174:                    onChange={e => setForm({...form, weight: e.target.value})}
+9185:                    onChange={e => setForm({...form, height: e.target.value})}
+9206:                onChange={e => setForm({...form, dateOfFirstAttendance: e.target.value})}
+9216:                 onChange={e => setForm({...form, isTransferredIn: e.target.checked})}
+9230:                onChange={e => setForm({...form, birthplace: capitalizeName(e.target.value)})}
+9241:                onChange={e => setForm({...form, address: e.target.value})}
+9253:                    <input type="radio" name="primaryAdd" checked={form.primaryContact === 'father'} onChange={() => setForm({...form, primaryContact: 'father'})} className="rounded text-indigo-600 cursor-pointer" />
+9261:                  onChange={e => setForm({...form, fatherName: capitalizeName(e.target.value)})}
+9270:                    <input type="radio" name="primaryAdd" checked={form.primaryContact === 'mother'} onChange={() => setForm({...form, primaryContact: 'mother'})} className="rounded text-indigo-600 cursor-pointer" />
+9278:                  onChange={e => setForm({...form, motherName: capitalizeName(e.target.value)})}
+9287:                    <input type="radio" name="primaryAdd" checked={form.primaryContact === 'guardian'} onChange={() => setForm({...form, primaryContact: 'guardian'})} className="rounded text-indigo-600 cursor-pointer" />
+9295:                  onChange={e => setForm({...form, guardianName: capitalizeName(e.target.value)})}
+9306:                  onChange={e => setForm({...form, guardianRelationship: capitalizeFirst(e.target.value)})}
+9318:                onChange={e => setForm({...form, contactNumber: e.target.value})}
+9326:                onChange={(newIds) => setForm({...form, siblingIds: newIds})} 
+9351:                             onChange={(e) => {
+10355:                    onChange={e => setBulkFirstAttendanceDate(e.target.value)}
+10494:                    onChange={handleFileUpload}
+10566:              onChange={(e) => onSearchChange(e.target.value)}
+11856:                  onChange={(e) => setCardTheme(e.target.value as any)}
+11883:                  onChange={(e) => setLayoutType(e.target.value as any)}
+11969:                        onChange={(e) => setEmergencyNotes(e.target.value)}
+11984:                        onChange={async (e) => {
+12017:                    onChange={(e) => setFontFamily(e.target.value)}
+12113:                  onChange={(e) => setSearchStudentTerm(e.target.value)}
+12812:                      onChange={(e) => {
+12839:                      onChange={(e) => {
+13146:                  onChange={handleImageFileChange}
+13168:                    onChange={e => setForm({...form, lastName: capitalizeName(e.target.value)})}
+13179:                    onChange={e => setForm({...form, firstName: capitalizeName(e.target.value)})}
+13190:                    onChange={e => setForm({...form, middleName: capitalizeName(e.target.value)})}
+13201:                    onChange={e => setForm({...form, extension: capitalizeName(e.target.value)})}
+13216:                  onChange={e => setForm({...form, lrn: e.target.value})}
+13227:                  onChange={e => setForm({...form, birthplace: capitalizeName(e.target.value)})}
+13238:                  onChange={e => setForm({...form, address: e.target.value})}
+13249:                    <input type="radio" name="primaryEdit" checked={form.primaryContact === 'father'} onChange={() => setForm({...form, primaryContact: 'father'})} className="rounded text-blue-600 cursor-pointer" />
+13257:                  onChange={e => setForm({...form, fatherName: capitalizeName(e.target.value)})}
+13266:                    <input type="radio" name="primaryEdit" checked={form.primaryContact === 'mother'} onChange={() => setForm({...form, primaryContact: 'mother'})} className="rounded text-blue-600 cursor-pointer" />
+13274:                  onChange={e => setForm({...form, motherName: capitalizeName(e.target.value)})}
+13283:                    <input type="radio" name="primaryEdit" checked={form.primaryContact === 'guardian'} onChange={() => setForm({...form, primaryContact: 'guardian'})} className="rounded text-blue-600 cursor-pointer" />
+13291:                  onChange={e => setForm({...form, guardianName: capitalizeName(e.target.value)})}
+13302:                  onChange={e => setForm({...form, guardianRelationship: capitalizeFirst(e.target.value)})}
+13314:                onChange={e => setForm({...form, contactNumber: e.target.value})}
+13323:                  onChange={e => {
+13349:                onChange={e => setForm({...form, email: e.target.value})}
+13364:                  onChange={e => setForm({...form, age: e.target.value})}
+13373:                  onChange={e => setForm({...form, sex: e.target.value})}
+13389:                    onChange={e => setForm({...form, weight: e.target.value})}
+13399:                    onChange={e => setForm({...form, height: e.target.value})}
+13420:                onChange={e => setForm({...form, dateOfFirstAttendance: e.target.value})}
+13430:                 onChange={e => setForm({...form, isTransferredIn: e.target.checked})}
+13441:                onChange={(newIds) => setForm({...form, siblingIds: newIds})} 
+14462:                    onChange={(e) => handleScoreChange(student.id, 'written', i, e.target.value)}
+14489:              onChange={(e) => handleScoreChange(student.id, 'performance', i, e.target.value)}
+14516:              onChange={(e) => handleScoreChange(student.id, 'summative', i, e.target.value)}
+14538:              onChange={(e) => handleExamChange(student.id, e.target.value)}
+14562:                     onChange={(e) => handleManualFinalGradeChange(student.id, e.target.value)}
+14661:                    onChange={(e) => {
+14684:                      onChange={(e) => {
+14807:                        onChange={(e) => handleMassUpdate('written', 'names', i, e.target.value)}
+14824:                        onChange={(e) => handleMassUpdate('performance', 'names', i, e.target.value)}
+14841:                        onChange={(e) => handleMassUpdate('summative', 'names', i, e.target.value)}
+14865:                        onChange={(e) => handleMassUpdate('written', 'maxScores', i, e.target.value)}
+14885:                        onChange={(e) => handleMassUpdate('performance', 'maxScores', i, e.target.value)}
+14905:                        onChange={(e) => handleMassUpdate('summative', 'maxScores', i, e.target.value)}
+14917:                        onChange={(e) => handleExamMaxChange(e.target.value)}
+16195:                    onChange={(e) => setGlobalPresetGradeLevel(e.target.value)}
+16357:                    onChange={e => setPresetSubjectGroup(e.target.value as any)}
+16376:                        onChange={e => setPresetTeacherEmail(e.target.value)}
+16391:                        onChange={e => setPresetTeacherEmail(e.target.value)}
+16555:                               <input type="checkbox" checked={isSelected} onChange={(e) => {
+16583:                            onChange={e => setForm({...form, teacherEmail: e.target.value})}
+16601:                            onChange={e => setForm({...form, teacherEmail: e.target.value})}
+16615:                          onChange={e => {
+16632:                        onChange={e => setForm({...form, group: e.target.value as any})}
+16654:                        onChange={e => setForm({...form, name: e.target.value})}
+16670:                            onChange={e => setForm({...form, teacherEmail: e.target.value})}
+16688:                            onChange={e => setForm({...form, teacherEmail: e.target.value})}
+16775:                        onChange={e => setForm({...form, gradeLevel: e.target.value === "" ? "" : parseInt(e.target.value)})}
+16792:                        onChange={e => {
+16811:                          onChange={e => setForm({...form, wwWeight: parseInt(e.target.value) || 0})}
+16820:                          onChange={e => setForm({...form, ptWeight: parseInt(e.target.value) || 0})}
+16829:                          onChange={e => setForm({...form, taWeight: parseInt(e.target.value) || 0})}
+16891:                onChange={(e) => setSelectedGradeFilter(e.target.value)}
+16915:                onChange={(e) => setSelectedTermFilter(e.target.value)}
+19241:                onChange={(e) => setUseDescriptiveGrading(e.target.checked)}
+20606:                    onChange={(e) => setUseDescriptiveGrading(e.target.checked)}
+21285:              onChange={e => { setSchoolId(e.target.value); setError(null); }}
+21296:                onChange={e => { setLrn(e.target.value); setError(null); }}
+21379:             onChange={e => setLrn(e.target.value)}
+22282:                           onChange={(e) => setAnecdoteYearFilter(e.target.value)}
+22297:                           onChange={(e) => setAnecdoteCategoryFilter(e.target.value)}
+23602:                    onChange={(e) => setEditUserName(e.target.value)}
+24327:              onChange={(e) => setSearchTerm(e.target.value)}
+25365:                onChange={(e) => setEditForm({ ...editForm, displayName: e.target.value })}
+25934:                      <input type="file" accept="image/*" onChange={(e) => handleAdminLogoUpload(e, 'deped')} className="absolute inset-0 opacity-0 cursor-pointer" />
+25941:                      <input type="file" accept="image/*" onChange={(e) => handleAdminLogoUpload(e, 'school')} className="absolute inset-0 opacity-0 cursor-pointer" />
+25951:                    onChange={e => setNewSchool({...newSchool, name: e.target.value})}
+25961:                      onChange={e => setNewSchool({...newSchool, schoolId: e.target.value})}
+25970:                      onChange={e => setNewSchool({...newSchool, headOfSchool: e.target.value})}
+25979:                    <input value={newSchool.region || ''} onChange={e => setNewSchool({...newSchool, region: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" />
+25983:                    <input value={newSchool.division || ''} onChange={e => setNewSchool({...newSchool, division: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" />
+25987:                    <input value={newSchool.district || ''} onChange={e => setNewSchool({...newSchool, district: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" />
+25996:                    onChange={e => setNewSchool({...newSchool, createdAt: e.target.value ? new Date(e.target.value).toISOString() : ''})}
+26081:                      onChange={handleFileUpload}

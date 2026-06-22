@@ -85,7 +85,8 @@ import {
   Camera,
   Save,
   Info,
-  Edit
+  Edit,
+  Copy
 } from "lucide-react";
 
 import { SystemDocumentationView } from "./components/SystemDocumentationView";
@@ -616,8 +617,8 @@ const calculateGrade = (student: Student, subject: Subject, term: TermNumber) =>
 
   const calc = (cat: string, weight: number) => {
     const component = (data[cat as keyof typeof data] || { scores: [], maxScores: [] }) as any;
-    const total = (component.scores || []).reduce((a: number, b: number) => a + b, 0);
-    const max = (component.maxScores || []).reduce((a: number, b: number) => a + b, 0);
+    const total = (component.scores || []).reduce((a: number, b: any) => a + (Number(b) || 0), 0);
+    const max = (component.maxScores || []).reduce((a: number, b: any) => a + (Number(b) || 0), 0);
     const ps = max === 0 ? 0 : (total / max) * 100;
     const ws = ps * (weight / 100);
     return { total, ps, ws, max };
@@ -627,11 +628,11 @@ const calculateGrade = (student: Student, subject: Subject, term: TermNumber) =>
   const pt = calc('performanceTasks', subject.ptWeight);
   
   const stComponent = data.summativeTests || { scores: [], maxScores: [] };
-  const stTotal = (stComponent.scores || []).reduce((a: number, b: number) => a + b, 0);
-  const stMax = (stComponent.maxScores || []).reduce((a: number, b: number) => a + b, 0);
+  const stTotal = (stComponent.scores || []).reduce((a: number, b: any) => a + (Number(b) || 0), 0);
+  const stMax = (stComponent.maxScores || []).reduce((a: number, b: any) => a + (Number(b) || 0), 0);
   
-  const exTotal = data.termExam?.score || 0;
-  const exMax = data.termExam?.maxScore || 0;
+  const exTotal = Number(data.termExam?.score) || 0;
+  const exMax = Number(data.termExam?.maxScore) || 0;
   
   const taTotal = stTotal + exTotal;
   const taMax = stMax + exMax;
@@ -14021,9 +14022,9 @@ function GradebookView({
     // 8. Row 8: HIGHEST POSSIBLE SCORE (HPS) Row
     const refStudent = students[0] || { grades: {} };
     const refData = getStudentTermData(refStudent as Student);
-    const gWWMax = (refData.writtenWorks?.maxScores || []).reduce((a: number, b: number) => a + b, 0);
-    const gPTMax = (refData.performanceTasks?.maxScores || []).reduce((a: number, b: number) => a + b, 0);
-    const gSTMax = (refData.summativeTests?.maxScores || []).reduce((a: number, b: number) => a + b, 0);
+    const gWWMax = (refData.writtenWorks?.maxScores || []).reduce((a: number, b: any) => a + (Number(b) || 0), 0);
+    const gPTMax = (refData.performanceTasks?.maxScores || []).reduce((a: number, b: any) => a + (Number(b) || 0), 0);
+    const gSTMax = (refData.summativeTests?.maxScores || []).reduce((a: number, b: any) => a + (Number(b) || 0), 0);
     const gExamMax = refData.termExam?.maxScore || 0;
     const gTAMax = gSTMax + gExamMax;
 
@@ -14074,9 +14075,9 @@ function GradebookView({
       const g = calculateGrade(student, selectedSubject, activeTerm);
       const data = getStudentTermData(student);
       
-      const wwMax = (refData.writtenWorks?.maxScores || []).reduce((a: number, b: number) => a + b, 0);
-      const ptMax = (refData.performanceTasks?.maxScores || []).reduce((a: number, b: number) => a + b, 0);
-      const taMax = (refData.summativeTests?.maxScores || []).reduce((a: number, b: number) => a + b, 0) + (refData.termExam?.maxScore || 0);
+      const wwMax = (refData.writtenWorks?.maxScores || []).reduce((a: number, b: any) => a + (Number(b) || 0), 0);
+      const ptMax = (refData.performanceTasks?.maxScores || []).reduce((a: number, b: any) => a + (Number(b) || 0), 0);
+      const taMax = (refData.summativeTests?.maxScores || []).reduce((a: number, b: any) => a + (Number(b) || 0), 0) + (refData.termExam?.maxScore || 0);
 
       const row = [
         createCell(formatStudentName(student), { align: "left" }),
@@ -14287,7 +14288,7 @@ function GradebookView({
     const student = students.find(s => s.id === studentId);
     if (!student) return;
     
-    const numValue = parseInt(value) || 0;
+    const numValue = value === '' ? '' : (parseInt(value) || 0);
     const categoryKey = category === 'written' ? 'writtenWorks' : 
                         category === 'performance' ? 'performanceTasks' : 
                         'summativeTests';
@@ -14297,7 +14298,7 @@ function GradebookView({
     if (hpsSource) {
       const refData = getStudentTermData(hpsSource);
       const hps = (refData as any)[categoryKey]?.maxScores?.[index] || 0;
-      if (numValue > hps && hps > 0) {
+      if (typeof numValue === 'number' && numValue > hps && hps > 0) {
         alert(`Error: Entered score (${numValue}) is HIGHER than the HPS (${hps}). The score will not be saved.`);
         return;
       }
@@ -14313,14 +14314,14 @@ function GradebookView({
   const handleExamChange = (studentId: string, value: string) => {
     const student = students.find(s => s.id === studentId);
     if (!student) return;
-    const numValue = parseInt(value) || 0;
+    const numValue = value === '' ? '' : (parseInt(value) || 0);
     
     // Validation: HPS Check
     const hpsSource = students[0];
     if (hpsSource) {
       const refData = getStudentTermData(hpsSource);
       const hps = refData.termExam?.maxScore || 0;
-      if (numValue > hps && hps > 0) {
+      if (typeof numValue === 'number' && numValue > hps && hps > 0) {
         alert(`Error: Entered score (${numValue}) is HIGHER than the HPS (${hps}). The score will not be saved.`);
         return;
       }
@@ -14350,7 +14351,7 @@ function GradebookView({
       let updatedCategory;
       if (field === 'maxScores') {
         const newMaxScores = [...(updated.maxScores || [])];
-        newMaxScores[index] = parseInt(value) || 0;
+        newMaxScores[index] = value === '' ? '' : (parseInt(value) || 0);
         updatedCategory = { ...updated, maxScores: newMaxScores };
       } else {
         const newNames = [...(updated.names || [])];
@@ -14370,7 +14371,7 @@ function GradebookView({
   };
 
   const handleExamMaxChange = (value: string) => {
-    const numValue = parseInt(value) || 0;
+    const numValue = value === '' ? '' : (parseInt(value) || 0);
     const updatedStudents = students.map(student => {
       const data = getStudentTermData(student);
       const newGrades = { ...(student.grades || {}) };
@@ -14457,7 +14458,7 @@ function GradebookView({
                     type="text"
                     inputMode="numeric"
                     disabled={isDisabled}
-                    value={(data.writtenWorks?.scores?.[i] === 0 || !data.writtenWorks?.scores?.[i]) ? '' : data.writtenWorks.scores[i]}
+                    value={data.writtenWorks?.scores?.[i] ?? ''}
                     placeholder={hasHps ? "0" : ""}
                     onChange={(e) => handleScoreChange(student.id, 'written', i, e.target.value)}
                     className={`w-full text-center text-xs text-slate-700 font-medium p-1 outline-none transition-all h-7 ${
@@ -14484,7 +14485,7 @@ function GradebookView({
               type="text"
               inputMode="numeric"
               disabled={isDisabled}
-              value={(data.performanceTasks?.scores?.[i] === 0 || !data.performanceTasks?.scores?.[i]) ? '' : data.performanceTasks.scores[i]}
+              value={data.performanceTasks?.scores?.[i] ?? ''}
               placeholder={hasHps ? "0" : ""}
               onChange={(e) => handleScoreChange(student.id, 'performance', i, e.target.value)}
               className={`w-full text-center text-xs text-slate-700 font-medium p-1 outline-none transition-all h-7 ${
@@ -14511,7 +14512,7 @@ function GradebookView({
               type="text"
               inputMode="numeric"
               disabled={isDisabled}
-              value={(data.summativeTests?.scores?.[i] === 0 || !data.summativeTests?.scores?.[i]) ? '' : data.summativeTests.scores[i]}
+              value={data.summativeTests?.scores?.[i] ?? ''}
               placeholder={hasHps ? "0" : ""}
               onChange={(e) => handleScoreChange(student.id, 'summative', i, e.target.value)}
               className={`w-full text-center text-xs text-slate-700 font-medium p-1 outline-none transition-all h-7 ${
@@ -14533,7 +14534,7 @@ function GradebookView({
               type="text"
               inputMode="numeric"
               disabled={isDisabled}
-              value={(data.termExam?.score === 0 || !data.termExam?.score) ? '' : data.termExam.score}
+              value={data.termExam?.score ?? ''}
               placeholder={hasHps ? "0" : ""}
               onChange={(e) => handleExamChange(student.id, e.target.value)}
               className={`w-full text-center text-xs text-slate-700 font-medium p-1 outline-none transition-all h-7 ${
@@ -14869,7 +14870,7 @@ function GradebookView({
                     </td>
                   ))}
                   <td className="bg-slate-50/50 text-slate-800 font-bold text-center border-r border-slate-200 py-2">
-                    {(refData.writtenWorks?.maxScores || []).reduce((a: number, b: number) => a + b, 0) || ""}
+                    {(refData.writtenWorks?.maxScores || []).reduce((a: number, b: any) => a + (Number(b) || 0), 0) || ""}
                   </td>
                   <td className="bg-slate-50 border-r border-slate-200"></td>
                   <td className="bg-slate-50 border-r border-slate-200"></td>
@@ -14889,7 +14890,7 @@ function GradebookView({
                     </td>
                   ))}
                   <td className="bg-slate-50/50 text-slate-800 font-bold text-center border-r border-slate-200 py-2">
-                    {(refData.performanceTasks?.maxScores || []).reduce((a: number, b: number) => a + b, 0) || ""}
+                    {(refData.performanceTasks?.maxScores || []).reduce((a: number, b: any) => a + (Number(b) || 0), 0) || ""}
                   </td>
                   <td className="bg-slate-50 border-r border-slate-200"></td>
                   <td className="bg-slate-50 border-r border-slate-200"></td>
@@ -14920,7 +14921,7 @@ function GradebookView({
                       />
                   </td>
                   <td className="bg-slate-50/50 text-slate-800 font-bold text-center border-r border-slate-200 py-2">
-                    {((refData.summativeTests?.maxScores || []).reduce((a: number, b: number) => a + b, 0) + (refData.termExam?.maxScore || 0)) || ""}
+                    {((refData.summativeTests?.maxScores || []).reduce((a: number, b: any) => a + (Number(b) || 0), 0) + Number(refData.termExam?.maxScore || 0)) || ""}
                   </td>
                   <td className="bg-slate-50 border-r border-slate-200"></td>
                   <td className="bg-slate-50 border-r border-slate-200"></td>
@@ -23178,7 +23179,7 @@ function AdminUsersView({
 
   // New States for Logs Viewer Modal
   const [showLogsDialog, setShowLogsDialog] = useState(false);
-  const [logsActiveTab, setLogsActiveTab] = useState<'orphans' | 'audit' | 'diagnostics'>('orphans');
+  const [logsActiveTab, setLogsActiveTab] = useState<'orphans' | 'audit' | 'diagnostics' | 'duplications'>('orphans');
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [loadingAuditLogs, setLoadingAuditLogs] = useState(false);
   const [purgingAuditLogs, setPurgingAuditLogs] = useState(false);
@@ -23932,6 +23933,18 @@ function AdminUsersView({
                 <Activity size={14} />
                 <span>Compliance Health</span>
               </button>
+
+              <button 
+                onClick={() => setLogsActiveTab('duplications')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${
+                  logsActiveTab === 'duplications'
+                    ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' 
+                    : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                }`}
+              >
+                <Copy size={14} />
+                <span>Duplications</span>
+              </button>
             </div>
 
             {/* Tab Specific Content area */}
@@ -24253,6 +24266,140 @@ function AdminUsersView({
                   </div>
                 </div>
               )}
+
+              {logsActiveTab === 'duplications' && (() => {
+                  // Find Duplicate Subjects (same name, same section)
+                  const subjectsByNameAndSection = allSubjects.reduce((acc, sub) => {
+                      const key = `${sub.name}||${sub.sectionId || 'no-assigned-section'}`;
+                      if (!acc[key]) acc[key] = [];
+                      acc[key].push(sub);
+                      return acc;
+                  }, {} as Record<string, Subject[]>);
+
+                  const duplicateSubjects = Object.entries(subjectsByNameAndSection)
+                      .filter(([_, subs]) => subs.length > 1)
+                      .map(([key, subs]) => ({ key, subs, isOrphan: key.includes('no-assigned-section') }));
+
+                  // Find Duplicate Students (same name, same section)
+                  const studentsByNameAndSection = allEnrollmentsDiagnostic.reduce((acc, stu) => {
+                      const key = `${stu.studentName}||${stu.sectionId || 'no-assigned-section'}`;
+                      if (!acc[key]) acc[key] = [];
+                      acc[key].push(stu);
+                      return acc;
+                  }, {} as Record<string, any[]>);
+
+                  const duplicateStudents = Object.entries(studentsByNameAndSection)
+                      .filter(([_, stus]) => stus.length > 1)
+                      .map(([key, stus]) => ({ key, stus, isOrphan: key.includes('no-assigned-section') }));
+
+                  return (
+                    <div className="space-y-4">
+                      <div className="bg-slate-900/80 p-4 border-l-4 border-amber-500 rounded-r-2xl text-xs">
+                        <p className="font-bold text-amber-400 uppercase tracking-wide mb-1">Duplicate Content Instances</p>
+                        <p className="text-slate-400 leading-relaxed">The following items are detected as duplicates. This includes multiple instances of subjects or learners with the same name assigned to the same section, as well as duplicated subjects/learners with no assigned section.</p>
+                      </div>
+
+                      {duplicateSubjects.length === 0 && duplicateStudents.length === 0 ? (
+                        <div className="p-10 text-center border-2 border-dashed border-slate-800 rounded-3xl">
+                          <CheckCircle className="text-emerald-500 mx-auto mb-3" size={32} />
+                          <p className="text-sm font-bold uppercase text-slate-300">Clean Database Verification</p>
+                          <p className="text-xs text-slate-500 mt-1">No duplications found. Your database is perfectly synchronized.</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-6">
+                            {duplicateSubjects.length > 0 && (
+                              <div className="border border-slate-800 rounded-2xl overflow-hidden bg-slate-900/50">
+                                <div className="p-3 bg-slate-950/80 border-b border-slate-800 text-xs font-bold text-slate-300 uppercase tracking-wider">Duplicated Subjects ({duplicateSubjects.length} groups)</div>
+                                {duplicateSubjects.map((group, idx) => (
+                                  <div key={idx} className="border-b border-slate-800 last:border-0">
+                                    <div className="p-3 bg-slate-900/80 flex justify-between items-center text-xs">
+                                       <div className="font-bold text-amber-300">
+                                         {group.subs[0].name} <span className="text-slate-500 font-normal">({group.subs.length} instances)</span>
+                                       </div>
+                                       <div className="text-slate-400 font-mono">
+                                         {group.isOrphan ? <span className="text-rose-400 font-black">NO ASSIGNED SECTION</span> : `Section ID: ${group.subs[0].sectionId}`}
+                                       </div>
+                                    </div>
+                                    <table className="w-full text-left text-xs text-slate-300">
+                                      <thead className="bg-slate-950/30">
+                                        <tr className="text-slate-500 uppercase tracking-wider font-bold border-b border-slate-800/50">
+                                          <th className="p-3">Instance ID</th>
+                                          <th className="p-3">Teacher</th>
+                                          <th className="p-3 text-right">Delete Action</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {group.subs.map(sub => (
+                                          <tr key={sub.id} className="border-b border-slate-850 hover:bg-slate-800/30 transition-colors">
+                                            <td className="p-3 font-mono text-slate-400">{sub.id}</td>
+                                            <td className="p-3 text-slate-300">{sub.teacherFullName || sub.teacherEmail || 'No teacher'}</td>
+                                            <td className="p-3 text-right">
+                                              <button 
+                                                onClick={() => deleteSingleOrphan(sub.id, sub.sectionId || '')}
+                                                className="p-1.5 bg-rose-950/40 hover:bg-rose-900/60 border border-rose-900/30 text-rose-400 hover:text-rose-200 rounded-lg transition-all"
+                                                title="Delete this instance"
+                                              >
+                                                <Trash2 size={13} />
+                                              </button>
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {duplicateStudents.length > 0 && (
+                              <div className="border border-slate-800 rounded-2xl overflow-hidden bg-slate-900/50">
+                                <div className="p-3 bg-slate-950/80 border-b border-slate-800 text-xs font-bold text-slate-300 uppercase tracking-wider">Duplicated Learners ({duplicateStudents.length} groups)</div>
+                                {duplicateStudents.map((group, idx) => (
+                                  <div key={idx} className="border-b border-slate-800 last:border-0">
+                                    <div className="p-3 bg-slate-900/80 flex justify-between items-center text-xs">
+                                       <div className="font-bold text-amber-300">
+                                         {group.stus[0].studentName} <span className="text-slate-500 font-normal">({group.stus.length} instances)</span>
+                                       </div>
+                                       <div className="text-slate-400 font-mono">
+                                         {group.isOrphan ? <span className="text-rose-400 font-black">NO ASSIGNED SECTION</span> : `Section ID: ${group.stus[0].sectionId}`}
+                                       </div>
+                                    </div>
+                                    <table className="w-full text-left text-xs text-slate-300">
+                                      <thead className="bg-slate-950/30">
+                                        <tr className="text-slate-500 uppercase tracking-wider font-bold border-b border-slate-800/50">
+                                          <th className="p-3">Instance ID</th>
+                                          <th className="p-3">LRN (if any)</th>
+                                          <th className="p-3 text-right">Delete Action</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {group.stus.map(stu => (
+                                          <tr key={stu.id} className="border-b border-slate-850 hover:bg-slate-800/30 transition-colors">
+                                            <td className="p-3 font-mono text-slate-400">{stu.id}</td>
+                                            <td className="p-3 text-slate-300">{stu.lrn || 'No LRN provided'}</td>
+                                            <td className="p-3 text-right">
+                                              <button 
+                                                onClick={() => deleteSingleOrphanEnrollment(stu.id, stu.sectionId || '')}
+                                                className="p-1.5 bg-rose-950/40 hover:bg-rose-900/60 border border-rose-900/30 text-rose-400 hover:text-rose-200 rounded-lg transition-all"
+                                                title="Delete this instance"
+                                              >
+                                                <Trash2 size={13} />
+                                              </button>
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                        </div>
+                      )}
+                    </div>
+                  )
+              })()}
 
             </div>
 
