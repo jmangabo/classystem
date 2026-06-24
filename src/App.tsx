@@ -912,6 +912,7 @@ export default function App() {
     nutritionalStatus: {},
     isTransferredIn: false,
     siblingIds: [] as string[],
+    enrolledSubjectIds: [] as string[],
     eligibility: {
       type: 'Elementary School Completer',
       genAvg: '',
@@ -1891,13 +1892,6 @@ export default function App() {
       alert("A learner with this LRN already exists in this section.");
       return;
     }
-    
-    const isK10 = Number(selectedSection.gradeLevel) <= 10;
-    const isEnrolledEmpty = !learnerForm.enrolledSubjectIds || learnerForm.enrolledSubjectIds.length === 0;
-    if (!isK10 && isEnrolledEmpty) {
-      const proceed = window.confirm("This learner is not enrolled in any subjects. They will not show up in sheets, grades, or reports until subjects are assigned. Do you want to proceed with saving anyway?");
-      if (!proceed) return;
-    }
 
     // Auto-generate full name for display convenience
     const nameParts = [
@@ -1909,30 +1903,10 @@ export default function App() {
     const fullName = nameParts.join(" ").trim();
     
     try {
-      let resolvedEnrolledSubjectIds = learnerForm.enrolledSubjectIds || [];
-      if (isK10) {
-        const connectedSubjects = await fetchSubjectsForSection(
-          selectedSection.id,
-          Number(selectedSection.gradeLevel),
-          selectedSection.globalSubjectIds || [],
-          globalSubjects
-        );
-        const secGrade = Number(selectedSection.gradeLevel);
-        if (secGrade === 9 || secGrade === 10) {
-          resolvedEnrolledSubjectIds = connectedSubjects
-            .filter(s => !isTleSubject(s.name))
-            .map(s => s.id);
-        } else {
-          resolvedEnrolledSubjectIds = connectedSubjects.map(s => s.id);
-        }
-      }
-
       if (editingId) {
         const oldStudent = students.find(s => s.id === editingId);
-        const oldSiblings = oldStudent?.siblingIds || [];
-        const newSiblings = learnerForm.siblingIds || [];
-
         const { bmi, category } = computeBMI(parseFloat(learnerForm.weight) || 0, parseFloat(learnerForm.height) || 0);
+
         await setDoc(doc(db, `sections/${selectedSection.id}/students`, editingId), {
           ...learnerForm,
           name: fullName,
@@ -1945,7 +1919,6 @@ export default function App() {
             bmiCategory: category
           },
           studentNumber: learnerForm.lrn,
-          enrolledSubjectIds: resolvedEnrolledSubjectIds
         }, { merge: true });
 
         setEditingId(null);
@@ -1985,7 +1958,7 @@ export default function App() {
           eligibility: learnerForm.eligibility || {},
           photo: learnerForm.photo || "",
           grades: {},
-          enrolledSubjectIds: resolvedEnrolledSubjectIds,
+          enrolledSubjectIds: learnerForm.enrolledSubjectIds || [],
           gradeLevel: selectedSection.gradeLevel || "",
           sectionName: selectedSection.name || "",
           siblingIds: learnerForm.siblingIds || []
@@ -2015,7 +1988,7 @@ export default function App() {
         lastName: "", firstName: "", middleName: "", extension: "", name: "", 
         lrn: "", email: "", photo: "", age: "", birthdate: "", sex: "Male", weight: "", height: "", attendance: {}, 
         birthplace: "", address: "", fatherName: "", motherName: "", guardianName: "", guardianRelationship: "", primaryContact: "guardian", contactNumber: "",
-        nutritionalStatus: {}, isTransferredIn: false, siblingIds: [], eligibility: { type: 'Elementary School Completer' } as Eligibility 
+        nutritionalStatus: {}, isTransferredIn: false, siblingIds: [], enrolledSubjectIds: [], eligibility: { type: 'Elementary School Completer' } as Eligibility 
       });
     } catch (error) {
       handleFirestoreError(error, 'write', `sections/${selectedSection.id}/students`);
@@ -2240,6 +2213,7 @@ export default function App() {
       nutritionalStatus: student.nutritionalStatus || {},
       isTransferredIn: student.isTransferredIn || false,
       siblingIds: student.siblingIds || [],
+      enrolledSubjectIds: student.enrolledSubjectIds || [],
       eligibility: student.eligibility || { type: 'Elementary School Completer' } as Eligibility
     });
   };
@@ -2504,27 +2478,7 @@ export default function App() {
     
     // Firestore batches have a 500 operation limit
     const CHUNK_SIZE = 450;
-    const isK10 = Number(selectedSection.gradeLevel) <= 10;
-    let autoSubjectIds: string[] = [];
-    if (isK10) {
-      try {
-        const connectedSubjects = await fetchSubjectsForSection(
-          selectedSection.id,
-          Number(selectedSection.gradeLevel),
-          selectedSection.globalSubjectIds || [],
-          globalSubjects
-        );
-        const secGrade = Number(selectedSection.gradeLevel);
-        if (secGrade === 9 || secGrade === 10) {
-          autoSubjectIds = connectedSubjects.filter(s => !isTleSubject(s.name)).map(s => s.id);
-        } else {
-          autoSubjectIds = connectedSubjects.map(s => s.id);
-        }
-      } catch (err) {
-        console.error("Failed to dynamically resolve bulk upload subjects:", err);
-      }
-    }
-
+    
     const processBatch = async (chunk: any[]) => {
       const batch = writeBatch(db);
       chunk.forEach(learner => {
@@ -2550,7 +2504,7 @@ export default function App() {
           isTransferredIn: learner.isTransferredIn || false,
           eligibility: learner.eligibility || {},
           grades: {},
-          enrolledSubjectIds: isK10 ? autoSubjectIds : [],
+          enrolledSubjectIds: [],
           gradeLevel: learner.gradeLevel || selectedSection.gradeLevel || "",
           sectionName: learner.section || selectedSection.name || ""
         });
@@ -3539,7 +3493,7 @@ export default function App() {
                       lastName: "", firstName: "", middleName: "", extension: "", name: "", 
                       lrn: "", email: "", photo: "", age: "", birthdate: "", sex: "Male", weight: "", height: "", attendance: {}, 
                       birthplace: "", address: "", fatherName: "", motherName: "", guardianName: "", guardianRelationship: "", primaryContact: "guardian", contactNumber: "",
-                      nutritionalStatus: {}, isTransferredIn: false, siblingIds: [], eligibility: { type: 'Elementary School Completer' } as any
+                      nutritionalStatus: {}, isTransferredIn: false, siblingIds: [], enrolledSubjectIds: [], eligibility: { type: 'Elementary School Completer' } as any
                     });
                   }}
                   sectionName={selectedSection.name}
@@ -8457,28 +8411,6 @@ function SectionsView({
 
                           // Process and write batches
                           for (const [secId, list] of Object.entries(grouped)) {
-                            const sec = sections.find(s => s.id === secId);
-                            const isK10 = sec && Number(sec.gradeLevel) <= 10;
-                            let autoSubjectIds: string[] = [];
-                            if (isK10 && sec) {
-                              try {
-                                const connectedSubjects = await fetchSubjectsForSection(
-                                  secId,
-                                  Number(sec.gradeLevel),
-                                  sec.globalSubjectIds || [],
-                                  globalSubjects || []
-                                );
-                                const secGrade = Number(sec.gradeLevel);
-                                if (secGrade === 9 || secGrade === 10) {
-                                  autoSubjectIds = connectedSubjects.filter(s => !isTleSubject(s.name)).map(s => s.id);
-                                } else {
-                                  autoSubjectIds = connectedSubjects.map(s => s.id);
-                                }
-                              } catch (err) {
-                                console.error("Failed to dynamically fetch subjects during dashboard bulk upload:", err);
-                              }
-                            }
-
                             const batch = writeBatch(db);
                             list.forEach(learner => {
                               const docRef = doc(collection(db, `sections/${secId}/students`));
@@ -8503,7 +8435,7 @@ function SectionsView({
                                 isTransferredIn: learner.isTransferredIn || false,
                                 eligibility: learner.eligibility || {},
                                 grades: {},
-                                enrolledSubjectIds: isK10 ? autoSubjectIds : [],
+                                enrolledSubjectIds: [],
                                 gradeLevel: learner.gradeLevel || "",
                                 sectionName: learner.sectionName || ""
                               });
@@ -24277,8 +24209,8 @@ function AdminUsersView({
                   }, {} as Record<string, Subject[]>);
 
                   const duplicateSubjects = Object.entries(subjectsByNameAndSection)
-                      .filter(([_, subs]) => subs.length > 1)
-                      .map(([key, subs]) => ({ key, subs, isOrphan: key.includes('no-assigned-section') }));
+                      .filter(([_, subs]: [string, any]) => subs.length > 1)
+                      .map(([key, subs]: [string, any]) => ({ key, subs, isOrphan: key.includes('no-assigned-section') }));
 
                   // Find Duplicate Students (same name, same section)
                   const studentsByNameAndSection = allEnrollmentsDiagnostic.reduce((acc, stu) => {
@@ -24289,8 +24221,8 @@ function AdminUsersView({
                   }, {} as Record<string, any[]>);
 
                   const duplicateStudents = Object.entries(studentsByNameAndSection)
-                      .filter(([_, stus]) => stus.length > 1)
-                      .map(([key, stus]) => ({ key, stus, isOrphan: key.includes('no-assigned-section') }));
+                      .filter(([_, stus]: [string, any]) => stus.length > 1)
+                      .map(([key, stus]: [string, any]) => ({ key, stus, isOrphan: key.includes('no-assigned-section') }));
 
                   return (
                     <div className="space-y-4">
