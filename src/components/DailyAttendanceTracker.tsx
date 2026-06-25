@@ -1,7 +1,7 @@
 import { formatStudentName } from "../utils";
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import { Student } from '../types';
-import { Filter, Calendar as CalendarIcon, QrCode, X, CheckCircle, AlertCircle } from 'lucide-react';
+import { Filter, Calendar as CalendarIcon, QrCode, X, CheckCircle, AlertCircle, AlertTriangle } from 'lucide-react';
 import { Scanner } from '@yudiel/react-qr-scanner';
 
 interface DailyAttendanceTrackerProps {
@@ -38,6 +38,16 @@ export const DailyAttendanceTracker: React.FC<DailyAttendanceTrackerProps> = ({ 
   const [showScanner, setShowScanner] = useState(false);
   const [recentScan, setRecentScan] = useState<{ status: 'success' | 'error', message: string } | null>(null);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
+  const [scannerError, setScannerError] = useState<string | null>(null);
+
+  const scannerConstraints = useMemo(() => ({
+    facingMode: facingMode
+  }), [facingMode]);
+
+  const scannerComponents = useMemo(() => ({
+    audio: false,
+    finder: true,
+  }), []);
 
   const [selectedTerm, setSelectedTerm] = useState<string>(() => {
     if (userId) {
@@ -267,6 +277,40 @@ export const DailyAttendanceTracker: React.FC<DailyAttendanceTrackerProps> = ({ 
     setTimeout(() => setRecentScan(null), 3000);
   };
 
+  const trackerScanRef = useRef(handleScan);
+  useEffect(() => {
+    trackerScanRef.current = handleScan;
+  }, [handleScan]);
+
+  const handleScannerError = useCallback((err: any) => {
+    console.error("Scanner Error:", err?.message || err);
+    let errMsg = "Unable to access camera.";
+    
+    if (err && typeof err === 'object') {
+      if (err.message) {
+        errMsg = err.message;
+      }
+      const errName = err.name || err.kind;
+      if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError' || errName === 'permission-denied') {
+        errMsg = "Camera permission denied. Please allow camera access in your browser settings.";
+      } else if (errName === 'NotFoundError' || errName === 'DevicesNotFoundError' || errName === 'no-camera') {
+        errMsg = "No camera device found.";
+      } else if (errName === 'OverconstrainedError' || errName === 'overconstrained') {
+        errMsg = "Selected camera type is not available. Please try switching cameras.";
+      }
+    } else if (typeof err === 'string') {
+      errMsg = err;
+    }
+    
+    setScannerError(errMsg);
+  }, []);
+
+  const handleScannerScan = useCallback((result: any[]) => {
+    if (result && result.length > 0) {
+      trackerScanRef.current(result[0].rawValue);
+    }
+  }, []);
+
   const getDateInfo = (year: number, month: string, day: number, termKey: string) => {
     const monthIndex = monthIndices[month];
     const date = new Date(year, monthIndex, day);
@@ -407,7 +451,10 @@ export const DailyAttendanceTracker: React.FC<DailyAttendanceTrackerProps> = ({ 
           </div>
         </div>
         <button 
-          onClick={() => setShowScanner(true)}
+          onClick={() => {
+            setShowScanner(true);
+            setScannerError(null);
+          }}
           className="flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-indigo-200"
         >
           <QrCode size={16} />
@@ -766,21 +813,23 @@ export const DailyAttendanceTracker: React.FC<DailyAttendanceTrackerProps> = ({ 
 
                 <div className="w-full max-w-[300px] aspect-square rounded-2xl overflow-hidden bg-black shadow-inner border-4 border-slate-100 relative">
                   <Scanner
-                    onScan={(result) => {
-                      if (result && result.length > 0) {
-                        handleScan(result[0].rawValue);
-                      }
-                    }}
-                    constraints={{
-                      facingMode: facingMode
-                    }}
-                    components={{
-                      audio: false,
-                      finder: true,
-                    }}
+                    onScan={handleScannerScan}
+                    onError={handleScannerError}
+                    constraints={scannerConstraints}
+                    components={scannerComponents}
                     allowMultiple={true}
                     scanDelay={2000}
                   />
+
+                  {scannerError && (
+                    <div className="absolute inset-0 bg-slate-900/95 flex flex-col items-center justify-center p-4 text-center z-10 animate-in fade-in duration-200">
+                      <div className="w-10 h-10 bg-amber-500/10 text-amber-500 rounded-xl flex items-center justify-center mb-2">
+                        <AlertTriangle size={20} />
+                      </div>
+                      <p className="text-xs font-bold text-white mb-1">Camera Access Issue</p>
+                      <p className="text-[10px] text-slate-300 leading-normal max-w-[200px]">{scannerError}</p>
+                    </div>
+                  )}
                   
                   {/* Scanner overlay corners */}
                   <div className="absolute top-4 left-4 w-8 h-8 border-t-4 border-l-4 border-white/50 rounded-tl-xl"></div>

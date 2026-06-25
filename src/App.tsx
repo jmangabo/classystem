@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Scanner } from "@yudiel/react-qr-scanner";
@@ -870,6 +870,267 @@ export default function App() {
   const [statusChangeTarget, setStatusChangeTarget] = useState<{ student: Student, newStatus: 'Active' | 'Transferred Out' | 'Dropped Out' | 'Retained' | 'Promoted' } | null>(null);
   const [statusChangeDate, setStatusChangeDate] = useState(new Date().toISOString().split('T')[0]);
   const [statusChangeReason, setStatusChangeReason] = useState("");
+
+  const [showGlobalScanner, setShowGlobalScanner] = useState(false);
+  const [globalScannerFacingMode, setGlobalScannerFacingMode] = useState<'user' | 'environment'>('environment');
+  const [globalRecentScan, setGlobalRecentScan] = useState<{ status: 'success' | 'error', message: string, student?: Student | null, section?: Section | null } | null>(null);
+  const [globalScannerError, setGlobalScannerError] = useState<string | null>(null);
+
+  const globalScannerConstraints = useMemo(() => ({
+    facingMode: globalScannerFacingMode
+  }), [globalScannerFacingMode]);
+
+  const globalScannerComponents = useMemo(() => ({
+    audio: false,
+    finder: true,
+  }), []);
+
+  const handleGlobalScan = async (scannedLrn: string) => {
+    if (!scannedLrn) return;
+
+    let targetSection = selectedSection;
+    let student = students.find(s => s.lrn === scannedLrn);
+
+    if (!targetSection) {
+      // Find the student across all sections of active school year
+      try {
+        const q = query(collectionGroup(db, 'students'), where('lrn', '==', scannedLrn));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          const docSnap = snap.docs[0];
+          const pathParts = docSnap.ref.path.split('/');
+          const sectionId = pathParts[1];
+          const sect = sections.find(s => s.id === sectionId);
+          if (sect) {
+            targetSection = sect;
+            student = { id: docSnap.id, ...docSnap.data() } as Student;
+          }
+        }
+      } catch (err) {
+        console.error("Error finding student in global scan:", err);
+      }
+    }
+
+    if (!targetSection || !student) {
+      setGlobalRecentScan({
+        status: 'error',
+        message: targetSection 
+          ? `LRN "${scannedLrn}" was not found in the selected section (${targetSection.name}).`
+          : `LRN "${scannedLrn}" was not found in any registered section.`,
+        student: null,
+        section: null
+      });
+      return;
+    }
+
+    // Now, check for today's validity
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    const JS_MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    const currentMonthStr = JS_MONTHS[today.getMonth()];
+    const currentDay = today.getDate();
+
+    // Reconstruct filtered calendar entries for this section's school year
+    const sectionCal = schoolCalendar.filter(c => c.schoolYear === targetSection.schoolYear);
+    const monthOrder = ["June", "July", "August", "September", "October", "November", "December", "January", "February", "March", "April", "May"];
+    const sortedCal = [...sectionCal].sort((a, b) => monthOrder.indexOf(a.month as string) - monthOrder.indexOf(b.month as string));
+
+    // Construct the calendar map
+    const localCalendarMap: { [key: string]: any } = {};
+    sortedCal.forEach(c => {
+      const term = (c.term || '1').toString();
+      const month = c.month as string;
+      const key = `${month}_${term}`;
+      const year = parseInt(c.year);
+      const openingDate = parseInt(c.openingDate || '1');
+      const closingDate = parseInt(c.closingDate || '31');
+      const localHolidays = c.localHolidays || [];
+      const daysInMonth = new Date(year, (MONTH_INDICES[month] || 0) + 1, 0).getDate();
+
+      const allSchoolDays: number[] = [];
+      for (let d = 1; d <= daysInMonth; d++) {
+        const date = new Date(year, MONTH_INDICES[month], d);
+        const dayOfWeek = date.getDay();
+        const dateStr = `${(MONTH_INDICES[month] + 1).toString().padStart(2, '0')}-${d.toString().padStart(2, '0')}`;
+        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+        const isHoliday = PHILIPPINE_HOLIDAYS.includes(dateStr);
+        if (!isWeekend && !isHoliday) {
+          allSchoolDays.push(d);
+        }
+      }
+
+      const hasManualCoverage = openingDate !== 1 || (closingDate !== 31 && closingDate !== daysInMonth);
+      let validDays: number[] = [];
+
+      if (hasManualCoverage) {
+        validDays = allSchoolDays.filter(d => d >= openingDate && d <= closingDate);
+      } else {
+        const allEntriesForMonth = sortedCal.filter(entry => entry.month === month)
+          .sort((a, b) => (parseInt(a.term || '1') || 1) - (parseInt(b.term || '1') || 1));
+        
+        const currentTermNum = parseInt(term);
+        let startIndex = 0;
+        for (const entry of allEntriesForMonth) {
+          if ((parseInt(entry.term) || 1) < currentTermNum) {
+            startIndex += parseInt(entry.days) || 0;
+          } else {
+            break;
+          }
+        }
+        const daysToTake = parseInt(c.days) || allSchoolDays.length;
+        validDays = allSchoolDays.slice(startIndex, startIndex + daysToTake);
+      }
+
+      localCalendarMap[key] = { 
+        schoolDays: parseInt(c.days) || validDays.length,
+        year,
+        term,
+        month,
+        openingDate,
+        closingDate,
+        validDays,
+        localHolidays
+      };
+    });
+
+    let termKeyToUpdate: string | null = null;
+    for (const key of Object.keys(localCalendarMap)) {
+      const data = localCalendarMap[key];
+      if (data.year === currentYear && data.month === currentMonthStr) {
+        if (data.validDays.includes(currentDay)) {
+          termKeyToUpdate = key;
+          break;
+        }
+      }
+    }
+
+    // Helper for disabled day
+    const isDayDisabled = (stud: Student, year: number, month: string, day: number) => {
+      if (stud.dateOfFirstAttendance) {
+        const [fYear, fMonth, fDay] = stud.dateOfFirstAttendance.split('-').map(Number);
+        const currentMonthIdx = MONTH_INDICES[month];
+        if (year < fYear) return true;
+        if (year === fYear) {
+          if (currentMonthIdx < (fMonth - 1)) return true;
+          if (currentMonthIdx === (fMonth - 1) && day < fDay) return true;
+        }
+      }
+      if (stud.status === 'Dropped Out' || stud.status === 'Transferred Out') {
+        if (stud.dropoutDate) {
+          const [dYear, dMonth, dDay] = stud.dropoutDate.split('-').map(Number);
+          const currentMonthIdx = MONTH_INDICES[month];
+          if (year > dYear) return true;
+          if (year === dYear) {
+            if (currentMonthIdx > (dMonth - 1)) return true;
+            if (currentMonthIdx === (dMonth - 1) && day >= dDay) return true;
+          }
+        }
+      }
+      return false;
+    };
+
+    const isDisabled = isDayDisabled(student, currentYear, currentMonthStr, currentDay);
+    if (isDisabled) {
+      setGlobalRecentScan({
+        status: 'error',
+        message: `${formatStudentName(student)} is marked as inactive, dropped out, or not enrolled today.`,
+        student,
+        section: targetSection
+      });
+      return;
+    }
+
+    if (!termKeyToUpdate) {
+      setGlobalRecentScan({
+        status: 'error',
+        message: `Learner is verified, but today (${currentMonthStr} ${currentDay}) is not registered as a school day in the school calendar.`,
+        student,
+        section: targetSection
+      });
+      return;
+    }
+
+    // Attempt to update attendance
+    try {
+      const dailyAttendance = {
+        ...(student.dailyAttendance || {}),
+        [termKeyToUpdate]: {
+          ...(student.dailyAttendance?.[termKeyToUpdate] || {}),
+          [currentDay]: true
+        }
+      };
+
+      // Calculate monthly present count
+      const monthDaily = dailyAttendance[termKeyToUpdate];
+      let presentCount = 0;
+      Object.values(monthDaily).forEach(val => { if (val) presentCount++; });
+
+      const calendarForMonth = schoolCalendar.find(c => c.schoolYear === targetSection.schoolYear && (`${c.month}_${c.term || '1'}` === termKeyToUpdate || c.month === termKeyToUpdate))?.days || 0;
+      const absentCount = Math.max(0, calendarForMonth - presentCount);
+
+      const attendance = {
+        ...(student.attendance || {}),
+        [termKeyToUpdate]: {
+          present: presentCount,
+          absent: absentCount
+        }
+      };
+
+      await setDoc(doc(db, `sections/${targetSection.id}/students`, student.id), {
+        dailyAttendance,
+        attendance
+      }, { merge: true });
+
+      setGlobalRecentScan({
+        status: 'success',
+        message: `${formatStudentName(student)} is verified & successfully marked present in Section ${targetSection.name} for today.`,
+        student,
+        section: targetSection
+      });
+    } catch (err) {
+      console.error(err);
+      setGlobalRecentScan({
+        status: 'error',
+        message: `Verified LRN, but failed to record attendance: ${err instanceof Error ? err.message : String(err)}`,
+        student,
+        section: targetSection
+      });
+    }
+  };
+
+  const globalScanRef = useRef(handleGlobalScan);
+  useEffect(() => {
+    globalScanRef.current = handleGlobalScan;
+  }, [handleGlobalScan]);
+
+  const handleGlobalScannerError = useCallback((err: any) => {
+    console.error("Scanner Error:", err?.message || err);
+    let errMsg = "Unable to access camera.";
+    
+    if (err && typeof err === 'object') {
+      if (err.message) {
+        errMsg = err.message;
+      }
+      const errName = err.name || err.kind;
+      if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError' || errName === 'permission-denied') {
+        errMsg = "Camera permission denied. Please allow camera access in your browser settings.";
+      } else if (errName === 'NotFoundError' || errName === 'DevicesNotFoundError' || errName === 'no-camera') {
+        errMsg = "No camera device found.";
+      } else if (errName === 'OverconstrainedError' || errName === 'overconstrained') {
+        errMsg = "Selected camera type is not available. Please try switching cameras.";
+      }
+    } else if (typeof err === 'string') {
+      errMsg = err;
+    }
+    
+    setGlobalScannerError(errMsg);
+  }, []);
+
+  const handleGlobalScannerScan = useCallback((result: any[]) => {
+    if (result && result.length > 0) {
+      globalScanRef.current(result[0].rawValue);
+    }
+  }, []);
 
   const [enrollAllModalOpen, setEnrollAllModalOpen] = useState(false);
   const [enrollAllProcessing, setEnrollAllProcessing] = useState(false);
@@ -2906,55 +3167,254 @@ export default function App() {
     }
 
     return (
-      <SectionsView 
+      <>
+        <SectionsView 
+          onScanID={() => {
+            setShowGlobalScanner(true);
+            setGlobalRecentScan(null);
+            setGlobalScannerError(null);
+          }}
+          sections={sections} 
+          expiredSchoolIds={expiredSchoolIds}
+          globalSettings={globalSettings}
+          onSelect={(s) => {
+             setSelectedSection(s);
+             setActiveTab(userProfile?.role === 'school_head' ? 'sf8' : userProfile?.role === 'guidance_designate' ? 'anecdotes' : 'dashboard');
+          }} 
+          onSelectSubject={setSelectedSubjectId}
+          onSetActiveTab={setActiveTab}
+          onNavigateToSubject={(section, subjName) => {
+             setSelectedSection(section);
+             setActiveTab('gradebook');
+             let subjectObj = subjects.find(s => s.name === subjName && s.sectionId === section.id);
+             if (!subjectObj) {
+                subjectObj = subjects.find(s => getTleDisplayName(s.name) === subjName && s.sectionId === section.id);
+             }
+             setSelectedSubjectId(subjectObj ? subjectObj.id : subjName);
+          }}
+          subjects={subjects}
+          globalSubjects={globalSubjects}
+          onCreate={handleCreateSection}
+          onUpdate={handleUpdateSection}
+          onDelete={handleDeleteSection}
+          user={userProfile}
+          onUpdateUser={setUserProfile}
+          onLogout={handleLogout}
+          onManageUsers={() => setShowAdminUsers(true)}
+          onManageStudentList={() => setShowAdminStudentList(true)}
+          onShowFinancialStatement={() => {
+            setShowAdminPTA(true);
+          }}
+          onShowSF4={() => setShowAdminSF4(true)}
+          pendingUsersCount={pendingUsersCount}
+          isAnySectionAdviser={isAnySectionAdviser}
+          onManageSchools={() => setShowAdminSchools(true)}
+          onManageSchoolYears={() => setShowAdminSchoolYear(true)}
+          onManageCalendar={() => setShowAdminSchoolCalendar(true)}
+          onShowFeedback={() => setShowFeedbackModal(true)}
+          isFeedbackOpen={showFeedbackModal}
+          onCloseFeedback={() => setShowFeedbackModal(false)}
+          onShowFeedbackDashboard={() => setShowAdminFeedback(true)}
+          schoolCalendar={schoolCalendar}
+          onToggleFinalizeSubjectTerm={handleToggleFinalizeSubjectTerm}
+          activeSchool={activeSchool}
+          teacherCount={teacherCount}
+          onRenew={handleRenewSubscription}
+        />
 
-        sections={sections} 
-        expiredSchoolIds={expiredSchoolIds}
-        globalSettings={globalSettings}
-        onSelect={(s) => {
-           setSelectedSection(s);
-           setActiveTab(userProfile?.role === 'school_head' ? 'sf8' : userProfile?.role === 'guidance_designate' ? 'anecdotes' : 'dashboard');
-        }} 
-        onSelectSubject={setSelectedSubjectId}
-        onSetActiveTab={setActiveTab}
-        onNavigateToSubject={(section, subjName) => {
-           setSelectedSection(section);
-           setActiveTab('gradebook');
-           let subjectObj = subjects.find(s => s.name === subjName && s.sectionId === section.id);
-           if (!subjectObj) {
-              subjectObj = subjects.find(s => getTleDisplayName(s.name) === subjName && s.sectionId === section.id);
-           }
-           setSelectedSubjectId(subjectObj ? subjectObj.id : subjName);
-        }}
-        subjects={subjects}
-        globalSubjects={globalSubjects}
-        onCreate={handleCreateSection}
-        onUpdate={handleUpdateSection}
-        onDelete={handleDeleteSection}
-        user={userProfile}
-        onUpdateUser={setUserProfile}
-        onLogout={handleLogout}
-        onManageUsers={() => setShowAdminUsers(true)}
-        onManageStudentList={() => setShowAdminStudentList(true)}
-        onShowFinancialStatement={() => {
-          setShowAdminPTA(true);
-        }}
-        onShowSF4={() => setShowAdminSF4(true)}
-        pendingUsersCount={pendingUsersCount}
-        isAnySectionAdviser={isAnySectionAdviser}
-        onManageSchools={() => setShowAdminSchools(true)}
-        onManageSchoolYears={() => setShowAdminSchoolYear(true)}
-        onManageCalendar={() => setShowAdminSchoolCalendar(true)}
-        onShowFeedback={() => setShowFeedbackModal(true)}
-        isFeedbackOpen={showFeedbackModal}
-        onCloseFeedback={() => setShowFeedbackModal(false)}
-        onShowFeedbackDashboard={() => setShowAdminFeedback(true)}
-        schoolCalendar={schoolCalendar}
-        onToggleFinalizeSubjectTerm={handleToggleFinalizeSubjectTerm}
-        activeSchool={activeSchool}
-        teacherCount={teacherCount}
-        onRenew={handleRenewSubscription}
-      />
+        {/* Render Global Scanner if open */}
+        <AnimatePresence>
+          {showGlobalScanner && (
+            <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+              <motion.div 
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+              >
+                <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center shrink-0">
+                      <QrCode size={20} />
+                    </div>
+                    <div>
+                      <h3 className="font-extrabold text-slate-800 tracking-tight">Scan ID Card</h3>
+                      <p className="text-[10px] text-indigo-600 font-bold uppercase tracking-widest">Attendance & Learner Validity</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => {
+                      setShowGlobalScanner(false);
+                      setGlobalRecentScan(null);
+                    }}
+                    className="w-10 h-10 flex items-center justify-center text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+
+                <div className="p-6 overflow-y-auto flex flex-col items-center gap-6 custom-scrollbar">
+                  {/* Camera Selection */}
+                  <div className="flex justify-center gap-2 w-full">
+                    <button
+                      type="button"
+                      onClick={() => setGlobalScannerFacingMode('environment')}
+                      className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer flex items-center gap-1.5 ${globalScannerFacingMode === 'environment' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                    >
+                      <Camera size={14} />
+                      <span>Back Camera</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setGlobalScannerFacingMode('user')}
+                      className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer flex items-center gap-1.5 ${globalScannerFacingMode === 'user' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                    >
+                      <User size={14} />
+                      <span>Front Camera</span>
+                    </button>
+                  </div>
+
+                  {/* Scanner Camera Frame */}
+                  <div className="w-full max-w-[280px] aspect-square rounded-3xl overflow-hidden bg-black shadow-lg border-4 border-slate-100 relative shrink-0">
+                    <Scanner
+                      onScan={handleGlobalScannerScan}
+                      onError={handleGlobalScannerError}
+                      constraints={globalScannerConstraints}
+                      components={globalScannerComponents}
+                      allowMultiple={true}
+                      scanDelay={2500}
+                    />
+
+                    {globalScannerError && (
+                      <div className="absolute inset-0 bg-slate-900/95 flex flex-col items-center justify-center p-4 text-center z-10 animate-in fade-in duration-200">
+                        <div className="w-10 h-10 bg-amber-500/10 text-amber-500 rounded-xl flex items-center justify-center mb-2">
+                          <AlertTriangle size={20} />
+                        </div>
+                        <p className="text-xs font-bold text-white mb-1">Camera Access Issue</p>
+                        <p className="text-[10px] text-slate-300 leading-normal max-w-[200px]">{globalScannerError}</p>
+                      </div>
+                    )}
+
+                    {/* Scanner overlay corners */}
+                    <div className="absolute top-4 left-4 w-8 h-8 border-t-4 border-l-4 border-white/60 rounded-tl-xl"></div>
+                    <div className="absolute top-4 right-4 w-8 h-8 border-t-4 border-r-4 border-white/60 rounded-tr-xl"></div>
+                    <div className="absolute bottom-4 left-4 w-8 h-8 border-b-4 border-l-4 border-white/60 rounded-bl-xl"></div>
+                    <div className="absolute bottom-4 right-4 w-8 h-8 border-b-4 border-r-4 border-white/60 rounded-br-xl"></div>
+                  </div>
+
+                  {/* Scan Status & Learner Validity Cards */}
+                  <div className="w-full">
+                    {globalRecentScan ? (
+                      <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                        {/* Scan Status Banner */}
+                        <div className={`p-4 rounded-2xl flex items-center gap-3 border ${globalRecentScan.status === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-800'}`}>
+                          {globalRecentScan.status === 'success' ? (
+                            <CheckCircle size={24} className="text-emerald-600 shrink-0" />
+                          ) : (
+                            <AlertCircle size={24} className="text-rose-600 shrink-0" />
+                          )}
+                          <span className="text-xs font-bold leading-relaxed">{globalRecentScan.message}</span>
+                        </div>
+
+                        {/* Learner Info Card (scanning validity of the learner information) */}
+                        {globalRecentScan.student && (
+                          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 relative overflow-hidden shadow-sm">
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50/40 rounded-full blur-2xl pointer-events-none"></div>
+                            
+                            <div className="flex gap-4 items-start relative z-10">
+                              {/* Student Profile Picture or Placeholder */}
+                              {globalRecentScan.student.photo ? (
+                                <img 
+                                  src={globalRecentScan.student.photo} 
+                                  alt={formatStudentName(globalRecentScan.student)}
+                                  className="w-16 h-16 rounded-2xl object-cover border border-slate-200 shadow-sm"
+                                  referrerPolicy="no-referrer"
+                                />
+                              ) : (
+                                <div className={`w-16 h-16 rounded-2xl flex items-center justify-center font-black text-xl text-white shadow-sm ${globalRecentScan.student.sex === 'Female' ? 'bg-rose-500 shadow-rose-100' : 'bg-indigo-500 shadow-indigo-100'}`}>
+                                  {formatStudentName(globalRecentScan.student).charAt(0)}
+                                </div>
+                              )}
+
+                              <div className="space-y-1 min-w-0 flex-1">
+                                {/* Status Badge */}
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                                    globalRecentScan.student.status === 'Dropped Out' 
+                                      ? 'bg-orange-50 border-orange-200 text-orange-600'
+                                      : globalRecentScan.student.status === 'Transferred Out'
+                                      ? 'bg-rose-50 border-rose-200 text-rose-600'
+                                      : 'bg-emerald-50 border-emerald-200 text-emerald-600'
+                                  }`}>
+                                    {globalRecentScan.student.status || 'Active / Enrolled'}
+                                  </span>
+                                  {globalRecentScan.student.sex && (
+                                    <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                                      globalRecentScan.student.sex === 'Female' ? 'bg-pink-50 border-pink-200 text-pink-600' : 'bg-blue-50 border-blue-200 text-blue-600'
+                                    }`}>
+                                      {globalRecentScan.student.sex}
+                                    </span>
+                                  )}
+                                </div>
+
+                                <h4 className="text-sm font-black text-slate-800 tracking-tight truncate">
+                                  {formatStudentName(globalRecentScan.student)}
+                                </h4>
+                                
+                                <p className="text-[10px] font-bold text-slate-500">
+                                  LRN: <span className="text-slate-800 font-mono font-bold">{globalRecentScan.student.lrn}</span>
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Secondary Fields Grid */}
+                            <div className="grid grid-cols-2 gap-3 mt-4 pt-4 border-t border-slate-200/60 text-[10px] relative z-10">
+                              <div>
+                                <p className="text-slate-400 font-semibold uppercase tracking-wider">Grade & Section</p>
+                                <p className="text-slate-700 font-bold uppercase mt-0.5">
+                                  {(() => {
+                                    const activeSec = globalRecentScan?.section || selectedSection;
+                                    if (!activeSec) return 'Unknown Section';
+                                    return (Number(activeSec.gradeLevel) === 0) ? `Kindergarten • ${activeSec.name}` : `Grade ${activeSec.gradeLevel} • ${activeSec.name}`;
+                                  })()}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-slate-400 font-semibold uppercase tracking-wider">Contact Number</p>
+                                <p className="text-slate-700 font-bold mt-0.5">{globalRecentScan.student.contactNumber || 'No registered contact'}</p>
+                              </div>
+                              <div>
+                                <p className="text-slate-400 font-semibold uppercase tracking-wider">First Attendance</p>
+                                <p className="text-slate-700 font-bold mt-0.5">{globalRecentScan.student.dateOfFirstAttendance || 'Not specified'}</p>
+                              </div>
+                              <div>
+                                <p className="text-slate-400 font-semibold uppercase tracking-wider">Guardian Name</p>
+                                <p className="text-slate-700 font-bold mt-0.5 truncate">{globalRecentScan.student.guardianName || 'None'}</p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="p-8 rounded-2xl bg-slate-50 border-2 border-dashed border-slate-200 text-center flex flex-col items-center justify-center gap-3">
+                        <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-sm border border-slate-100 text-slate-400">
+                          <QrCode size={24} />
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-slate-600">Scan a Student ID QR Code</p>
+                          <p className="text-[10px] text-slate-400 font-medium leading-relaxed max-w-[240px] mt-1 mx-auto">
+                            Position the student ID QR code inside the camera view to verify status and record attendance automatically.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+      </>
     );
   }
 
@@ -3207,6 +3667,7 @@ export default function App() {
                   
                   {renderDropdown('student-mgmt', 'Student Management', <Users size={14} />, mgmtTabs)}
                   {renderDropdown('attendance', 'Attendance & Behavior', <Calendar size={14} />, attTabs)}
+
                   {renderDropdown('academic', 'Academic Records', <BookOpen size={14} />, academicTabs)}
                   {renderDropdown('support', 'Support', <HelpCircle size={14} />, supportTabsGroup)}
 
@@ -3234,9 +3695,20 @@ export default function App() {
                             <div className="bg-white border border-slate-200 shadow-xl rounded-xl p-2 flex flex-col gap-1">
                                <button
                                   onClick={() => { setShowAdminUsers(true); setIsSettingsDropdownOpen(false); }}
-                                  className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-[11px] font-bold text-slate-500 hover:text-slate-900 hover:bg-slate-50 border-b border-slate-50 w-full text-left"
+                                  className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-[11px] font-bold text-slate-500 hover:text-slate-900 hover:bg-slate-50 border-b border-slate-50 w-full text-left cursor-pointer"
                                >
                                   <Users size={14} /> <span className="uppercase tracking-wider">Manage Users</span>
+                               </button>
+                               <button
+                                  onClick={() => { 
+                                    setShowGlobalScanner(true); 
+                                    setGlobalRecentScan(null); 
+                                    setGlobalScannerError(null);
+                                    setIsSettingsDropdownOpen(false); 
+                                  }}
+                                  className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-[11px] font-bold text-slate-500 hover:text-slate-900 hover:bg-indigo-50 hover:text-indigo-700 border-b border-slate-50 w-full text-left cursor-pointer"
+                               >
+                                  <QrCode size={14} /> <span className="uppercase tracking-wider">Scan ID</span>
                                </button>
                                {userProfile?.role === 'system_admin' && (
                                  <button
@@ -3299,6 +3771,17 @@ export default function App() {
 
       {/* Main Navigation (Mobile/Tablet Only) */}
       <div className="xl:hidden h-14 bg-white border-b border-slate-100 flex items-center justify-start sm:justify-around px-4 shrink-0 shadow-sm overflow-x-auto custom-scrollbar gap-2">
+        <button
+          onClick={() => {
+            setShowGlobalScanner(true);
+            setGlobalRecentScan(null);
+            setGlobalScannerError(null);
+          }}
+          className="p-3 shrink-0 rounded-2xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-all flex items-center justify-center border border-indigo-100 active:scale-95 cursor-pointer"
+          title="Scan ID"
+        >
+          <QrCode size={20} />
+        </button>
         {[
           { id: 'dashboard', icon: <LayoutDashboard size={20} /> },
           { id: 'enroll', icon: <UserPlus size={20} /> },
@@ -3938,6 +4421,199 @@ export default function App() {
                 >
                   Yes, Unfinalize
                 </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Global QR Scanner Modal (with Learner Information and Validity check) */}
+      <AnimatePresence>
+        {showGlobalScanner && (
+          <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center shrink-0">
+                    <QrCode size={20} />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-slate-800 tracking-tight">Scan ID Card</h3>
+                    <p className="text-[10px] text-indigo-600 font-bold uppercase tracking-widest">Attendance & Learner Validity</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => {
+                    setShowGlobalScanner(false);
+                    setGlobalRecentScan(null);
+                  }}
+                  className="w-10 h-10 flex items-center justify-center text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="p-6 overflow-y-auto flex flex-col items-center gap-6 custom-scrollbar">
+                {/* Camera Selection */}
+                <div className="flex justify-center gap-2 w-full">
+                  <button
+                    type="button"
+                    onClick={() => setGlobalScannerFacingMode('environment')}
+                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer flex items-center gap-1.5 ${globalScannerFacingMode === 'environment' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                  >
+                    <Camera size={14} />
+                    <span>Back Camera</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setGlobalScannerFacingMode('user')}
+                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer flex items-center gap-1.5 ${globalScannerFacingMode === 'user' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                  >
+                    <User size={14} />
+                    <span>Front Camera</span>
+                  </button>
+                </div>
+
+                {/* Scanner Camera Frame */}
+                <div className="w-full max-w-[280px] aspect-square rounded-3xl overflow-hidden bg-black shadow-lg border-4 border-slate-100 relative shrink-0">
+                  <Scanner
+                    onScan={handleGlobalScannerScan}
+                    onError={handleGlobalScannerError}
+                    constraints={globalScannerConstraints}
+                    components={globalScannerComponents}
+                    allowMultiple={true}
+                    scanDelay={2500}
+                  />
+
+                  {globalScannerError && (
+                    <div className="absolute inset-0 bg-slate-900/95 flex flex-col items-center justify-center p-4 text-center z-10 animate-in fade-in duration-200">
+                      <div className="w-10 h-10 bg-amber-500/10 text-amber-500 rounded-xl flex items-center justify-center mb-2">
+                        <AlertTriangle size={20} />
+                      </div>
+                      <p className="text-xs font-bold text-white mb-1">Camera Access Issue</p>
+                      <p className="text-[10px] text-slate-300 leading-normal max-w-[200px]">{globalScannerError}</p>
+                    </div>
+                  )}
+
+                  {/* Scanner overlay corners */}
+                  <div className="absolute top-4 left-4 w-8 h-8 border-t-4 border-l-4 border-white/60 rounded-tl-xl"></div>
+                  <div className="absolute top-4 right-4 w-8 h-8 border-t-4 border-r-4 border-white/60 rounded-tr-xl"></div>
+                  <div className="absolute bottom-4 left-4 w-8 h-8 border-b-4 border-l-4 border-white/60 rounded-bl-xl"></div>
+                  <div className="absolute bottom-4 right-4 w-8 h-8 border-b-4 border-r-4 border-white/60 rounded-br-xl"></div>
+                </div>
+
+                {/* Scan Status & Learner Validity Cards */}
+                <div className="w-full">
+                  {globalRecentScan ? (
+                    <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                      {/* Scan Status Banner */}
+                      <div className={`p-4 rounded-2xl flex items-center gap-3 border ${globalRecentScan.status === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-800'}`}>
+                        {globalRecentScan.status === 'success' ? (
+                          <CheckCircle size={24} className="text-emerald-600 shrink-0" />
+                        ) : (
+                          <AlertCircle size={24} className="text-rose-600 shrink-0" />
+                        )}
+                        <span className="text-xs font-bold leading-relaxed">{globalRecentScan.message}</span>
+                      </div>
+
+                      {/* Learner Info Card (scanning validity of the learner information) */}
+                      {globalRecentScan.student && (
+                        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 relative overflow-hidden shadow-sm">
+                          <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50/40 rounded-full blur-2xl pointer-events-none"></div>
+                          
+                          <div className="flex gap-4 items-start relative z-10">
+                            {/* Student Profile Picture or Placeholder */}
+                            {globalRecentScan.student.photo ? (
+                              <img 
+                                src={globalRecentScan.student.photo} 
+                                alt={formatStudentName(globalRecentScan.student)}
+                                className="w-16 h-16 rounded-2xl object-cover border border-slate-200 shadow-sm"
+                                referrerPolicy="no-referrer"
+                              />
+                            ) : (
+                              <div className={`w-16 h-16 rounded-2xl flex items-center justify-center font-black text-xl text-white shadow-sm ${globalRecentScan.student.sex === 'Female' ? 'bg-rose-500 shadow-rose-100' : 'bg-indigo-500 shadow-indigo-100'}`}>
+                                {formatStudentName(globalRecentScan.student).charAt(0)}
+                              </div>
+                            )}
+
+                            <div className="space-y-1 min-w-0 flex-1">
+                              {/* Status Badge */}
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                                  globalRecentScan.student.status === 'Dropped Out' 
+                                    ? 'bg-orange-50 border-orange-200 text-orange-600'
+                                    : globalRecentScan.student.status === 'Transferred Out'
+                                    ? 'bg-rose-50 border-rose-200 text-rose-600'
+                                    : 'bg-emerald-50 border-emerald-200 text-emerald-600'
+                                }`}>
+                                  {globalRecentScan.student.status || 'Active / Enrolled'}
+                                </span>
+                                {globalRecentScan.student.sex && (
+                                  <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                                    globalRecentScan.student.sex === 'Female' ? 'bg-pink-50 border-pink-200 text-pink-600' : 'bg-blue-50 border-blue-200 text-blue-600'
+                                  }`}>
+                                    {globalRecentScan.student.sex}
+                                  </span>
+                                )}
+                              </div>
+
+                              <h4 className="text-sm font-black text-slate-800 tracking-tight truncate">
+                                {formatStudentName(globalRecentScan.student)}
+                              </h4>
+                              
+                              <p className="text-[10px] font-bold text-slate-500">
+                                LRN: <span className="text-slate-800 font-mono font-bold">{globalRecentScan.student.lrn}</span>
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Secondary Fields Grid */}
+                          <div className="grid grid-cols-2 gap-3 mt-4 pt-4 border-t border-slate-200/60 text-[10px] relative z-10">
+                            <div>
+                              <p className="text-slate-400 font-semibold uppercase tracking-wider">Grade & Section</p>
+                              <p className="text-slate-700 font-bold uppercase mt-0.5">
+                                {(() => {
+                                  const activeSec = globalRecentScan?.section || selectedSection;
+                                  if (!activeSec) return 'Unknown Section';
+                                  return (Number(activeSec.gradeLevel) === 0) ? `Kindergarten • ${activeSec.name}` : `Grade ${activeSec.gradeLevel} • ${activeSec.name}`;
+                                })()}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-slate-400 font-semibold uppercase tracking-wider">Contact Number</p>
+                              <p className="text-slate-700 font-bold mt-0.5">{globalRecentScan.student.contactNumber || 'No registered contact'}</p>
+                            </div>
+                            <div>
+                              <p className="text-slate-400 font-semibold uppercase tracking-wider">First Attendance</p>
+                              <p className="text-slate-700 font-bold mt-0.5">{globalRecentScan.student.dateOfFirstAttendance || 'Not specified'}</p>
+                            </div>
+                            <div>
+                              <p className="text-slate-400 font-semibold uppercase tracking-wider">Guardian Name</p>
+                              <p className="text-slate-700 font-bold mt-0.5 truncate">{globalRecentScan.student.guardianName || 'None'}</p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="p-8 rounded-2xl bg-slate-50 border-2 border-dashed border-slate-200 text-center flex flex-col items-center justify-center gap-3">
+                      <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-sm border border-slate-100 text-slate-400">
+                        <QrCode size={24} />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-slate-600">Scan a Student ID QR Code</p>
+                        <p className="text-[10px] text-slate-400 font-medium leading-relaxed max-w-[240px] mt-1 mx-auto">
+                          Position the student ID QR code inside the camera view to verify status and record attendance automatically.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </motion.div>
           </div>
@@ -5522,6 +6198,7 @@ function SectionsView({
   onUpdateUser,
   onLogout,
   onManageUsers,
+  onScanID,
   pendingUsersCount = 0,
   isAnySectionAdviser,
   onManageSchools,
@@ -5557,6 +6234,7 @@ function SectionsView({
   onUpdateUser?: (p: UserProfile) => void,
   onLogout: () => void,
   onManageUsers?: () => void,
+  onScanID?: () => void,
   pendingUsersCount?: number,
   isAnySectionAdviser?: boolean,
   onManageSchools?: () => void,
@@ -6442,10 +7120,19 @@ function SectionsView({
              </button>
            )}
 
+            {onScanID && (
+              <button 
+                onClick={onScanID}
+                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs px-3 py-2 rounded-lg transition-all shadow-sm cursor-pointer"
+              >
+                <QrCode size={14} /> <span className="hidden sm:inline">Scan ID</span>
+              </button>
+            )}
+
            {user?.role === 'system_admin' && onManageUsers && (
              <>
-               <button 
-                 onClick={onManageUsers}
+                <button 
+                  onClick={onManageUsers}
                  className="flex items-center gap-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-semibold text-xs px-3 py-2 rounded-lg transition-all shadow-sm"
                >
                  <Users size={14} /> <span className="hidden sm:inline">Manage Users</span>
@@ -6492,7 +7179,7 @@ function SectionsView({
                       {onManageUsers && (
                         <button 
                           onClick={() => { onManageUsers(); setIsSettingsOpen(false); }} 
-                          className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-medium text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 transition-colors"
+                          className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-medium text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 transition-colors cursor-pointer"
                         >
                           <Users size={14} className="text-slate-400" /> Manage Users
                           {pendingUsersCount > 0 && (
@@ -6500,6 +7187,14 @@ function SectionsView({
                               {pendingUsersCount}
                             </span>
                           )}
+                        </button>
+                      )}
+                      {onScanID && (
+                        <button 
+                          onClick={() => { onScanID(); setIsSettingsOpen(false); }} 
+                          className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-medium text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 transition-colors cursor-pointer"
+                        >
+                          <QrCode size={14} className="text-indigo-600" /> Scan ID
                         </button>
                       )}
                       {onManageSchools && (
@@ -15116,6 +15811,16 @@ function DashboardView({
   const [showScanner, setShowScanner] = useState(false);
   const [recentScan, setRecentScan] = useState<{ status: 'success' | 'error', message: string } | null>(null);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
+  const [localScannerError, setLocalScannerError] = useState<string | null>(null);
+
+  const localScannerConstraints = useMemo(() => ({
+    facingMode: facingMode
+  }), [facingMode]);
+
+  const localScannerComponents = useMemo(() => ({
+    audio: false,
+    finder: true,
+  }), []);
 
   const monthOrder = useMemo(() => ["June", "July", "August", "September", "October", "November", "December", "January", "February", "March", "April", "May"], []);
 
@@ -15260,6 +15965,40 @@ function DashboardView({
       setTimeout(() => setRecentScan(null), 3000);
     }
   };
+
+  const localScanRef = useRef(handleScan);
+  useEffect(() => {
+    localScanRef.current = handleScan;
+  }, [handleScan]);
+
+  const handleLocalScannerError = useCallback((err: any) => {
+    console.error("Scanner Error:", err?.message || err);
+    let errMsg = "Unable to access camera.";
+    
+    if (err && typeof err === 'object') {
+      if (err.message) {
+        errMsg = err.message;
+      }
+      const errName = err.name || err.kind;
+      if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError' || errName === 'permission-denied') {
+        errMsg = "Camera permission denied. Please allow camera access in your browser settings.";
+      } else if (errName === 'NotFoundError' || errName === 'DevicesNotFoundError' || errName === 'no-camera') {
+        errMsg = "No camera device found.";
+      } else if (errName === 'OverconstrainedError' || errName === 'overconstrained') {
+        errMsg = "Selected camera type is not available. Please try switching cameras.";
+      }
+    } else if (typeof err === 'string') {
+      errMsg = err;
+    }
+    
+    setLocalScannerError(errMsg);
+  }, []);
+
+  const handleLocalScannerScan = useCallback((result: any[]) => {
+    if (result && result.length > 0) {
+      localScanRef.current(result[0].rawValue);
+    }
+  }, []);
 
   const totalStudents = students.length;
   const totalSubjects = subjects.length;
@@ -15555,7 +16294,10 @@ function DashboardView({
           <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
             {onUpdateAttendance && (
               <button 
-                onClick={() => setShowScanner(true)}
+                onClick={() => {
+                  setShowScanner(true);
+                  setLocalScannerError(null);
+                }}
                 className="flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm px-5 py-2.5 rounded-xl transition-all shadow-md shadow-indigo-100 w-full sm:w-auto cursor-pointer"
               >
                 <QrCode size={16} />
@@ -16127,21 +16869,23 @@ function DashboardView({
 
               <div className="w-full max-w-[300px] aspect-square rounded-2xl overflow-hidden bg-black shadow-inner border-4 border-slate-100 relative">
                 <Scanner
-                  onScan={(result) => {
-                    if (result && result.length > 0) {
-                      handleScan(result[0].rawValue);
-                    }
-                  }}
-                  constraints={{
-                    facingMode: facingMode
-                  }}
-                  components={{
-                    audio: false,
-                    finder: true,
-                  }}
+                  onScan={handleLocalScannerScan}
+                  onError={handleLocalScannerError}
+                  constraints={localScannerConstraints}
+                  components={localScannerComponents}
                   allowMultiple={true}
                   scanDelay={2000}
                 />
+
+                {localScannerError && (
+                  <div className="absolute inset-0 bg-slate-900/95 flex flex-col items-center justify-center p-4 text-center z-10 animate-in fade-in duration-200">
+                    <div className="w-10 h-10 bg-amber-500/10 text-amber-500 rounded-xl flex items-center justify-center mb-2">
+                      <AlertTriangle size={20} />
+                    </div>
+                    <p className="text-xs font-bold text-white mb-1">Camera Access Issue</p>
+                    <p className="text-[10px] text-slate-300 leading-normal max-w-[200px]">{localScannerError}</p>
+                  </div>
+                )}
                 
                 {/* Scanner overlay corners */}
                 <div className="absolute top-4 left-4 w-8 h-8 border-t-4 border-l-4 border-white/50 rounded-tl-xl"></div>
