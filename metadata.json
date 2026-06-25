@@ -1,7 +1,9 @@
 {
   "name": "CLASS - Centralized Learner Assessment and School System",
   "description": "A comprehensive centralized learner assessment and school system for tracking student information, course details, grades, and attendance. Built for precision and educational excellence.",
-  "requestFramePermissions": [],
+  "requestFramePermissions": [
+    "camera"
+  ],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
   ]

@@ -1,7 +1,8 @@
 import { formatStudentName } from "../utils";
 import React, { useMemo, useState, useEffect } from 'react';
 import { Student } from '../types';
-import { Filter, Calendar as CalendarIcon } from 'lucide-react';
+import { Filter, Calendar as CalendarIcon, QrCode, X, CheckCircle, AlertCircle } from 'lucide-react';
+import { Scanner } from '@yudiel/react-qr-scanner';
 
 interface DailyAttendanceTrackerProps {
   students: Student[];
@@ -34,6 +35,10 @@ const monthIndices: { [key: string]: number } = {
 };
 
 export const DailyAttendanceTracker: React.FC<DailyAttendanceTrackerProps> = ({ students, calendar, onUpdateAttendance, onMarkAllPresent, schoolYear, userId }) => {
+  const [showScanner, setShowScanner] = useState(false);
+  const [recentScan, setRecentScan] = useState<{ status: 'success' | 'error', message: string } | null>(null);
+  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
+
   const [selectedTerm, setSelectedTerm] = useState<string>(() => {
     if (userId) {
       return localStorage.getItem(`dailyAttendance_selectedTerm_${userId}`) || 'all';
@@ -212,6 +217,56 @@ export const DailyAttendanceTracker: React.FC<DailyAttendanceTrackerProps> = ({ 
     return new Date(year, index + 1, 0).getDate();
   };
 
+  const handleScan = (scannedLrn: string) => {
+    if (!scannedLrn) return;
+    
+    // Find student by LRN
+    const student = students.find(s => s.lrn === scannedLrn);
+    if (!student) {
+      setRecentScan({ status: 'error', message: `LRN ${scannedLrn} not found in this section.` });
+      setTimeout(() => setRecentScan(null), 3000);
+      return;
+    }
+
+    // Get current date
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    const currentMonthStr = MONTHS[today.getMonth()];
+    const currentDay = today.getDate();
+
+    // Find the term key for the current month/year
+    let termKeyToUpdate: string | null = null;
+    for (const key of Object.keys(calendarMap)) {
+      const data = calendarMap[key];
+      if (data.year === currentYear && data.month === currentMonthStr) {
+        // Double check if day is within valid days
+        if (data.validDays.includes(currentDay)) {
+          termKeyToUpdate = key;
+          break;
+        }
+      }
+    }
+
+    if (!termKeyToUpdate) {
+      setRecentScan({ status: 'error', message: `Today (${currentMonthStr} ${currentDay}) is not a valid school day in the calendar.` });
+      setTimeout(() => setRecentScan(null), 3000);
+      return;
+    }
+
+    // Check if day is disabled for student
+    const isDisabled = isDayDisabledForStudent(student, currentYear, currentMonthStr, currentDay);
+    if (isDisabled) {
+      setRecentScan({ status: 'error', message: `${formatStudentName(student)} is inactive or not enrolled today.` });
+      setTimeout(() => setRecentScan(null), 3000);
+      return;
+    }
+
+    // Mark present
+    onUpdateAttendance(student.id, termKeyToUpdate, currentDay, true);
+    setRecentScan({ status: 'success', message: `${formatStudentName(student)} marked present for today.` });
+    setTimeout(() => setRecentScan(null), 3000);
+  };
+
   const getDateInfo = (year: number, month: string, day: number, termKey: string) => {
     const monthIndex = monthIndices[month];
     const date = new Date(year, monthIndex, day);
@@ -351,6 +406,13 @@ export const DailyAttendanceTracker: React.FC<DailyAttendanceTrackerProps> = ({ 
             <p className="text-slate-500 text-xs font-medium uppercase tracking-widest mt-0.5">Record and monitor learner daily attendance</p>
           </div>
         </div>
+        <button 
+          onClick={() => setShowScanner(true)}
+          className="flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-indigo-200"
+        >
+          <QrCode size={16} />
+          Scan QR ID
+        </button>
       </div>
 
       {/* Selectors Area */}
@@ -661,6 +723,89 @@ export const DailyAttendanceTracker: React.FC<DailyAttendanceTrackerProps> = ({ 
             </tbody>
         </table>
         </div>
+
+        {/* QR Scanner Modal */}
+        {showScanner && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col">
+              <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center">
+                    <QrCode size={20} />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-slate-800 tracking-tight">Scan ID for Attendance</h3>
+                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Hold QR Code in frame</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setShowScanner(false)}
+                  className="w-10 h-10 flex items-center justify-center text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              
+              <div className="p-6 flex flex-col items-center">
+                <div className="flex justify-center gap-2 mb-4 w-full">
+                  <button
+                    type="button"
+                    onClick={() => setFacingMode('environment')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${facingMode === 'environment' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                  >
+                    📸 Back Camera
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFacingMode('user')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${facingMode === 'user' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                  >
+                    🤳 Front Camera
+                  </button>
+                </div>
+
+                <div className="w-full max-w-[300px] aspect-square rounded-2xl overflow-hidden bg-black shadow-inner border-4 border-slate-100 relative">
+                  <Scanner
+                    onScan={(result) => {
+                      if (result && result.length > 0) {
+                        handleScan(result[0].rawValue);
+                      }
+                    }}
+                    constraints={{
+                      facingMode: facingMode
+                    }}
+                    components={{
+                      audio: false,
+                      finder: true,
+                    }}
+                    allowMultiple={true}
+                    scanDelay={2000}
+                  />
+                  
+                  {/* Scanner overlay corners */}
+                  <div className="absolute top-4 left-4 w-8 h-8 border-t-4 border-l-4 border-white/50 rounded-tl-xl"></div>
+                  <div className="absolute top-4 right-4 w-8 h-8 border-t-4 border-r-4 border-white/50 rounded-tr-xl"></div>
+                  <div className="absolute bottom-4 left-4 w-8 h-8 border-b-4 border-l-4 border-white/50 rounded-bl-xl"></div>
+                  <div className="absolute bottom-4 right-4 w-8 h-8 border-b-4 border-r-4 border-white/50 rounded-br-xl"></div>
+                </div>
+
+                <div className="mt-8 w-full">
+                  {recentScan ? (
+                    <div className={`p-4 rounded-xl flex items-center gap-3 ${recentScan.status === 'success' ? 'bg-emerald-50 border border-emerald-200 text-emerald-700' : 'bg-rose-50 border border-rose-200 text-rose-700'}`}>
+                      {recentScan.status === 'success' ? <CheckCircle size={24} className="shrink-0" /> : <AlertCircle size={24} className="shrink-0" />}
+                      <span className="text-sm font-bold">{recentScan.message}</span>
+                    </div>
+                  ) : (
+                    <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-center">
+                      <p className="text-xs font-medium text-slate-600">Waiting for scan...</p>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Learner will be marked present for today</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
     </div>
   );
 };

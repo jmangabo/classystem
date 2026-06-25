@@ -2504,7 +2504,12 @@ export default function App() {
           isTransferredIn: learner.isTransferredIn || false,
           eligibility: learner.eligibility || {},
           grades: {},
-          enrolledSubjectIds: [],
+          enrolledSubjectIds: subjects.filter(s => {
+            const isTle = isTleSubject(s.name);
+            const isJHS = Number(selectedSection?.gradeLevel) === 9 || Number(selectedSection?.gradeLevel) === 10;
+            if (isJHS && isTle) return false;
+            return true;
+          }).map(s => s.id),
           gradeLevel: learner.gradeLevel || selectedSection.gradeLevel || "",
           sectionName: learner.section || selectedSection.name || ""
         });
@@ -9266,7 +9271,7 @@ function AddLearnerModal({
 
             <EligibilityForm form={form} setForm={setForm} />
 
-            {section && Number(section.gradeLevel) > 10 && (
+            {section && (
               <div className="space-y-4 border-t border-slate-100 pt-6">
                 <div>
                   <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2 uppercase tracking-widest"><BookOpen size={16} className="text-indigo-600"/> Enrolled Subjects</h3>
@@ -9302,20 +9307,6 @@ function AddLearnerModal({
                         <p className="text-xs text-slate-500 uppercase tracking-widest font-bold">No subjects configured for this Section / Grade Level</p>
                      </div>
                   )}
-                </div>
-              </div>
-            )}
-
-            {section && Number(section.gradeLevel) <= 10 && (
-              <div className="space-y-4 border-t border-slate-100 pt-6">
-                <div className="bg-indigo-50 border border-indigo-100/50 rounded-2xl p-4 text-slate-800 flex flex-col gap-1.5">
-                  <h4 className="text-xs font-black uppercase tracking-wider text-indigo-800 flex items-center gap-2">
-                    <BookOpen size={14} />
-                    Automatic Subject Enrollment
-                  </h4>
-                  <p className="text-xs text-indigo-700 leading-relaxed font-semibold">
-                    This learner belongs to a K–10 grade level ({section.gradeLevel === 0 ? "Kindergarten" : `Grade ${section.gradeLevel}`}). Consistent with school policy, this learner will automatically inherit all academic subjects configured inside this section.
-                  </p>
                 </div>
               </div>
             )}
@@ -10404,7 +10395,13 @@ function AddLearnerView({
                       weight: "",
                       height: "",
                       isTransferredIn: false,
-                      attendance: {}
+                      attendance: {},
+                      enrolledSubjectIds: subjects.filter(s => {
+                        const isTle = isTleSubject(s.name);
+                        const isJHS = Number(section?.gradeLevel) === 9 || Number(section?.gradeLevel) === 10;
+                        if (isJHS && isTle) return false;
+                        return true;
+                      }).map(s => s.id)
                     });
                     setShowAddModal(true);
                   }}
@@ -10761,6 +10758,8 @@ function IDPrintingCenterModal({
   });
 
   const [cardTheme, setCardTheme] = useState<'presidential' | 'metro' | 'forest' | 'amethyst' | 'crimson' | 'noir' | 'gold' | 'ocean' | 'sunset' | 'cyber' | 'vintage' | 'sky' | 'sakura' | 'monochrome'>('presidential');
+  const [customBackground, setCustomBackground] = useState<string | null>(null);
+  const [customBackgroundOpacity, setCustomBackgroundOpacity] = useState<number>(100);
   const [orientation, setOrientation] = useState<'portrait' | 'landscape'>('portrait');
   const [layoutType, setLayoutType] = useState<'front-back-vertical' | 'front-back' | 'front-only' | 'back-only'>('front-back-vertical');
   const [includePhotoBox, setIncludePhotoBox] = useState(true);
@@ -10805,6 +10804,8 @@ function IDPrintingCenterModal({
           if (schoolData.idTemplate) {
             const template = schoolData.idTemplate;
             if (template.cardTheme) setCardTheme(template.cardTheme);
+            if (template.customBackground !== undefined) setCustomBackground(template.customBackground);
+            if (template.customBackgroundOpacity !== undefined) setCustomBackgroundOpacity(template.customBackgroundOpacity);
             if (template.orientation) setOrientation(template.orientation);
             if (template.layoutType) setLayoutType(template.layoutType);
             if (template.includePhotoBox !== undefined) setIncludePhotoBox(template.includePhotoBox);
@@ -10837,6 +10838,8 @@ function IDPrintingCenterModal({
         await updateDoc(docRef, {
           idTemplate: {
             cardTheme,
+            customBackground,
+            customBackgroundOpacity,
             orientation,
             layoutType,
             includePhotoBox,
@@ -11087,6 +11090,15 @@ function IDPrintingCenterModal({
   };
 
   const theme = getThemeClasses();
+  
+  const overlayAlpha = 1 - (customBackgroundOpacity / 100);
+  const bgStyle = customBackground 
+    ? { 
+        backgroundImage: overlayAlpha > 0 ? `linear-gradient(rgba(255,255,255,${overlayAlpha}), rgba(255,255,255,${overlayAlpha})), url(${customBackground})` : `url(${customBackground})`, 
+        backgroundSize: '100% 100%' 
+      } 
+    : {};
+  const innerBgClass = customBackground ? 'bg-transparent' : 'bg-white';
 
   // Print execution handler
   const handlePrint = (e: React.FormEvent) => {
@@ -11484,7 +11496,7 @@ function IDPrintingCenterModal({
                         </div>
 
                         {/* Interactive combined front card component (top half) */}
-                        <div className="w-[240px] h-[382px] flex flex-col relative overflow-hidden">
+                        <div className="w-[240px] h-[382px] flex flex-col relative overflow-hidden" style={bgStyle}>
                           {/* Top accent */}
                           <div className="h-1.5 w-full bg-amber-500" />
                           
@@ -11501,7 +11513,7 @@ function IDPrintingCenterModal({
                           </DraggableField>
 
                           {/* Body elements with watermark */}
-                          <div className="flex-1 flex flex-col items-center justify-between p-4 relative overflow-hidden bg-white" style={{ fontFamily }}>
+                          <div className={`flex-1 flex flex-col items-center justify-between p-4 relative overflow-hidden ${innerBgClass}`} style={{ fontFamily }}>
                             <div className="id-print-watermark absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none select-none z-0 overflow-hidden grayscale">
                               {getWatermarkIcon()}
                             </div>
@@ -11539,12 +11551,12 @@ function IDPrintingCenterModal({
                         </div>
 
                         {/* Interactive combined back card component (bottom half) */}
-                        <div className="w-[240px] h-[382px] flex flex-col relative overflow-hidden">
+                        <div className="w-[240px] h-[382px] flex flex-col relative overflow-hidden" style={bgStyle}>
                           {/* Accent header */}
                           <div className="h-1.5 w-full" style={{ background: theme.colorScheme.primaryHex }} />
 
                           {/* Render interior backing card contents */}
-                          <div className="flex-grow flex flex-col items-center justify-between p-5 relative overflow-hidden bg-white text-center" style={{ fontFamily }}>
+                          <div className={`flex-grow flex flex-col items-center justify-between p-5 relative overflow-hidden text-center ${innerBgClass}`} style={{ fontFamily }}>
                             <div className="id-print-watermark absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none select-none z-0 overflow-hidden grayscale">
                               {getWatermarkIcon()}
                             </div>
@@ -11600,7 +11612,7 @@ function IDPrintingCenterModal({
                   {/* ID Front (Only if set to Front/Front-Back separate layout styles) */}
                   {(layoutType === 'front-back' || layoutType === 'front-only') && (
                     <div className="id-print-card-cell">
-                      <div className={`id-print-card-scalable rounded-3xl overflow-hidden border ${theme.cardBorder} flex flex-col relative`} style={{ fontFamily }}>
+                      <div className={`id-print-card-scalable rounded-3xl overflow-hidden border ${theme.cardBorder} flex flex-col relative`} style={{ fontFamily, ...bgStyle }}>
                         {/* Top Accent Strip */}
                         <div className="h-1.5 w-full bg-amber-500" />
                         
@@ -11617,7 +11629,7 @@ function IDPrintingCenterModal({
                         </DraggableField>
 
                         {/* Card Interior */}
-                        <div className="flex-1 flex flex-col items-center justify-between p-4 relative overflow-hidden bg-white id-font-family-container" style={{ fontFamily }}>
+                        <div className={`flex-1 flex flex-col items-center justify-between p-4 relative overflow-hidden id-font-family-container ${innerBgClass}`} style={{ fontFamily }}>
                           {/* Faint Watermark placement */}
                           <div className="id-print-watermark absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none select-none z-0 overflow-hidden grayscale">
                             {getWatermarkIcon()}
@@ -11660,12 +11672,12 @@ function IDPrintingCenterModal({
                   {/* ID Back (Only if set to Back/Front-Back separate layout styles) */}
                   {(layoutType === 'front-back' || layoutType === 'back-only') && (
                     <div className="id-print-card-cell">
-                      <div className={`id-print-card-scalable rounded-3xl overflow-hidden border ${theme.cardBorder} flex flex-col relative`} style={{ fontFamily }}>
+                      <div className={`id-print-card-scalable rounded-3xl overflow-hidden border ${theme.cardBorder} flex flex-col relative`} style={{ fontFamily, ...bgStyle }}>
                         {/* Solid Header Accent Color */}
                         <div className="h-1.5 w-full" style={{ background: theme.colorScheme.primaryHex }} />
                         
                         {/* ID Back Card Interior */}
-                        <div className="flex-1 flex flex-col items-center justify-between p-5 relative overflow-hidden bg-white text-center id-font-family-container" style={{ fontFamily }}>
+                        <div className={`flex-1 flex flex-col items-center justify-between p-5 relative overflow-hidden text-center id-font-family-container ${innerBgClass}`} style={{ fontFamily }}>
                           {/* Faint Watermark backdrop */}
                           <div className="id-print-watermark absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none select-none z-0 overflow-hidden grayscale">
                             {getWatermarkIcon()}
@@ -11804,6 +11816,53 @@ function IDPrintingCenterModal({
                   <option value="sakura">🌸 Cherry Blossom (Sakura)</option>
                   <option value="monochrome">🩶 Slate Minimalist (Monochrome)</option>
                 </select>
+              </div>
+
+              {/* Custom Background Upload */}
+              <div className="space-y-2">
+                <div className="mt-2">
+                  <label className="text-[10px] font-black uppercase text-slate-540 tracking-wider block mb-1">Upload Background (Standard CR80 size)</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                          setCustomBackground(reader.result as string);
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                    className="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer"
+                  />
+                  {customBackground && (
+                    <div className="mt-3 bg-slate-50 border border-slate-200 p-3 rounded-xl">
+                      <div className="text-[10px] text-green-600 font-bold flex items-center gap-1 mb-3">
+                        <Check size={12} /> Custom background loaded
+                      </div>
+                      <label className="text-[10px] font-black uppercase text-slate-540 tracking-wider flex justify-between mb-1">
+                        <span>Background Visibility</span>
+                        <span>{customBackgroundOpacity}%</span>
+                      </label>
+                      <input 
+                        type="range" 
+                        min="0" 
+                        max="100" 
+                        value={customBackgroundOpacity} 
+                        onChange={(e) => setCustomBackgroundOpacity(Number(e.target.value))}
+                        className="w-full accent-indigo-600"
+                      />
+                      <button 
+                        onClick={() => setCustomBackground(null)}
+                        className="mt-3 text-xs text-rose-500 font-bold hover:text-rose-600 w-full text-left"
+                      >
+                        Remove Background
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Layout Content configuration */}
@@ -11996,16 +12055,14 @@ function IDPrintingCenterModal({
                   </div>
                 )}
                 
-                {isAdmin && (
-                  <button
-                    type="button"
-                    onClick={handleSaveTemplate}
-                    className="w-full mt-4 flex items-center justify-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all shadow-md active:scale-95"
-                  >
-                    <Save size={14} />
-                    Save as School Template
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={handleSaveTemplate}
+                  className="w-full mt-4 flex items-center justify-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all shadow-md active:scale-95"
+                >
+                  <Save size={14} />
+                  Save as School Template
+                </button>
               </div>
             </div>
           </div>
@@ -12127,7 +12184,7 @@ function IDPrintingCenterModal({
                         </div>
 
                         {/* Interactive combined front card component (top half) */}
-                        <div className="w-[240px] h-[382px] flex flex-col relative overflow-hidden">
+                        <div className="w-[240px] h-[382px] flex flex-col relative overflow-hidden" style={bgStyle}>
                           {/* Top accent */}
                           <div className="h-1.5 w-full bg-amber-500" />
                           
@@ -12144,7 +12201,7 @@ function IDPrintingCenterModal({
                           </DraggableField>
 
                           {/* Body elements with watermark */}
-                          <div className="flex-1 flex flex-col items-center justify-between p-4 relative overflow-hidden bg-white" style={{ fontFamily }}>
+                          <div className={`flex-1 flex flex-col items-center justify-between p-4 relative overflow-hidden ${innerBgClass}`} style={{ fontFamily }}>
                             <div className="id-print-watermark absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none select-none z-0 overflow-hidden grayscale">
                               {getWatermarkIcon()}
                             </div>
@@ -12182,12 +12239,12 @@ function IDPrintingCenterModal({
                         </div>
 
                         {/* Interactive combined back card component (bottom half) */}
-                        <div className="w-[240px] h-[382px] flex flex-col relative overflow-hidden">
+                        <div className="w-[240px] h-[382px] flex flex-col relative overflow-hidden" style={bgStyle}>
                           {/* Accent header */}
                           <div className="h-1.5 w-full" style={{ background: theme.colorScheme.primaryHex }} />
 
                           {/* Render interior backing card contents */}
-                          <div className="flex-grow flex flex-col items-center justify-between p-5 relative overflow-hidden bg-white text-center" style={{ fontFamily }}>
+                          <div className={`flex-grow flex flex-col items-center justify-between p-5 relative overflow-hidden text-center ${innerBgClass}`} style={{ fontFamily }}>
                             <div className="id-print-watermark absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none select-none z-0 overflow-hidden grayscale">
                               {getWatermarkIcon()}
                             </div>
@@ -12241,7 +12298,7 @@ function IDPrintingCenterModal({
 
                     {/* Simulated Front Preview (Separate layouts) */}
                     {(layoutType === 'front-back' || layoutType === 'front-only') && (
-                      <div className={`w-[240px] h-[382px] bg-white rounded-3xl overflow-hidden shadow-2xl border ${theme.cardBorder} flex flex-col relative transition-all`}>
+                      <div className={`w-[240px] h-[382px] bg-white rounded-3xl overflow-hidden shadow-2xl border ${theme.cardBorder} flex flex-col relative transition-all`} style={bgStyle}>
                         {/* Top Accent Strip */}
                         <div className="h-1.5 w-full bg-amber-500" />
                         
@@ -12258,7 +12315,7 @@ function IDPrintingCenterModal({
                         </DraggableField>
 
                         {/* Card Interior */}
-                        <div className="flex-1 flex flex-col items-center justify-between p-4 relative overflow-hidden bg-white id-font-family-container" style={{ fontFamily }}>
+                        <div className={`flex-1 flex flex-col items-center justify-between p-4 relative overflow-hidden id-font-family-container ${innerBgClass}`} style={{ fontFamily }}>
                           {/* Faint Watermark placement */}
                           <div className="id-print-watermark absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none select-none z-0 overflow-hidden grayscale">
                             {getWatermarkIcon()}
@@ -12299,12 +12356,12 @@ function IDPrintingCenterModal({
 
                     {/* Simulated Back Preview (Separate layouts) */}
                     {(layoutType === 'front-back' || layoutType === 'back-only') && (
-                      <div className={`w-[240px] h-[382px] bg-white rounded-3xl overflow-hidden shadow-2xl border ${theme.cardBorder} flex flex-col relative transition-all`}>
+                      <div className={`w-[240px] h-[382px] bg-white rounded-3xl overflow-hidden shadow-2xl border ${theme.cardBorder} flex flex-col relative transition-all`} style={bgStyle}>
                         {/* Solid Header Accent Color */}
                         <div className="h-1.5 w-full" style={{ background: theme.colorScheme.primaryHex }} />
                         
                         {/* ID Back Card Interior */}
-                        <div className="flex-1 flex flex-col items-center justify-between p-5 relative overflow-hidden bg-white text-center id-font-family-container" style={{ fontFamily }}>
+                        <div className={`flex-1 flex flex-col items-center justify-between p-5 relative overflow-hidden text-center id-font-family-container ${innerBgClass}`} style={{ fontFamily }}>
                           {/* Faint Watermark backdrop */}
                           <div className="id-print-watermark absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none select-none z-0 overflow-hidden grayscale">
                             {getWatermarkIcon()}
@@ -13381,16 +13438,42 @@ function EditLearnerModal({
 
             <EligibilityForm form={form} setForm={setForm} />
 
-            {section && Number(section.gradeLevel) <= 10 && (
+            {section && (
               <div className="space-y-4 border-t border-slate-100 pt-6">
-                <div className="bg-indigo-50 border border-indigo-100/50 rounded-2xl p-4 text-slate-800 flex flex-col gap-1.5">
-                  <h4 className="text-xs font-black uppercase tracking-wider text-indigo-800 flex items-center gap-2">
-                    <BookOpen size={14} />
-                    Automatic Subject Enrollment
-                  </h4>
-                  <p className="text-xs text-indigo-700 leading-relaxed font-semibold">
-                    This learner belongs to a K–10 grade level ({section.gradeLevel === 0 ? "Kindergarten" : `Grade ${section.gradeLevel}`}). Consistent with school policy, this learner will automatically inherit all academic subjects configured inside this section.
-                  </p>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2 uppercase tracking-widest"><BookOpen size={16} className="text-indigo-600"/> Enrolled Subjects</h3>
+                  <p className="text-xs text-slate-500 mt-1">Select the curriculum subjects this learner will be enrolled in.</p>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-56 overflow-y-auto custom-scrollbar p-1">
+                  {sectionSubjectsList.map(subj => {
+                     const isEnrolled = (form.enrolledSubjectIds || []).includes(subj.id);
+                     return (
+                       <label key={subj.id} className={`flex items-start gap-3 p-3 rounded-xl border ${isEnrolled ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-slate-200 hover:border-slate-300'} cursor-pointer transition-all select-none`}>
+                         <div className="pt-0.5">
+                           <input 
+                             type="checkbox"
+                             checked={isEnrolled}
+                             onChange={(e) => {
+                               const ids = new Set(form.enrolledSubjectIds || []);
+                               if (e.target.checked) ids.add(subj.id);
+                               else ids.delete(subj.id);
+                               setForm({...form, enrolledSubjectIds: Array.from(ids)});
+                             }}
+                             className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300"
+                           />
+                         </div>
+                         <div>
+                            <p className="text-sm font-bold text-slate-900 leading-tight">{subj.name}</p>
+                            <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">{subj.group || (subj.subjectType || 'CORE')}</p>
+                         </div>
+                       </label>
+                     );
+                  })}
+                  {sectionSubjectsList.length === 0 && (
+                     <div className="col-span-1 border border-dashed border-slate-300 rounded-xl p-4 text-center">
+                        <p className="text-xs text-slate-500 uppercase tracking-widest font-bold">No subjects configured for this Section / Grade Level</p>
+                     </div>
+                  )}
                 </div>
               </div>
             )}

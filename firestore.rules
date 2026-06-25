@@ -117,7 +117,7 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow update: if isAdmin() || 
                     (isSystemAdmin() && existing().get('schoolId', '') == getSchoolId() && incoming().get('schoolId', '') == existing().get('schoolId', '')) || 
-                    (isTeacher() && existing().get('schoolId', '') == getSchoolId() && incoming().diff(existing()).affectedKeys().hasAny(['principalSignature', 'logo']) && incoming().diff(existing()).affectedKeys().hasOnly(['principalSignature', 'logo']));
+                    (isTeacher() && existing().get('schoolId', '') == getSchoolId() && incoming().diff(existing()).affectedKeys().hasAny(['principalSignature', 'logo', 'idTemplate']) && incoming().diff(existing()).affectedKeys().hasOnly(['principalSignature', 'logo', 'idTemplate']));
       allow create, delete: if isAdmin();
     }
 
