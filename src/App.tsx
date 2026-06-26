@@ -3530,7 +3530,7 @@ export default function App() {
                 { id: 'sf2', label: 'School Form 2', icon: <FileText size={14} /> },
                 { id: 'sf10', label: 'Learners Records', icon: <HistoryIcon size={14} /> },
                 { id: 'attendance', label: 'Daily Attendance', icon: <Calendar size={14} /> },
-                { id: 'observed-values', label: 'Observed Values', icon: <Heart size={14} /> },
+                { id: 'observed-values', label: 'Teacher Comments/Remarks', icon: <Heart size={14} /> },
                 { id: 'anecdotes', label: 'Anecdotal Records', icon: <MessageSquare size={14} /> },
                 { id: 'sf8', label: 'School Form 8', icon: <Activity size={14} /> },
                 { id: 'sf4', label: 'School Form 4', icon: <FileText size={14} /> },
@@ -18541,52 +18541,17 @@ function MATATAGReportCardModal({
 
   const exportWord = () => {
     try {
-      // Build Observed Values HTML block
-      const coreValuesData = [
-        {
-          val: "1. Maka-Diyos",
-          rows: [
-            { key: "diyos-1", txt: "Expresses one's spiritual beliefs while respecting the spiritual beliefs of others." },
-            { key: "diyos-2", txt: "Shows adherence to ethical principles by upholding truth in all undertakings." }
-          ]
-        },
-        {
-          val: "2. Makatao",
-          rows: [
-            { key: "tao-1", txt: "Is sensitive to individual, social, and cultural differences." },
-            { key: "tao-2", txt: "Demonstrates contributions towards solidarity." }
-          ]
-        },
-        {
-          val: "3. Maka-Kalikasan",
-          rows: [
-            { key: "kalikasan-1", txt: "Cares for environment and utilizes resources wisely, judiciously and economically." }
-          ]
-        },
-        {
-          val: "4. Maka-Bansa",
-          rows: [
-            { key: "bansa-1", txt: "Demonstrates pride in being a Filipino; exercises the rights and responsibilities of a Filipino citizen." },
-            { key: "bansa-2", txt: "Demonstrates appropriate behavior in carrying out activities in school, community and country." }
-          ]
-        }
-      ];
-
+      // Build Observed Values HTML block as Comments/Remarks
       let observedValuesHtml = "";
-      coreValuesData.forEach(cv => {
-        cv.rows.forEach((row, rIdx) => {
-          observedValuesHtml += `<tr style="font-size: 8pt;">`;
-          if (rIdx === 0) {
-            observedValuesHtml += `<td rowspan="${cv.rows.length}" style="border: 1px solid #000000; padding: 4px; font-weight: bold; background-color: #f8fafc; vertical-align: top; width: 100px;">${cv.val}</td>`;
-          }
-          observedValuesHtml += `<td style="border: 1px solid #000000; padding: 4px;">${row.txt}</td>`;
-          termsToShow.forEach(q => {
-            const isReleased = isTermReleased(q);
-            const val = isReleased ? (student.observedValues?.[q]?.[row.key] || '') : 'LOCKED';
-            observedValuesHtml += `<td style="border: 1px solid #000000; padding: 4px; text-align: center; font-weight: bold; color: ${isReleased ? '#000000' : '#94a3b8'};">${val}</td>`;
-          });
-          observedValuesHtml += `</tr>`;
-        });
+      termsToShow.forEach(q => {
+        const isReleased = isTermReleased(q);
+        const comment = isReleased ? (student.observedValues?.[q]?.['comment'] || '') : 'LOCKED';
+        observedValuesHtml += `
+          <tr style="font-size: 8.5pt; height: 50px;">
+            <td style="border: 1px solid #000000; padding: 8px 6px; font-weight: bold; background-color: #f8fafc; text-align: center; width: 80px; vertical-align: middle;">Term ${q}</td>
+            <td style="border: 1px solid #000000; padding: 8px 10px; vertical-align: top; color: ${isReleased ? '#000000' : '#94a3b8'}; height: 50px;">${comment}</td>
+          </tr>
+        `;
       });
 
       // Build Attendance HTML block
@@ -19172,20 +19137,12 @@ function MATATAGReportCardModal({
             <tr>
               <!-- PAGE 1 LEFT: OBSERVED VALUES & ATTENDANCE -->
               <td class="left-col" style="width: 48%; padding-right: 2%; vertical-align: top;">
-                <div class="section-title" style="margin-top: 0px;">REPORT ON LEARNER'S OBSERVED VALUES</div>
-                <div class="marking-box">
-                  <strong>Marking:</strong> AO - Always Observed &nbsp;|&nbsp; SO - Sometimes Observed &nbsp;|&nbsp; RO - Rarely Observed &nbsp;|&nbsp; NO - Not Observed
-                </div>
-                <table class="data-table">
+                <div class="section-title" style="margin-top: 0px;">TEACHER COMMENTS/REMARKS</div>
+                <table class="data-table" style="width: 100%; border-collapse: collapse; margin-bottom: 12px;">
                   <thead>
-                    <tr style="background-color: #e2e8f0; font-weight: bold;">
-                      <th colspan="2" style="border: 1px solid #000000; padding: 4px; text-align: left;">Core Values & Behavior Statements</th>
-                      <th colspan="${termsToShow.length}" style="border: 1px solid #000000; padding: 4px; text-align: center;">Term</th>
-                    </tr>
-                    <tr style="background-color: #f1f5f9; font-weight: bold;">
-                      <th style="border: 1px solid #000000; padding: 4px; text-align: left; width: 90px;">Core Values</th>
-                      <th style="border: 1px solid #000000; padding: 4px; text-align: left;">Behavior Statements</th>
-                      ${termsToShow.map(q => `<th style="border: 1px solid #000000; padding: 4px; text-align: center; width: 33px;">${q}</th>`).join('')}
+                    <tr style="background-color: #e2e8f0; font-weight: bold; font-size: 9pt;">
+                      <th style="border: 1px solid #000000; padding: 6px; text-align: left; width: 80px;">Term</th>
+                      <th style="border: 1px solid #000000; padding: 6px; text-align: left;">Comments / Remarks</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -19549,86 +19506,32 @@ function MATATAGReportCardModal({
 
     // Observed Values Section
     const obsHeaderIndex = dataRows.length;
-    const obsTitle = [createCell("REPORT ON LEARNER'S OBSERVED VALUES", { bold: true, size: 11, bg: "203764", color: "FFFFFF" })];
+    const obsTitle = [createCell("TEACHER COMMENTS/REMARKS", { bold: true, size: 11, bg: "203764", color: "FFFFFF" })];
     padRowWithNone(obsTitle, maxCols);
     dataRows.push(obsTitle);
     merges.push({ s: { r: obsHeaderIndex, c: 0 }, e: { r: obsHeaderIndex, c: maxCols - 1 } });
 
     const obsHeadersIdx = dataRows.length;
     const obsHeaders = [
-      createCell("CORE VALUES & BEHAVIOR STATEMENTS", { bold: true, bg: "D9E1F2" }),
-      createCell("", { bg: "D9E1F2" })
+      createCell("TERM", { bold: true, bg: "D9E1F2" }),
+      createCell("TEACHER COMMENTS / REMARKS", { bold: true, bg: "D9E1F2" })
     ];
-    for (let q = 1; q <= numTerms; q++) {
-      obsHeaders.push(createCell(`TERM ${q}`, { bold: true, bg: "D9E1F2" }));
-    }
     padRowWithNone(obsHeaders, maxCols);
     dataRows.push(obsHeaders);
-    merges.push({ s: { r: obsHeadersIdx, c: 0 }, e: { r: obsHeadersIdx, c: 1 } });
+    merges.push({ s: { r: obsHeadersIdx, c: 1 }, e: { r: obsHeadersIdx, c: maxCols - 1 } });
 
-    const valuesStructure = [
-      {
-        value: "1. Maka-Diyos",
-        statements: [
-          { key: "diyos-1", text: "Expresses one's spiritual beliefs while respecting the spiritual beliefs of others." },
-          { key: "diyos-2", text: "Shows adherence to ethical principles by upholding truth in all undertakings." }
-        ]
-      },
-      {
-        value: "2. Makatao",
-        statements: [
-          { key: "tao-1", text: "Is sensitive to individual, social, and cultural differences." },
-          { key: "tao-2", text: "Demonstrates contributions towards solidarity." }
-        ]
-      },
-      {
-        value: "3. Maka-Kalikasan",
-        statements: [
-          { key: "kalikasan-1", text: "Cares for environment and utilizes resources wisely, judiciously and economically." }
-        ]
-      },
-      {
-        value: "4. Maka-Bansa",
-        statements: [
-          { key: "bansa-1", text: "Demonstrates pride in being a Filipino; exercises the rights and responsibilities of a Filipino citizen." },
-          { key: "bansa-2", text: "Demonstrates appropriate behavior in carrying out activities in school, community and country." }
-        ]
-      }
-    ];
-
-    let rowIdxTracker = dataRows.length;
-    valuesStructure.forEach((group) => {
-      const numLines = group.statements.length;
-      
-      group.statements.forEach((stmt, sIdx) => {
-        const valueColCell = sIdx === 0 
-          ? createCell(group.value, { bold: true, bg: "F8FAFC", size: 10 })
-          : createCell("", { bg: "F8FAFC" });
-
-        const cells = [
-          valueColCell,
-          createCell(stmt.text, { size: 9 }),
-        ];
-
-        for (let q = 1; q <= numTerms; q++) {
-          const loadedVal = student.observedValues?.[q]?.[stmt.key] || "";
-          cells.push(createCell(isTermReleased(q) ? loadedVal : "LOCKED", { 
-            bold: true, 
-            align: "center", 
-            italic: !isTermReleased(q),
-            color: isTermReleased(q) ? undefined : "94A3B8"
-          }));
-        }
-
-        padRowWithNone(cells, maxCols);
-        dataRows.push(cells);
-      });
-
-      if (numLines > 1) {
-        merges.push({ s: { r: rowIdxTracker, c: 0 }, e: { r: rowIdxTracker + numLines - 1, c: 0 } });
-      }
-      rowIdxTracker += numLines;
-    });
+    for (let q = 1; q <= numTerms; q++) {
+      const rowIdx = dataRows.length;
+      const isReleased = isTermReleased(q);
+      const val = isReleased ? (student.observedValues?.[q]?.['comment'] || '') : 'LOCKED';
+      const cells = [
+        createCell(`Term ${q}`, { bold: true, bg: "F8FAFC", align: "center" }),
+        createCell(val, { size: 10, italic: !isReleased, color: isReleased ? undefined : "94A3B8" })
+      ];
+      padRowWithNone(cells, maxCols);
+      dataRows.push(cells);
+      merges.push({ s: { r: rowIdx, c: 1 }, e: { r: rowIdx, c: maxCols - 1 } });
+    }
 
     // Spacer
     dataRows.push([...rSpacer]);
@@ -19996,78 +19899,25 @@ function MATATAGReportCardModal({
         <div class="sheet">
           <!-- COLUMN LEFT: OBSERVED VALUES & ATTENDANCE -->
           <div class="col" style="border-right: 1px solid black; padding-right: 10mm;">
-              <h3 class="font-black uppercase" style="font-size: 10px; margin: 0 0 5px 0; border-bottom: 1px solid black; padding-bottom: 2px;">REPORT ON LEARNER'S OBSERVED VALUES</h3>
-              <div class="marking-box">
-                <div class="font-black uppercase text-xs" style="margin-bottom: 4px; border-bottom: 1px solid black; padding-bottom: 2px;">Marking</div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; font-size: 8.5px; font-weight: bold;">
-                  <div>AO - Always Observed</div>
-                  <div>SO - Sometimes Observed</div>
-                  <div>RO - Rarely Observed</div>
-                  <div>NO - Not Observed</div>
-                </div>
-              </div>
-
-              <table class="report-table" style="flex: 1; margin-bottom: 10px;">
+              <h3 class="font-black uppercase" style="font-size: 10px; margin: 0 0 5px 0; border-bottom: 1px solid black; padding-bottom: 2px;">TEACHER COMMENTS/REMARKS</h3>
+              <table class="report-table" style="width: 100%; margin-bottom: 10px;">
                 <thead>
-                  <tr class="font-black uppercase">
-                    <th colspan="2" style="padding: 4px 6px;">Core Values & Behavior Statements</th>
-                    <th colspan="${termsToShow.length}" style="text-align: center;">Term</th>
-                  </tr>
-                  <tr class="font-black uppercase">
-                    <th style="width: 85px;">Core Values</th>
-                    <th>Behavior Statements</th>
-                    ${termsToShow.map(q => `<th style="width: 25px; text-align: center;">${q}</th>`).join('')}
+                  <tr class="font-black uppercase" style="background-color: #f1f5f9; font-size: 8.5px;">
+                    <th style="padding: 4px 6px; width: 60px; text-align: center;">Term</th>
+                    <th style="padding: 4px 6px; text-align: left;">Comments / Remarks</th>
                   </tr>
                 </thead>
                 <tbody>
-                  ${(() => {
-                    const rows = [
-                      {
-                        val: "1. Maka-Diyos",
-                        items: [
-                          { key: 'diyos-1', txt: "Expresses one's spiritual beliefs while respecting the spiritual beliefs of others." },
-                          { key: 'diyos-2', txt: "Shows adherence to ethical principles by upholding truth in all undertakings." }
-                        ]
-                      },
-                      {
-                        val: "2. Makatao",
-                        items: [
-                          { key: 'tao-1', txt: "Is sensitive to individual, social, and cultural differences." },
-                          { key: 'tao-2', txt: "Demonstrates contributions towards solidarity." }
-                        ]
-                      },
-                      {
-                        val: "3. Maka-Kalikasan",
-                        items: [
-                          { key: 'kalikasan-1', txt: "Cares for environment and utilizes resources wisely, judiciously and economically." }
-                        ]
-                      },
-                      {
-                        val: "4. Maka-Bansa",
-                        items: [
-                          { key: 'bansa-1', txt: "Demonstrates pride in being a Filipino; exercises the rights and responsibilities of a Filipino citizen." },
-                          { key: 'bansa-2', txt: "Demonstrates appropriate behavior in carrying out activities in school, community and country." }
-                        ]
-                      }
-                    ];
-
-                    let rowsStr = "";
-                    rows.forEach(grp => {
-                      grp.items.forEach((item, innerIdx) => {
-                        rowsStr += `<tr>`;
-                        if (innerIdx === 0) {
-                          rowsStr += `<td rowspan="${grp.items.length}" style="font-weight: bold; font-size: 9px; vertical-align: top; width: 85px; background: #f8fafc;">${grp.val}</td>`;
-                        }
-                        rowsStr += `<td style="font-size: 8px;">${item.txt}</td>`;
-                        termsToShow.forEach(q => {
-                          const val = isTermReleased(q) ? (student.observedValues?.[q]?.[item.key] || '') : '🔒';
-                          rowsStr += `<td style="text-align: center; font-weight: bold; font-size: 9px;">${val}</td>`;
-                        });
-                        rowsStr += `</tr>`;
-                      });
-                    });
-                    return rowsStr;
-                  })()}
+                  ${termsToShow.map(q => {
+                    const isReleased = isTermReleased(q);
+                    const comment = isReleased ? (student.observedValues?.[q]?.['comment'] || '') : 'LOCKED';
+                    return `
+                      <tr style="height: 50px;">
+                        <td style="font-weight: bold; text-align: center; background: #f8fafc; font-size: 8.5px; padding: 8px 6px; vertical-align: middle; width: 60px;">Term ${q}</td>
+                        <td style="padding: 8px 10px; vertical-align: top; color: ${isReleased ? '#000000' : '#94a3b8'}; font-size: 8.5px; height: 50px;">${comment}</td>
+                      </tr>
+                    `;
+                  }).join('')}
                 </tbody>
               </table>
 
@@ -20358,101 +20208,40 @@ function MATATAGReportCardModal({
           {/* PAGE 1 */}
           <div className="bg-white w-[297mm] h-[210mm] p-[0.5in] shadow-2xl rounded text-black border border-black flex gap-4 overflow-hidden print:shadow-none print:m-0 border-collapse print-card">
             {/* COLUMN 2: OBSERVED VALUES & ATTENDANCE (Moved to Page 1 Left) */}
-             <div className="flex-1 flex flex-col gap-4 border-r border-black pr-4 overflow-hidden">
-                <div className="flex-1 flex flex-col overflow-hidden">
-                  <h3 className="text-[11px] font-black uppercase tracking-wider mb-2 border-b border-black pb-1 shrink-0">REPORT ON LEARNER'S OBSERVED VALUES</h3>
-                  <div className="bg-white p-3 rounded-sm border border-black mb-2 shrink-0">
-                    <p className="text-[10px] font-black text-black uppercase tracking-widest mb-2 border-b border-black pb-1">Marking</p>
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] font-bold">
-                       <p>AO - Always Observed</p>
-                       <p>SO - Sometimes Observed</p>
-                       <p>RO - Rarely Observed</p>
-                       <p>NO - Not Observed</p>
-                    </div>
-                  </div>
+             <div className="flex-1 flex flex-col gap-2 border-r border-black pr-4 overflow-hidden">
+                <div className="flex flex-col">
+                  <h3 className="text-[11px] font-black uppercase tracking-wider mb-2 border-b border-black pb-1 shrink-0">TEACHER COMMENTS/REMARKS</h3>
 
-                  <div className="flex-1 border border-black rounded-sm overflow-hidden flex flex-col">
-                     <table className="w-full h-full border-collapse border border-black text-[10px] leading-tight">
-                        <thead className="bg-white border-b border-black">
+                  <div className="flex flex-col">
+                     <table className="w-full border-collapse border border-black text-[10px] leading-tight">
+                        <thead className="bg-white">
                           <tr className="bg-white font-black text-[10px] uppercase tracking-widest text-left">
-                            <th colSpan={2} className="border border-black p-1.5 pl-3">Core Values & Behavior Statements</th>
-                            <th colSpan={termsToShow.length} className="border border-black p-1.5 text-center">Term</th>
-                          </tr>
-                          <tr className="bg-white font-black text-[10px] text-left">
-                            <th className="border border-black p-1.5 w-28">Core Values</th>
-                            <th className="border border-black p-1.5">Behavior Statements</th>
-                            {termsToShow.map((q) => (
-                              <th key={q} className="border border-black p-1 text-center w-10">{q}</th>
-                            ))}
+                            <th className="border border-black p-2 px-3 w-20 text-center">Term</th>
+                            <th className="border border-black p-2 px-3 text-left">Comments / Remarks</th>
                           </tr>
                         </thead>
-                       <tbody className="align-top bg-white">
-                         <tr>
-                           <td rowSpan={2} className="border border-black p-1.5 font-bold text-[11px]">1. Maka-Diyos</td>
-                           <td className="border border-black p-1.5 text-[10px]">Expresses one's spiritual beliefs while respecting the spiritual beliefs of others.</td>
-                           {termsToShow.map((q) => (
-                             <td key={q} className="border border-black p-1.5 text-center font-bold">
-                               {isTermReleased(q) ? (student.observedValues?.[q]?.[ 'diyos-1' ] || '') : <Lock size={8} className="mx-auto text-slate-300" />}
-                             </td>
-                           ))}
-                         </tr>
-                         <tr>
-                           <td className="border border-black p-1.5 text-[10px]">Shows adherence to ethical principles by upholding truth in all undertakings.</td>
-                           {termsToShow.map((q) => (
-                             <td key={q} className="border border-black p-1.5 text-center font-bold">
-                               {isTermReleased(q) ? (student.observedValues?.[q]?.[ 'diyos-2' ] || '') : <Lock size={8} className="mx-auto text-slate-300" />}
-                             </td>
-                           ))}
-                         </tr>
-                         <tr>
-                           <td rowSpan={2} className="border border-black p-1.5 font-bold text-[11px]">2. Makatao</td>
-                           <td className="border border-black p-1.5 text-[10px]">Is sensitive to individual, social, and cultural differences.</td>
-                           {termsToShow.map((q) => (
-                             <td key={q} className="border border-black p-1.5 text-center font-bold">
-                               {isTermReleased(q) ? (student.observedValues?.[q]?.[ 'tao-1' ] || '') : <Lock size={8} className="mx-auto text-slate-300" />}
-                             </td>
-                           ))}
-                         </tr>
-                         <tr>
-                           <td className="border border-black p-1.5 text-[10px]">Demonstrates contributions towards solidarity.</td>
-                           {termsToShow.map((q) => (
-                             <td key={q} className="border border-black p-1.5 text-center font-bold">
-                               {isTermReleased(q) ? (student.observedValues?.[q]?.[ 'tao-2' ] || '') : <Lock size={8} className="mx-auto text-slate-300" />}
-                             </td>
-                           ))}
-                         </tr>
-                         <tr>
-                           <td className="border border-black p-1.5 font-bold text-[11px]">3. Maka-Kalikasan</td>
-                           <td className="border border-black p-1.5 text-[10px]">Cares for environment and utilizes resources wisely, judiciously and economically.</td>
-                           {termsToShow.map((q) => (
-                             <td key={q} className="border border-black p-1.5 text-center font-bold">
-                               {isTermReleased(q) ? (student.observedValues?.[q]?.[ 'kalikasan-1' ] || '') : <Lock size={8} className="mx-auto text-slate-300" />}
-                             </td>
-                           ))}
-                         </tr>
-                         <tr>
-                           <td rowSpan={2} className="border border-black p-1.5 font-bold text-[11px]">4. Maka-Bansa</td>
-                           <td className="border border-black p-1.5 text-[10px]">Demonstrates pride in being a Filipino; exercises the rights and responsibilities of a Filipino citizen.</td>
-                           {termsToShow.map((q) => (
-                             <td key={q} className="border border-black p-1.5 text-center font-bold">
-                               {isTermReleased(q) ? (student.observedValues?.[q]?.[ 'bansa-1' ] || '') : <Lock size={8} className="mx-auto text-slate-300" />}
-                             </td>
-                           ))}
-                         </tr>
-                         <tr>
-                           <td className="border border-black p-1.5 text-[10px]">Demonstrates appropriate behavior in carrying out activities in school, community and country.</td>
-                           {termsToShow.map((q) => (
-                             <td key={q} className="border border-black p-1.5 text-center font-bold">
-                               {isTermReleased(q) ? (student.observedValues?.[q]?.[ 'bansa-2' ] || '') : <Lock size={8} className="mx-auto text-slate-300" />}
-                             </td>
-                           ))}
-                         </tr>
-                       </tbody>
+                        <tbody className="align-top bg-white">
+                          {termsToShow.map((q) => (
+                            <tr key={q}>
+                              <td className="border border-black p-2.5 px-3 font-bold text-center bg-slate-50/50 align-middle">Term {q}</td>
+                              <td className="border border-black p-2.5 px-3 text-left whitespace-pre-wrap leading-relaxed h-[55px] align-top">
+                                {isTermReleased(q) ? (
+                                  student.observedValues?.[q]?.['comment'] || <span className="text-slate-300 italic">No comments or remarks recorded.</span>
+                                ) : (
+                                  <div className="flex items-center gap-1 text-slate-400">
+                                    <Lock size={12} />
+                                    <span>Locked by Adviser</span>
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
                      </table>
                   </div>
                 </div>
 
-                <div className="mt-4 shrink-0">
+                <div className="shrink-0">
                   <div className="flex justify-between items-end mb-2 border-b border-black pb-1">
                     <h3 className="text-[11px] font-black uppercase tracking-wider">ATTENDANCE RECORD</h3>
                     {!hasCalendarMatch && (
@@ -25842,7 +25631,7 @@ function UserGuideView() {
       id: 'attendance-behavior',
       title: 'Attendance & Behavior',
       icon: <Calendar size={18} />,
-      description: 'Daily tracking, SF 2, and Observed Values',
+      description: 'Daily tracking, SF 2, and Teacher Comments/Remarks',
       content: (
         <div className="space-y-6">
           <p className="text-lg text-slate-600 font-medium">Track non-academic performance including daily presence and character development.</p>
@@ -25862,7 +25651,7 @@ function UserGuideView() {
             </div>
             <div className="p-6 bg-white border border-slate-100 rounded-2xl shadow-sm md:col-span-2">
               <h5 className="font-bold text-slate-900 mb-2 flex items-center gap-2 text-indigo-600">
-                <Heart size={16} /> Observed Values
+                <Heart size={16} /> Teacher Comments/Remarks
               </h5>
               <p className="text-xs text-slate-500">Record character ratings across the 4 DepEd Core Values. These ratings are essential for the Learner Progress Report Cards.</p>
             </div>

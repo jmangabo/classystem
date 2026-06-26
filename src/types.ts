@@ -27,7 +27,7 @@ export interface TermData {
 
 export type TermNumber = 1 | 2 | 3 | 4;
 
-export type RatedValue = 'AO' | 'SO' | 'RO' | 'NO' | '';
+export type RatedValue = string;
 
 export interface ObservedValues {
   [term: number]: {
