@@ -15809,7 +15809,7 @@ function DashboardView({
   onUpdateAttendance?: (studentId: string, month: string, day: number, present: boolean) => void
 }) {
   const [showScanner, setShowScanner] = useState(false);
-  const [recentScan, setRecentScan] = useState<{ status: 'success' | 'error', message: string } | null>(null);
+  const [recentScan, setRecentScan] = useState<{ status: 'success' | 'error', message: string, student?: Student | null } | null>(null);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
   const [localScannerError, setLocalScannerError] = useState<string | null>(null);
 
@@ -15924,7 +15924,7 @@ function DashboardView({
     
     const student = students.find(s => s.lrn === scannedLrn);
     if (!student) {
-      setRecentScan({ status: 'error', message: `LRN ${scannedLrn} not found in this section.` });
+      setRecentScan({ status: 'error', message: `LRN ${scannedLrn} not found in this section.`, student: null });
       setTimeout(() => setRecentScan(null), 3000);
       return;
     }
@@ -15947,21 +15947,21 @@ function DashboardView({
     }
 
     if (!termKeyToUpdate) {
-      setRecentScan({ status: 'error', message: `Today (${currentMonthStr} ${currentDay}) is not a valid school day in the calendar.` });
+      setRecentScan({ status: 'error', message: `Today (${currentMonthStr} ${currentDay}) is not a valid school day in the calendar.`, student });
       setTimeout(() => setRecentScan(null), 3000);
       return;
     }
 
     const isDisabled = isDayDisabledForStudent(student, currentYear, currentMonthStr, currentDay);
     if (isDisabled) {
-      setRecentScan({ status: 'error', message: `${formatStudentName(student)} is inactive or not enrolled today.` });
+      setRecentScan({ status: 'error', message: `${formatStudentName(student)} is inactive or not enrolled today.`, student });
       setTimeout(() => setRecentScan(null), 3000);
       return;
     }
 
     if (onUpdateAttendance) {
       onUpdateAttendance(student.id, termKeyToUpdate, currentDay, true);
-      setRecentScan({ status: 'success', message: `${formatStudentName(student)} marked present for today.` });
+      setRecentScan({ status: 'success', message: `${formatStudentName(student)} marked present for today.`, student });
       setTimeout(() => setRecentScan(null), 3000);
     }
   };
@@ -16894,11 +16894,76 @@ function DashboardView({
                 <div className="absolute bottom-4 right-4 w-8 h-8 border-b-4 border-r-4 border-white/50 rounded-br-xl"></div>
               </div>
 
-              <div className="mt-8 w-full">
+              <div className="mt-8 w-full space-y-4">
                 {recentScan ? (
-                  <div className={`p-4 rounded-xl flex items-center gap-3 ${recentScan.status === 'success' ? 'bg-emerald-50 border border-emerald-200 text-emerald-700' : 'bg-rose-50 border border-rose-200 text-rose-700'}`}>
-                    {recentScan.status === 'success' ? <CheckCircle size={24} className="shrink-0" /> : <AlertCircle size={24} className="shrink-0" />}
-                    <span className="text-sm font-bold">{recentScan.message}</span>
+                  <div className="space-y-4">
+                    <div className={`p-4 rounded-xl flex items-center gap-3 border ${recentScan.status === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-rose-50 border-rose-200 text-rose-700'}`}>
+                      {recentScan.status === 'success' ? <CheckCircle size={24} className="shrink-0" /> : <AlertCircle size={24} className="shrink-0" />}
+                      <span className="text-sm font-bold">{recentScan.message}</span>
+                    </div>
+
+                    {recentScan.student && (
+                      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 relative overflow-hidden shadow-sm animate-in fade-in duration-200">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50/40 rounded-full blur-2xl pointer-events-none"></div>
+                        
+                        <div className="flex gap-4 items-start relative z-10">
+                          {recentScan.student.photo ? (
+                            <img 
+                              src={recentScan.student.photo} 
+                              alt={formatStudentName(recentScan.student)}
+                              className="w-16 h-16 rounded-2xl object-cover border border-slate-200 shadow-sm"
+                              referrerPolicy="no-referrer"
+                            />
+                          ) : (
+                            <div className={`w-16 h-16 rounded-2xl flex items-center justify-center font-black text-xl text-white shadow-sm ${recentScan.student.sex === 'Female' ? 'bg-rose-500 shadow-rose-100' : 'bg-indigo-500 shadow-indigo-100'}`}>
+                              {formatStudentName(recentScan.student).charAt(0)}
+                            </div>
+                          )}
+
+                          <div className="space-y-1 min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                                recentScan.student.status === 'Dropped Out' 
+                                  ? 'bg-orange-50 border-orange-200 text-orange-600'
+                                  : recentScan.student.status === 'Transferred Out'
+                                  ? 'bg-rose-50 border-rose-200 text-rose-600'
+                                  : 'bg-emerald-50 border-emerald-200 text-emerald-600'
+                              }`}>
+                                {recentScan.student.status || 'Active / Enrolled'}
+                              </span>
+                              {recentScan.student.sex && (
+                                <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                                  recentScan.student.sex === 'Female' ? 'bg-pink-50 border-pink-200 text-pink-600' : 'bg-blue-50 border-blue-200 text-blue-600'
+                                }`}>
+                                  {recentScan.student.sex}
+                                </span>
+                              )}
+                            </div>
+
+                            <h4 className="text-sm font-black text-slate-800 tracking-tight truncate">
+                              {formatStudentName(recentScan.student)}
+                            </h4>
+                            
+                            <p className="text-[10px] font-bold text-slate-500">
+                              LRN: <span className="text-slate-800 font-mono font-bold">{recentScan.student.lrn}</span>
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3 mt-4 pt-4 border-t border-slate-200/60 text-[10px] relative z-10">
+                          <div>
+                            <p className="text-slate-400 font-semibold uppercase tracking-wider">Grade & Section</p>
+                            <p className="text-slate-700 font-bold uppercase mt-0.5">
+                              {section ? ((Number(section.gradeLevel) === 0) ? `Kindergarten • ${section.name}` : `Grade ${section.gradeLevel} • ${section.name}`) : 'Unknown'}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-slate-400 font-semibold uppercase tracking-wider">Contact Number</p>
+                            <p className="text-slate-700 font-bold mt-0.5">{recentScan.student.contactNumber || 'No registered contact'}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-center">
