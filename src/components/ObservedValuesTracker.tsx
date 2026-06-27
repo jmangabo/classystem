@@ -70,9 +70,9 @@ export const ObservedValuesTracker: React.FC<ObservedValuesTrackerProps> = ({ st
             </thead>
             <tbody>
               {studentList.map(student => (
-                <tr key={student.id} className="border-b border-slate-200 hover:bg-slate-50/50 transition-colors">
-                  <td className="p-3 border-r-[0.5px] border-black font-semibold uppercase text-slate-800 text-xs w-64">
-                    <div className="flex flex-col gap-1">
+                <tr key={student.id} className="border-b border-black hover:bg-slate-50/50 transition-colors">
+                  <td className="p-5 border-r-[0.5px] border-black font-semibold uppercase text-slate-800 text-xs w-64 align-top">
+                    <div className="flex flex-col gap-1.5">
                       <span>{formatStudentName(student)}</span>
                       {student.status === 'Dropped Out' && (
                         <span className="text-[8px] bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded-full font-black uppercase tracking-widest self-start">
@@ -90,18 +90,18 @@ export const ObservedValuesTracker: React.FC<ObservedValuesTrackerProps> = ({ st
                     const comment = student.observedValues?.[p]?.[ 'comment' ] || '';
                     const isFocused = activeCell?.studentId === student.id && activeCell?.period === p;
                     return (
-                      <td key={p} className="p-2 border-r-[0.5px] border-black last:border-r-0 align-top">
+                      <td key={p} className="p-5 border-r-[0.5px] border-black last:border-r-0 align-top">
                         <textarea
                           value={comment}
                           onChange={(e) => onUpdateValue(student.id, p, 'comment', e.target.value)}
                           onFocus={() => setActiveCell({ studentId: student.id, period: p })}
                           placeholder={`Enter Term ${p} Remarks...`}
-                          rows={3}
-                          className="w-full border rounded-lg p-2 text-xs font-medium focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all resize-y custom-scrollbar border-slate-300"
+                          rows={4}
+                          className="w-full border rounded-xl p-3 text-xs font-semibold focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all resize-y custom-scrollbar border-slate-300 leading-relaxed min-h-[90px]"
                         />
                         {isFocused && (
-                          <div className="mt-1 bg-indigo-50/50 p-1.5 rounded-md border border-indigo-100/50 flex flex-wrap gap-1 max-w-sm">
-                            <span className="text-[9px] font-bold text-indigo-500 uppercase tracking-wider block w-full mb-0.5 flex items-center gap-1">
+                          <div className="mt-2 bg-indigo-50/70 p-2.5 rounded-xl border border-indigo-100 flex flex-wrap gap-1.5 max-w-sm shadow-sm animate-in fade-in slide-in-from-top-1 duration-150">
+                            <span className="text-[9px] font-black text-indigo-600 uppercase tracking-wider block w-full mb-0.5 flex items-center gap-1">
                               <Sparkles size={10} /> Click to apply quick remark:
                             </span>
                             {QUICK_COMMENTS.map((qc, qIdx) => (
@@ -113,7 +113,7 @@ export const ObservedValuesTracker: React.FC<ObservedValuesTrackerProps> = ({ st
                                   e.preventDefault();
                                 }}
                                 onClick={() => handleApplySuggestion(student.id, p, qc)}
-                                className="text-[9px] font-medium bg-white hover:bg-indigo-600 hover:text-white text-slate-600 border border-slate-200 hover:border-indigo-600 px-1.5 py-0.5 rounded transition-all truncate max-w-[150px]"
+                                className="text-[9px] font-bold bg-white hover:bg-indigo-600 hover:text-white text-slate-600 border border-slate-200 hover:border-indigo-600 px-2 py-1 rounded-lg transition-all truncate max-w-[170px] cursor-pointer"
                                 title={qc}
                               >
                                 {qc}

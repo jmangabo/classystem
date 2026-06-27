@@ -875,6 +875,7 @@ export default function App() {
   const [globalScannerFacingMode, setGlobalScannerFacingMode] = useState<'user' | 'environment'>('environment');
   const [globalRecentScan, setGlobalRecentScan] = useState<{ status: 'success' | 'error', message: string, student?: Student | null, section?: Section | null } | null>(null);
   const [globalScannerError, setGlobalScannerError] = useState<string | null>(null);
+  const [globalManualLrnInput, setGlobalManualLrnInput] = useState('');
 
   const globalScannerConstraints = useMemo(() => ({
     facingMode: globalScannerFacingMode
@@ -3225,21 +3226,21 @@ export default function App() {
         {/* Render Global Scanner if open */}
         <AnimatePresence>
           {showGlobalScanner && (
-            <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+            <div className="fixed inset-0 z-[150] flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm">
               <motion.div 
                 initial={{ scale: 0.95, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.95, opacity: 0 }}
-                className="bg-white rounded-3xl w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+                className="bg-white rounded-2xl sm:rounded-3xl w-full max-w-[95vw] lg:max-w-6xl xl:max-w-7xl h-[95vh] md:h-[90vh] max-h-[850px] shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200"
               >
-                <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                <div className="p-5 sm:p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center shrink-0">
                       <QrCode size={20} />
                     </div>
                     <div>
-                      <h3 className="font-extrabold text-slate-800 tracking-tight">Scan ID Card</h3>
-                      <p className="text-[10px] text-indigo-600 font-bold uppercase tracking-widest">Attendance & Learner Validity</p>
+                      <h3 className="font-extrabold text-slate-800 tracking-tight text-sm sm:text-base">Scan ID Card</h3>
+                      <p className="text-[10px] text-indigo-600 font-bold uppercase tracking-widest">Attendance & Learner Validity (Widescreen Optimized)</p>
                     </div>
                   </div>
                   <button 
@@ -3253,11 +3254,11 @@ export default function App() {
                   </button>
                 </div>
 
-                <div className="p-6 overflow-y-auto grid grid-cols-1 md:grid-cols-12 gap-6 items-start custom-scrollbar">
+                <div className="p-6 grid grid-cols-1 md:grid-cols-12 gap-8 items-stretch flex-1 overflow-y-auto custom-scrollbar">
                   {/* Left Part: Scanner Controls & Camera */}
-                  <div className="md:col-span-5 flex flex-col items-center">
+                  <div className="md:col-span-6 flex flex-col items-center justify-center border-b md:border-b-0 md:border-r border-slate-100 pb-6 md:pb-0 md:pr-8">
                     {/* Camera Selection */}
-                    <div className="flex justify-center gap-2 w-full mb-4">
+                    <div className="flex justify-center gap-2 w-full max-w-md sm:max-w-lg mb-4">
                       <button
                         type="button"
                         onClick={() => setGlobalScannerFacingMode('environment')}
@@ -3277,7 +3278,7 @@ export default function App() {
                     </div>
 
                     {/* Scanner Camera Frame */}
-                    <div className="w-full max-w-[320px] aspect-square rounded-3xl overflow-hidden bg-black shadow-lg border-4 border-slate-100 relative shrink-0">
+                    <div className="w-full max-w-md sm:max-w-lg aspect-square rounded-2xl overflow-hidden bg-black shadow-inner border-4 border-slate-100 relative shrink-0">
                       <Scanner
                         onScan={handleGlobalScannerScan}
                         onError={handleGlobalScannerError}
@@ -3288,30 +3289,82 @@ export default function App() {
                       />
 
                       {globalScannerError && (
-                        <div className="absolute inset-0 bg-slate-900/95 flex flex-col items-center justify-center p-4 text-center z-10 animate-in fade-in duration-200">
-                          <div className="w-10 h-10 bg-amber-500/10 text-amber-500 rounded-xl flex items-center justify-center mb-2">
-                            <AlertTriangle size={20} />
+                        <div className="absolute inset-0 bg-slate-900/95 flex flex-col items-center justify-center p-6 text-center z-10 animate-in fade-in duration-200">
+                          <div className="w-12 h-12 bg-amber-500/10 text-amber-500 rounded-xl flex items-center justify-center mb-2">
+                            <AlertTriangle size={24} />
                           </div>
-                          <p className="text-xs font-bold text-white mb-1">Camera Access Issue</p>
-                          <p className="text-[10px] text-slate-300 leading-normal max-w-[200px]">{globalScannerError}</p>
+                          <p className="text-sm font-bold text-white mb-1">Camera Access Issue</p>
+                          <p className="text-xs text-slate-300 leading-normal max-w-[280px] mb-3">{globalScannerError}</p>
+                          <div className="bg-white/10 p-3 rounded-lg text-[10px] text-slate-300 text-left max-w-sm border border-white/5 space-y-1">
+                            <p className="font-bold text-indigo-300">💡 Troubleshooting Guide:</p>
+                            <p>1. Check if another application is using your camera.</p>
+                            <p>2. Click the camera or lock icon in your browser's address bar, choose <b>"Allow"</b>, and refresh.</p>
+                            <p>3. If you're on mobile, verify camera permissions are enabled in system settings.</p>
+                            <p className="pt-1 border-t border-white/10 text-indigo-200 font-semibold"><b>Backup Option:</b> Use the <b>Manual Entry</b> section below!</p>
+                          </div>
                         </div>
                       )}
 
                       {/* Scanner overlay corners */}
-                      <div className="absolute top-4 left-4 w-8 h-8 border-t-4 border-l-4 border-white/60 rounded-tl-xl"></div>
-                      <div className="absolute top-4 right-4 w-8 h-8 border-t-4 border-r-4 border-white/60 rounded-tr-xl"></div>
-                      <div className="absolute bottom-4 left-4 w-8 h-8 border-b-4 border-l-4 border-white/60 rounded-bl-xl"></div>
-                      <div className="absolute bottom-4 right-4 w-8 h-8 border-b-4 border-r-4 border-white/60 rounded-br-xl"></div>
+                      <div className="absolute top-6 left-6 w-10 h-10 border-t-4 border-l-4 border-white/70 rounded-tl-xl"></div>
+                      <div className="absolute top-6 right-6 w-10 h-10 border-t-4 border-r-4 border-white/70 rounded-tr-xl"></div>
+                      <div className="absolute bottom-6 left-6 w-10 h-10 border-b-4 border-l-4 border-white/70 rounded-bl-xl"></div>
+                      <div className="absolute bottom-6 right-6 w-10 h-10 border-b-4 border-r-4 border-white/70 rounded-br-xl"></div>
+                    </div>
+
+                    {/* Manual Entry Fallback Panel */}
+                    <div className="w-full max-w-md sm:max-w-lg mt-4 p-4 bg-slate-50 border border-slate-200 rounded-2xl text-left">
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <span className="p-1 bg-indigo-50 text-indigo-600 rounded-lg shrink-0">
+                          <Users size={14} />
+                        </span>
+                        <h5 className="text-xs font-black text-slate-700 uppercase tracking-wider">
+                          Manual Keyboard & Barcode Entry
+                        </h5>
+                      </div>
+                      <p className="text-[10px] text-slate-500 mb-3 leading-normal">
+                        Type a student LRN or scan with a hardware barcode scanner to verify status and record attendance automatically.
+                      </p>
+                      
+                      <div className="flex gap-2">
+                        <input 
+                          type="text"
+                          placeholder="Type Student LRN..."
+                          value={globalManualLrnInput}
+                          onChange={(e) => setGlobalManualLrnInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              if (globalManualLrnInput.trim()) {
+                                handleGlobalScan(globalManualLrnInput.trim());
+                                setGlobalManualLrnInput('');
+                              }
+                            }
+                          }}
+                          className="flex-1 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-sm text-black placeholder:text-slate-400"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (globalManualLrnInput.trim()) {
+                              handleGlobalScan(globalManualLrnInput.trim());
+                              setGlobalManualLrnInput('');
+                            }
+                          }}
+                          className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase text-[10px] tracking-wider rounded-xl cursor-pointer transition-colors shadow-sm"
+                        >
+                          Submit
+                        </button>
+                      </div>
                     </div>
                   </div>
 
                   {/* Right Part: Learner Info and Validity check */}
-                  <div className="md:col-span-7 w-full h-full flex flex-col justify-start">
-                    <h4 className="text-xs font-black text-slate-400 uppercase tracking-wider mb-3">Scan Status & Learner Info</h4>
+                  <div className="md:col-span-6 w-full flex flex-col justify-center pl-0 md:pl-2">
+                    <h4 className="text-xs font-black text-slate-400 uppercase tracking-wider mb-4">Scan Status & Learner Info</h4>
                     {globalRecentScan ? (
                       <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-200">
                         {/* Scan Status Banner */}
-                        <div className={`p-4 rounded-2xl flex items-center gap-3 border ${globalRecentScan.status === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-800'}`}>
+                        <div className={`p-4 rounded-xl flex items-center gap-3 border ${globalRecentScan.status === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-rose-50 border-rose-200 text-rose-700'}`}>
                           {globalRecentScan.status === 'success' ? (
                             <CheckCircle size={24} className="text-emerald-600 shrink-0" />
                           ) : (
@@ -3322,7 +3375,7 @@ export default function App() {
 
                         {/* Learner Info Card (scanning validity of the learner information) */}
                         {globalRecentScan.student && (
-                          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 relative overflow-hidden shadow-sm text-left">
+                          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 relative overflow-hidden shadow-sm text-left">
                             <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50/40 rounded-full blur-2xl pointer-events-none"></div>
                             
                             <div className="flex gap-4 items-start relative z-10">
@@ -3331,16 +3384,16 @@ export default function App() {
                                 <img 
                                   src={globalRecentScan.student.photo} 
                                   alt={formatStudentName(globalRecentScan.student)}
-                                  className="w-16 h-16 rounded-2xl object-cover border border-slate-200 shadow-sm"
+                                  className="w-20 h-20 rounded-2xl object-cover border border-slate-200 shadow-sm"
                                   referrerPolicy="no-referrer"
                                 />
                               ) : (
-                                <div className={`w-16 h-16 rounded-2xl flex items-center justify-center font-black text-xl text-white shadow-sm ${globalRecentScan.student.sex === 'Female' ? 'bg-rose-500 shadow-rose-100' : 'bg-indigo-500 shadow-indigo-100'}`}>
+                                <div className={`w-20 h-20 rounded-2xl flex items-center justify-center font-black text-2xl text-white shadow-sm ${globalRecentScan.student.sex === 'Female' ? 'bg-rose-500 shadow-rose-100' : 'bg-indigo-500 shadow-indigo-100'}`}>
                                   {formatStudentName(globalRecentScan.student).charAt(0)}
                                 </div>
                               )}
 
-                              <div className="space-y-1 min-w-0 flex-1">
+                              <div className="space-y-1.5 min-w-0 flex-1">
                                 {/* Status Badge */}
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border ${
@@ -3361,21 +3414,21 @@ export default function App() {
                                   )}
                                 </div>
 
-                                <h4 className="text-sm font-black text-slate-800 tracking-tight truncate">
+                                <h4 className="text-base font-black text-slate-800 tracking-tight truncate">
                                   {formatStudentName(globalRecentScan.student)}
                                 </h4>
                                 
-                                <p className="text-[10px] font-bold text-slate-500">
+                                <p className="text-xs font-bold text-slate-500">
                                   LRN: <span className="text-slate-800 font-mono font-bold">{globalRecentScan.student.lrn}</span>
                                 </p>
                               </div>
                             </div>
 
                             {/* Secondary Fields Grid */}
-                            <div className="grid grid-cols-2 gap-3 mt-4 pt-4 border-t border-slate-200/60 text-[10px] relative z-10">
+                            <div className="grid grid-cols-2 gap-4 mt-6 pt-6 border-t border-slate-200/60 text-xs relative z-10">
                               <div>
-                                <p className="text-slate-400 font-semibold uppercase tracking-wider">Grade & Section</p>
-                                <p className="text-slate-700 font-bold uppercase mt-0.5">
+                                <p className="text-slate-400 font-semibold uppercase tracking-wider text-[10px]">Grade & Section</p>
+                                <p className="text-slate-700 font-bold uppercase mt-1">
                                   {(() => {
                                     const activeSec = globalRecentScan?.section || selectedSection;
                                     if (!activeSec) return 'Unknown Section';
@@ -3384,30 +3437,30 @@ export default function App() {
                                 </p>
                               </div>
                               <div>
-                                <p className="text-slate-400 font-semibold uppercase tracking-wider">Contact Number</p>
-                                <p className="text-slate-700 font-bold mt-0.5">{globalRecentScan.student.contactNumber || 'No registered contact'}</p>
+                                <p className="text-slate-400 font-semibold uppercase tracking-wider text-[10px]">Contact Number</p>
+                                <p className="text-slate-700 font-bold mt-1">{globalRecentScan.student.contactNumber || 'No registered contact'}</p>
                               </div>
                               <div>
-                                <p className="text-slate-400 font-semibold uppercase tracking-wider">First Attendance</p>
-                                <p className="text-slate-700 font-bold mt-0.5">{globalRecentScan.student.dateOfFirstAttendance || 'Not specified'}</p>
+                                <p className="text-slate-400 font-semibold uppercase tracking-wider text-[10px]">First Attendance</p>
+                                <p className="text-slate-700 font-bold mt-1">{globalRecentScan.student.dateOfFirstAttendance || 'Not specified'}</p>
                               </div>
                               <div>
-                                <p className="text-slate-400 font-semibold uppercase tracking-wider">Guardian Name</p>
-                                <p className="text-slate-700 font-bold mt-0.5 truncate">{globalRecentScan.student.guardianName || 'None'}</p>
+                                <p className="text-slate-400 font-semibold uppercase tracking-wider text-[10px]">Guardian Name</p>
+                                <p className="text-slate-700 font-bold mt-1 truncate">{globalRecentScan.student.guardianName || 'None'}</p>
                               </div>
                             </div>
                           </div>
                         )}
                       </div>
                     ) : (
-                      <div className="p-8 rounded-2xl bg-slate-50 border-2 border-dashed border-slate-200 text-center flex flex-col items-center justify-center gap-3 h-full min-h-[220px]">
-                        <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-sm border border-slate-100 text-slate-400 animate-pulse">
-                          <QrCode size={24} />
+                      <div className="p-8 rounded-2xl bg-slate-50 border border-slate-200 text-center flex flex-col items-center justify-center h-full min-h-[280px]">
+                        <div className="w-14 h-14 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-500 mb-3 animate-pulse">
+                          <QrCode size={28} />
                         </div>
                         <div>
-                          <p className="text-xs font-bold text-slate-600">Scan a Student ID QR Code</p>
-                          <p className="text-[10px] text-slate-400 font-medium leading-relaxed max-w-[240px] mt-1 mx-auto">
-                            Position the student ID QR code inside the camera view to verify status and record attendance automatically.
+                          <p className="text-sm font-black text-slate-700">Waiting for scan...</p>
+                          <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">
+                            Position Student ID QR inside the camera view
                           </p>
                         </div>
                       </div>
@@ -4434,21 +4487,21 @@ export default function App() {
       {/* Global QR Scanner Modal (with Learner Information and Validity check) */}
       <AnimatePresence>
         {showGlobalScanner && (
-          <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[150] flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm">
             <motion.div 
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white rounded-3xl w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+              className="bg-white rounded-2xl sm:rounded-3xl w-full max-w-[95vw] lg:max-w-6xl xl:max-w-7xl h-[95vh] md:h-[90vh] max-h-[850px] shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200"
             >
-              <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <div className="p-5 sm:p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center shrink-0">
                     <QrCode size={20} />
                   </div>
                   <div>
-                    <h3 className="font-extrabold text-slate-800 tracking-tight">Scan ID Card</h3>
-                    <p className="text-[10px] text-indigo-600 font-bold uppercase tracking-widest">Attendance & Learner Validity</p>
+                    <h3 className="font-extrabold text-slate-800 tracking-tight text-sm sm:text-base">Scan ID Card</h3>
+                    <p className="text-[10px] text-indigo-600 font-bold uppercase tracking-widest">Attendance & Learner Validity (Widescreen Optimized)</p>
                   </div>
                 </div>
                 <button 
@@ -4462,11 +4515,11 @@ export default function App() {
                 </button>
               </div>
 
-              <div className="p-6 overflow-y-auto grid grid-cols-1 md:grid-cols-12 gap-6 items-start custom-scrollbar">
+              <div className="p-6 grid grid-cols-1 md:grid-cols-12 gap-8 items-stretch flex-1 overflow-y-auto custom-scrollbar">
                 {/* Left Part: Scanner Controls & Camera */}
-                <div className="md:col-span-5 flex flex-col items-center">
+                <div className="md:col-span-6 flex flex-col items-center justify-center border-b md:border-b-0 md:border-r border-slate-100 pb-6 md:pb-0 md:pr-8">
                   {/* Camera Selection */}
-                  <div className="flex justify-center gap-2 w-full mb-4">
+                  <div className="flex justify-center gap-2 w-full max-w-md sm:max-w-lg mb-4">
                     <button
                       type="button"
                       onClick={() => setGlobalScannerFacingMode('environment')}
@@ -4486,7 +4539,7 @@ export default function App() {
                   </div>
 
                   {/* Scanner Camera Frame */}
-                  <div className="w-full max-w-[320px] aspect-square rounded-3xl overflow-hidden bg-black shadow-lg border-4 border-slate-100 relative shrink-0">
+                  <div className="w-full max-w-md sm:max-w-lg aspect-square rounded-2xl overflow-hidden bg-black shadow-inner border-4 border-slate-100 relative shrink-0">
                     <Scanner
                       onScan={handleGlobalScannerScan}
                       onError={handleGlobalScannerError}
@@ -4497,30 +4550,82 @@ export default function App() {
                     />
 
                     {globalScannerError && (
-                      <div className="absolute inset-0 bg-slate-900/95 flex flex-col items-center justify-center p-4 text-center z-10 animate-in fade-in duration-200">
-                        <div className="w-10 h-10 bg-amber-500/10 text-amber-500 rounded-xl flex items-center justify-center mb-2">
-                          <AlertTriangle size={20} />
+                      <div className="absolute inset-0 bg-slate-900/95 flex flex-col items-center justify-center p-6 text-center z-10 animate-in fade-in duration-200">
+                        <div className="w-12 h-12 bg-amber-500/10 text-amber-500 rounded-xl flex items-center justify-center mb-2">
+                          <AlertTriangle size={24} />
                         </div>
-                        <p className="text-xs font-bold text-white mb-1">Camera Access Issue</p>
-                        <p className="text-[10px] text-slate-300 leading-normal max-w-[200px]">{globalScannerError}</p>
+                        <p className="text-sm font-bold text-white mb-1">Camera Access Issue</p>
+                        <p className="text-xs text-slate-300 leading-normal max-w-[280px] mb-3">{globalScannerError}</p>
+                        <div className="bg-white/10 p-3 rounded-lg text-[10px] text-slate-300 text-left max-w-sm border border-white/5 space-y-1">
+                          <p className="font-bold text-indigo-300">💡 Troubleshooting Guide:</p>
+                          <p>1. Check if another application is using your camera.</p>
+                          <p>2. Click the camera or lock icon in your browser's address bar, choose <b>"Allow"</b>, and refresh.</p>
+                          <p>3. If you're on mobile, verify camera permissions are enabled in system settings.</p>
+                          <p className="pt-1 border-t border-white/10 text-indigo-200 font-semibold"><b>Backup Option:</b> Use the <b>Manual Entry</b> section below!</p>
+                        </div>
                       </div>
                     )}
 
                     {/* Scanner overlay corners */}
-                    <div className="absolute top-4 left-4 w-8 h-8 border-t-4 border-l-4 border-white/60 rounded-tl-xl"></div>
-                    <div className="absolute top-4 right-4 w-8 h-8 border-t-4 border-r-4 border-white/60 rounded-tr-xl"></div>
-                    <div className="absolute bottom-4 left-4 w-8 h-8 border-b-4 border-l-4 border-white/60 rounded-bl-xl"></div>
-                    <div className="absolute bottom-4 right-4 w-8 h-8 border-b-4 border-r-4 border-white/60 rounded-br-xl"></div>
+                    <div className="absolute top-6 left-6 w-10 h-10 border-t-4 border-l-4 border-white/70 rounded-tl-xl"></div>
+                    <div className="absolute top-6 right-6 w-10 h-10 border-t-4 border-r-4 border-white/70 rounded-tr-xl"></div>
+                    <div className="absolute bottom-6 left-6 w-10 h-10 border-b-4 border-l-4 border-white/70 rounded-bl-xl"></div>
+                    <div className="absolute bottom-6 right-6 w-10 h-10 border-b-4 border-r-4 border-white/70 rounded-br-xl"></div>
+                  </div>
+
+                  {/* Manual Entry Fallback Panel */}
+                  <div className="w-full max-w-md sm:max-w-lg mt-4 p-4 bg-slate-50 border border-slate-200 rounded-2xl text-left">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span className="p-1 bg-indigo-50 text-indigo-600 rounded-lg shrink-0">
+                        <Users size={14} />
+                      </span>
+                      <h5 className="text-xs font-black text-slate-700 uppercase tracking-wider">
+                        Manual Keyboard & Barcode Entry
+                      </h5>
+                    </div>
+                    <p className="text-[10px] text-slate-500 mb-3 leading-normal">
+                      Type a student LRN or scan with a hardware barcode scanner to verify status and record attendance automatically.
+                    </p>
+                    
+                    <div className="flex gap-2">
+                      <input 
+                        type="text"
+                        placeholder="Type Student LRN..."
+                        value={globalManualLrnInput}
+                        onChange={(e) => setGlobalManualLrnInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            if (globalManualLrnInput.trim()) {
+                              handleGlobalScan(globalManualLrnInput.trim());
+                              setGlobalManualLrnInput('');
+                            }
+                          }
+                        }}
+                        className="flex-1 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-sm text-black placeholder:text-slate-400"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (globalManualLrnInput.trim()) {
+                            handleGlobalScan(globalManualLrnInput.trim());
+                            setGlobalManualLrnInput('');
+                          }
+                        }}
+                        className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase text-[10px] tracking-wider rounded-xl cursor-pointer transition-colors shadow-sm"
+                      >
+                        Submit
+                      </button>
+                    </div>
                   </div>
                 </div>
 
                 {/* Right Part: Learner Info and Validity check */}
-                <div className="md:col-span-7 w-full h-full flex flex-col justify-start">
-                  <h4 className="text-xs font-black text-slate-400 uppercase tracking-wider mb-3">Scan Status & Learner Info</h4>
+                <div className="md:col-span-6 w-full flex flex-col justify-center pl-0 md:pl-2">
+                  <h4 className="text-xs font-black text-slate-400 uppercase tracking-wider mb-4">Scan Status & Learner Info</h4>
                   {globalRecentScan ? (
                     <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-200">
                       {/* Scan Status Banner */}
-                      <div className={`p-4 rounded-2xl flex items-center gap-3 border ${globalRecentScan.status === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-800'}`}>
+                      <div className={`p-4 rounded-xl flex items-center gap-3 border ${globalRecentScan.status === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-rose-50 border-rose-200 text-rose-700'}`}>
                         {globalRecentScan.status === 'success' ? (
                           <CheckCircle size={24} className="text-emerald-600 shrink-0" />
                         ) : (
@@ -4531,7 +4636,7 @@ export default function App() {
 
                       {/* Learner Info Card (scanning validity of the learner information) */}
                       {globalRecentScan.student && (
-                        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 relative overflow-hidden shadow-sm text-left">
+                        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 relative overflow-hidden shadow-sm text-left">
                           <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50/40 rounded-full blur-2xl pointer-events-none"></div>
                           
                           <div className="flex gap-4 items-start relative z-10">
@@ -4540,16 +4645,16 @@ export default function App() {
                               <img 
                                 src={globalRecentScan.student.photo} 
                                 alt={formatStudentName(globalRecentScan.student)}
-                                className="w-16 h-16 rounded-2xl object-cover border border-slate-200 shadow-sm"
+                                className="w-20 h-20 rounded-2xl object-cover border border-slate-200 shadow-sm"
                                 referrerPolicy="no-referrer"
                               />
                             ) : (
-                              <div className={`w-16 h-16 rounded-2xl flex items-center justify-center font-black text-xl text-white shadow-sm ${globalRecentScan.student.sex === 'Female' ? 'bg-rose-500 shadow-rose-100' : 'bg-indigo-500 shadow-indigo-100'}`}>
+                              <div className={`w-20 h-20 rounded-2xl flex items-center justify-center font-black text-2xl text-white shadow-sm ${globalRecentScan.student.sex === 'Female' ? 'bg-rose-500 shadow-rose-100' : 'bg-indigo-500 shadow-indigo-100'}`}>
                                 {formatStudentName(globalRecentScan.student).charAt(0)}
                               </div>
                             )}
 
-                            <div className="space-y-1 min-w-0 flex-1">
+                            <div className="space-y-1.5 min-w-0 flex-1">
                               {/* Status Badge */}
                               <div className="flex items-center gap-2 flex-wrap">
                                 <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border ${
@@ -4570,21 +4675,21 @@ export default function App() {
                                 )}
                               </div>
 
-                              <h4 className="text-sm font-black text-slate-800 tracking-tight truncate">
+                              <h4 className="text-base font-black text-slate-800 tracking-tight truncate">
                                 {formatStudentName(globalRecentScan.student)}
                               </h4>
                               
-                              <p className="text-[10px] font-bold text-slate-500">
+                              <p className="text-xs font-bold text-slate-500">
                                 LRN: <span className="text-slate-800 font-mono font-bold">{globalRecentScan.student.lrn}</span>
                               </p>
                             </div>
                           </div>
 
                           {/* Secondary Fields Grid */}
-                          <div className="grid grid-cols-2 gap-3 mt-4 pt-4 border-t border-slate-200/60 text-[10px] relative z-10">
+                          <div className="grid grid-cols-2 gap-4 mt-6 pt-6 border-t border-slate-200/60 text-xs relative z-10">
                             <div>
-                              <p className="text-slate-400 font-semibold uppercase tracking-wider">Grade & Section</p>
-                              <p className="text-slate-700 font-bold uppercase mt-0.5">
+                              <p className="text-slate-400 font-semibold uppercase tracking-wider text-[10px]">Grade & Section</p>
+                              <p className="text-slate-700 font-bold uppercase mt-1">
                                 {(() => {
                                   const activeSec = globalRecentScan?.section || selectedSection;
                                   if (!activeSec) return 'Unknown Section';
@@ -4593,30 +4698,30 @@ export default function App() {
                               </p>
                             </div>
                             <div>
-                              <p className="text-slate-400 font-semibold uppercase tracking-wider">Contact Number</p>
-                              <p className="text-slate-700 font-bold mt-0.5">{globalRecentScan.student.contactNumber || 'No registered contact'}</p>
+                              <p className="text-slate-400 font-semibold uppercase tracking-wider text-[10px]">Contact Number</p>
+                              <p className="text-slate-700 font-bold mt-1">{globalRecentScan.student.contactNumber || 'No registered contact'}</p>
                             </div>
                             <div>
-                              <p className="text-slate-400 font-semibold uppercase tracking-wider">First Attendance</p>
-                              <p className="text-slate-700 font-bold mt-0.5">{globalRecentScan.student.dateOfFirstAttendance || 'Not specified'}</p>
+                              <p className="text-slate-400 font-semibold uppercase tracking-wider text-[10px]">First Attendance</p>
+                              <p className="text-slate-700 font-bold mt-1">{globalRecentScan.student.dateOfFirstAttendance || 'Not specified'}</p>
                             </div>
                             <div>
-                              <p className="text-slate-400 font-semibold uppercase tracking-wider">Guardian Name</p>
-                              <p className="text-slate-700 font-bold mt-0.5 truncate">{globalRecentScan.student.guardianName || 'None'}</p>
+                              <p className="text-slate-400 font-semibold uppercase tracking-wider text-[10px]">Guardian Name</p>
+                              <p className="text-slate-700 font-bold mt-1 truncate">{globalRecentScan.student.guardianName || 'None'}</p>
                             </div>
                           </div>
                         </div>
                       )}
                     </div>
                   ) : (
-                    <div className="p-8 rounded-2xl bg-slate-50 border-2 border-dashed border-slate-200 text-center flex flex-col items-center justify-center gap-3 h-full min-h-[220px]">
-                      <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-sm border border-slate-100 text-slate-400 animate-pulse">
-                        <QrCode size={24} />
+                    <div className="p-8 rounded-2xl bg-slate-50 border border-slate-200 text-center flex flex-col items-center justify-center h-full min-h-[280px]">
+                      <div className="w-14 h-14 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-500 mb-3 animate-pulse">
+                        <QrCode size={28} />
                       </div>
                       <div>
-                        <p className="text-xs font-bold text-slate-600">Scan a Student ID QR Code</p>
-                        <p className="text-[10px] text-slate-400 font-medium leading-relaxed max-w-[240px] mt-1 mx-auto">
-                          Position the student ID QR code inside the camera view to verify status and record attendance automatically.
+                        <p className="text-sm font-black text-slate-700">Waiting for scan...</p>
+                        <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">
+                          Position Student ID QR inside the camera view
                         </p>
                       </div>
                     </div>
@@ -15820,6 +15925,7 @@ function DashboardView({
   const [recentScan, setRecentScan] = useState<{ status: 'success' | 'error', message: string, student?: Student | null } | null>(null);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
   const [localScannerError, setLocalScannerError] = useState<string | null>(null);
+  const [manualLrnInput, setManualLrnInput] = useState('');
 
   const localScannerConstraints = useMemo(() => ({
     facingMode: facingMode
@@ -16834,19 +16940,17 @@ function DashboardView({
           </div>
         )}
       </AnimatePresence>
-
-      {/* QR Scanner Modal */}
       {showScanner && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
-            <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl sm:rounded-3xl w-full max-w-[95vw] lg:max-w-6xl xl:max-w-7xl h-[95vh] md:h-[90vh] max-h-[850px] shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+            <div className="p-5 sm:p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center shrink-0">
                   <QrCode size={20} />
                 </div>
                 <div>
-                  <h3 className="font-black text-slate-800 tracking-tight">Scan ID for Attendance</h3>
-                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Hold QR Code in frame</p>
+                  <h3 className="font-black text-slate-800 tracking-tight text-sm sm:text-base">Scan ID for Attendance</h3>
+                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Hold QR Code in frame (Widescreen Optimized)</p>
                 </div>
               </div>
               <button 
@@ -16857,27 +16961,27 @@ function DashboardView({
               </button>
             </div>
             
-            <div className="p-6 grid grid-cols-1 md:grid-cols-12 gap-6 items-start overflow-y-auto max-h-[85vh] custom-scrollbar">
-              {/* Left Part: Scanner */}
-              <div className="md:col-span-5 flex flex-col items-center">
-                <div className="flex justify-center gap-2 mb-4 w-full">
+            <div className="p-6 grid grid-cols-1 md:grid-cols-12 gap-8 items-stretch flex-1 overflow-y-auto custom-scrollbar">
+              {/* Left Part: Scanner (Expanded to 6 columns out of 12 for wide screens) */}
+              <div className="md:col-span-6 flex flex-col items-center justify-center border-b md:border-b-0 md:border-r border-slate-100 pb-6 md:pb-0 md:pr-8">
+                <div className="flex justify-center gap-2 mb-4 w-full max-w-md sm:max-w-lg">
                   <button
                     type="button"
                     onClick={() => setFacingMode('environment')}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 cursor-pointer ${facingMode === 'environment' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                    className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 cursor-pointer ${facingMode === 'environment' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
                   >
                     📸 Back Camera
                   </button>
                   <button
                     type="button"
                     onClick={() => setFacingMode('user')}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 cursor-pointer ${facingMode === 'user' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                    className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 cursor-pointer ${facingMode === 'user' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
                   >
                     🤳 Front Camera
                   </button>
                 </div>
 
-                <div className="w-full max-w-[320px] aspect-square rounded-2xl overflow-hidden bg-black shadow-inner border-4 border-slate-100 relative">
+                <div className="w-full max-w-md sm:max-w-lg aspect-square rounded-2xl overflow-hidden bg-black shadow-inner border-4 border-slate-100 relative">
                   <Scanner
                     onScan={handleLocalScannerScan}
                     onError={handleLocalScannerError}
@@ -16888,26 +16992,103 @@ function DashboardView({
                   />
 
                   {localScannerError && (
-                    <div className="absolute inset-0 bg-slate-900/95 flex flex-col items-center justify-center p-4 text-center z-10 animate-in fade-in duration-200">
-                      <div className="w-10 h-10 bg-amber-500/10 text-amber-500 rounded-xl flex items-center justify-center mb-2">
-                        <AlertTriangle size={20} />
+                    <div className="absolute inset-0 bg-slate-900/95 flex flex-col items-center justify-center p-6 text-center z-10 animate-in fade-in duration-200">
+                      <div className="w-12 h-12 bg-amber-500/10 text-amber-500 rounded-xl flex items-center justify-center mb-2">
+                        <AlertTriangle size={24} />
                       </div>
-                      <p className="text-xs font-bold text-white mb-1">Camera Access Issue</p>
-                      <p className="text-[10px] text-slate-300 leading-normal max-w-[200px]">{localScannerError}</p>
+                      <p className="text-sm font-bold text-white mb-1">Camera Access Issue</p>
+                      <p className="text-xs text-slate-300 leading-normal max-w-[280px] mb-3">{localScannerError}</p>
+                      <div className="bg-white/10 p-3 rounded-lg text-[10px] text-slate-300 text-left max-w-sm border border-white/5 space-y-1">
+                        <p className="font-bold text-indigo-300">💡 Troubleshooting Guide:</p>
+                        <p>1. Check if another application is using your camera.</p>
+                        <p>2. Click the camera or lock icon in your browser's address bar, choose <b>"Allow"</b>, and refresh.</p>
+                        <p>3. If you're on mobile, verify camera permissions are enabled in system settings.</p>
+                        <p className="pt-1 border-t border-white/10 text-indigo-200 font-semibold"><b>Backup Option:</b> Use the <b>Manual Entry</b> section below!</p>
+                      </div>
                     </div>
                   )}
                   
                   {/* Scanner overlay corners */}
-                  <div className="absolute top-4 left-4 w-8 h-8 border-t-4 border-l-4 border-white/50 rounded-tl-xl"></div>
-                  <div className="absolute top-4 right-4 w-8 h-8 border-t-4 border-r-4 border-white/50 rounded-tr-xl"></div>
-                  <div className="absolute bottom-4 left-4 w-8 h-8 border-b-4 border-l-4 border-white/50 rounded-bl-xl"></div>
-                  <div className="absolute bottom-4 right-4 w-8 h-8 border-b-4 border-r-4 border-white/50 rounded-br-xl"></div>
+                  <div className="absolute top-6 left-6 w-10 h-10 border-t-4 border-l-4 border-white/70 rounded-tl-xl"></div>
+                  <div className="absolute top-6 right-6 w-10 h-10 border-t-4 border-r-4 border-white/70 rounded-tr-xl"></div>
+                  <div className="absolute bottom-6 left-6 w-10 h-10 border-b-4 border-l-4 border-white/70 rounded-bl-xl"></div>
+                  <div className="absolute bottom-6 right-6 w-10 h-10 border-b-4 border-r-4 border-white/70 rounded-br-xl"></div>
+                </div>
+
+                {/* Manual Entry Fallback Panel */}
+                <div className="w-full max-w-md sm:max-w-lg mt-4 p-4 bg-slate-50 border border-slate-200 rounded-2xl text-left">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="p-1 bg-indigo-50 text-indigo-600 rounded-lg shrink-0">
+                      <Users size={14} />
+                    </span>
+                    <h5 className="text-xs font-black text-slate-700 uppercase tracking-wider">
+                      Manual Keyboard & Barcode Entry
+                    </h5>
+                  </div>
+                  <p className="text-[10px] text-slate-500 mb-3 leading-normal">
+                    Type a student LRN, scan with a hardware barcode scanner, or choose a student from the dropdown list to mark them present instantly.
+                  </p>
+                  
+                  <div className="flex gap-2 mb-3">
+                    <input 
+                      type="text"
+                      placeholder="Type Student LRN..."
+                      value={manualLrnInput}
+                      onChange={(e) => setManualLrnInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          handleScan(manualLrnInput.trim());
+                          setManualLrnInput('');
+                        }
+                      }}
+                      className="flex-1 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-sm text-black placeholder:text-slate-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (manualLrnInput.trim()) {
+                          handleScan(manualLrnInput.trim());
+                          setManualLrnInput('');
+                        }
+                      }}
+                      className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase text-[10px] tracking-wider rounded-xl cursor-pointer transition-colors shadow-sm"
+                    >
+                      Submit
+                    </button>
+                  </div>
+
+                  <div className="relative">
+                    <select
+                      value=""
+                      onChange={(e) => {
+                        const lrn = e.target.value;
+                        if (lrn) {
+                          handleScan(lrn);
+                        }
+                      }}
+                      className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer shadow-sm appearance-none"
+                      style={{
+                        backgroundImage: `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'></polyline></svg>")`,
+                        backgroundRepeat: 'no-repeat',
+                        backgroundPosition: 'right 10px center',
+                        backgroundSize: '14px',
+                        paddingRight: '30px'
+                      }}
+                    >
+                      <option value="">-- Or Select Student from Section --</option>
+                      {students.map(s => (
+                        <option key={s.id} value={s.lrn}>
+                          {formatStudentName(s)} ({s.lrn})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </div>
 
-              {/* Right Part: Learner Info */}
-              <div className="md:col-span-7 w-full h-full flex flex-col justify-start">
-                <h4 className="text-xs font-black text-slate-400 uppercase tracking-wider mb-3">Scan Status & Learner Info</h4>
+              {/* Right Part: Learner Info (Expanded to 6 columns for balanced wide alignment) */}
+              <div className="md:col-span-6 w-full flex flex-col justify-center pl-0 md:pl-2">
+                <h4 className="text-xs font-black text-slate-400 uppercase tracking-wider mb-4">Scan Status & Learner Info</h4>
                 {recentScan ? (
                   <div className="space-y-4">
                     <div className={`p-4 rounded-xl flex items-center gap-3 border ${recentScan.status === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-rose-50 border-rose-200 text-rose-700'}`}>
@@ -16916,7 +17097,7 @@ function DashboardView({
                     </div>
 
                     {recentScan.student && (
-                      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 relative overflow-hidden shadow-sm animate-in fade-in duration-200 text-left">
+                      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 relative overflow-hidden shadow-sm animate-in fade-in duration-200 text-left">
                         <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50/40 rounded-full blur-2xl pointer-events-none"></div>
                         
                         <div className="flex gap-4 items-start relative z-10">
@@ -16924,16 +17105,16 @@ function DashboardView({
                             <img 
                               src={recentScan.student.photo} 
                               alt={formatStudentName(recentScan.student)}
-                              className="w-16 h-16 rounded-2xl object-cover border border-slate-200 shadow-sm"
+                              className="w-20 h-20 rounded-2xl object-cover border border-slate-200 shadow-sm"
                               referrerPolicy="no-referrer"
                             />
                           ) : (
-                            <div className={`w-16 h-16 rounded-2xl flex items-center justify-center font-black text-xl text-white shadow-sm ${recentScan.student.sex === 'Female' ? 'bg-rose-500 shadow-rose-100' : 'bg-indigo-500 shadow-indigo-100'}`}>
+                            <div className={`w-20 h-20 rounded-2xl flex items-center justify-center font-black text-2xl text-white shadow-sm ${recentScan.student.sex === 'Female' ? 'bg-rose-500 shadow-rose-100' : 'bg-indigo-500 shadow-indigo-100'}`}>
                               {formatStudentName(recentScan.student).charAt(0)}
                             </div>
                           )}
 
-                          <div className="space-y-1 min-w-0 flex-1">
+                          <div className="space-y-1.5 min-w-0 flex-1">
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border ${
                                 recentScan.student.status === 'Dropped Out' 
@@ -16947,44 +17128,44 @@ function DashboardView({
                               {recentScan.student.sex && (
                                 <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border ${
                                   recentScan.student.sex === 'Female' ? 'bg-pink-50 border-pink-200 text-pink-600' : 'bg-blue-50 border-blue-200 text-blue-600'
-                                }`}>
+                                }}`}>
                                   {recentScan.student.sex}
                                 </span>
                               )}
                             </div>
 
-                            <h4 className="text-sm font-black text-slate-800 tracking-tight truncate">
+                            <h4 className="text-base font-black text-slate-800 tracking-tight truncate">
                               {formatStudentName(recentScan.student)}
                             </h4>
                             
-                            <p className="text-[10px] font-bold text-slate-500">
+                            <p className="text-xs font-bold text-slate-500">
                               LRN: <span className="text-slate-800 font-mono font-bold">{recentScan.student.lrn}</span>
                             </p>
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-3 mt-4 pt-4 border-t border-slate-200/60 text-[10px] relative z-10">
+                        <div className="grid grid-cols-2 gap-4 mt-6 pt-6 border-t border-slate-200/60 text-xs relative z-10">
                           <div>
-                            <p className="text-slate-400 font-semibold uppercase tracking-wider">Grade & Section</p>
-                            <p className="text-slate-700 font-bold uppercase mt-0.5">
+                            <p className="text-slate-400 font-semibold uppercase tracking-wider text-[10px]">Grade & Section</p>
+                            <p className="text-slate-700 font-bold uppercase mt-1">
                               {section ? ((Number(section.gradeLevel) === 0) ? `Kindergarten • ${section.name}` : `Grade ${section.gradeLevel} • ${section.name}`) : 'Unknown'}
                             </p>
                           </div>
                           <div>
-                            <p className="text-slate-400 font-semibold uppercase tracking-wider">Contact Number</p>
-                            <p className="text-slate-700 font-bold mt-0.5">{recentScan.student.contactNumber || 'No registered contact'}</p>
+                            <p className="text-slate-400 font-semibold uppercase tracking-wider text-[10px]">Contact Number</p>
+                            <p className="text-slate-700 font-bold mt-1">{recentScan.student.contactNumber || 'No registered contact'}</p>
                           </div>
                         </div>
                       </div>
                     )}
                   </div>
                 ) : (
-                  <div className="p-8 rounded-2xl bg-slate-50 border border-slate-200 text-center flex flex-col items-center justify-center h-full min-h-[220px]">
-                    <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-500 mb-3 animate-pulse">
-                      <QrCode size={24} />
+                  <div className="p-8 rounded-2xl bg-slate-50 border border-slate-200 text-center flex flex-col items-center justify-center h-full min-h-[280px]">
+                    <div className="w-14 h-14 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-500 mb-3 animate-pulse">
+                      <QrCode size={28} />
                     </div>
-                    <p className="text-xs font-black text-slate-700">Waiting for scan...</p>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Learner will be marked present for today</p>
+                    <p className="text-sm font-black text-slate-700">Waiting for scan...</p>
+                    <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Learner will be marked present for today</p>
                   </div>
                 )}
               </div>
