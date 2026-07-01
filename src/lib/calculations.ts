@@ -70,16 +70,36 @@ export const calculateGrade = (student: Student, subject: Subject, term: TermNum
   const ww = calc('writtenWorks', subject.wwWeight);
   const pt = calc('performanceTasks', subject.ptWeight);
   
-  const stComponent = data.summativeTests || { scores: [], maxScores: [] };
-  const stTotal = (stComponent.scores || []).reduce((a: number, b: number) => a + b, 0);
-  const stMax = (stComponent.maxScores || []).reduce((a: number, b: number) => a + b, 0);
-  
-  const exTotal = data.termExam?.score || 0;
-  const exMax = data.termExam?.maxScore || 0;
-  
-  const taTotal = stTotal + exTotal;
-  const taMax = stMax + exMax;
-  const taPs = taMax === 0 ? 0 : (taTotal / taMax) * 100;
+  const s1 = Number(data.summativeTests?.scores?.[0]) || 0;
+  const m1 = Number(data.summativeTests?.maxScores?.[0]) || 0;
+  const s2 = Number(data.summativeTests?.scores?.[1]) || 0;
+  const m2 = Number(data.summativeTests?.maxScores?.[1]) || 0;
+  const se = Number(data.termExam?.score) || 0;
+  const me = Number(data.termExam?.maxScore) || 0;
+
+  const ps1 = m1 === 0 ? 0 : (s1 / m1) * 100;
+  const ps2 = m2 === 0 ? 0 : (s2 / m2) * 100;
+  const pse = me === 0 ? 0 : (se / me) * 100;
+
+  let totalActiveWeight = 0;
+  let weightedPsSum = 0;
+
+  if (m1 > 0) {
+    totalActiveWeight += 30;
+    weightedPsSum += 30 * ps1;
+  }
+  if (m2 > 0) {
+    totalActiveWeight += 30;
+    weightedPsSum += 30 * ps2;
+  }
+  if (me > 0) {
+    totalActiveWeight += 40;
+    weightedPsSum += 40 * pse;
+  }
+
+  const taTotal = s1 + s2 + se;
+  const taMax = m1 + m2 + me;
+  const taPs = totalActiveWeight === 0 ? 0 : (weightedPsSum / totalActiveWeight);
   const taWs = taPs * (subject.taWeight / 100);
 
   const rawGrade = ww.ws + pt.ws + taWs;

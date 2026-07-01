@@ -629,16 +629,36 @@ const calculateGrade = (student: Student, subject: Subject, term: TermNumber) =>
   const ww = calc('writtenWorks', subject.wwWeight);
   const pt = calc('performanceTasks', subject.ptWeight);
   
-  const stComponent = data.summativeTests || { scores: [], maxScores: [] };
-  const stTotal = (stComponent.scores || []).reduce((a: number, b: any) => a + (Number(b) || 0), 0);
-  const stMax = (stComponent.maxScores || []).reduce((a: number, b: any) => a + (Number(b) || 0), 0);
-  
-  const exTotal = Number(data.termExam?.score) || 0;
-  const exMax = Number(data.termExam?.maxScore) || 0;
-  
-  const taTotal = stTotal + exTotal;
-  const taMax = stMax + exMax;
-  const taPs = taMax === 0 ? 0 : (taTotal / taMax) * 100;
+  const s1 = Number(data.summativeTests?.scores?.[0]) || 0;
+  const m1 = Number(data.summativeTests?.maxScores?.[0]) || 0;
+  const s2 = Number(data.summativeTests?.scores?.[1]) || 0;
+  const m2 = Number(data.summativeTests?.maxScores?.[1]) || 0;
+  const se = Number(data.termExam?.score) || 0;
+  const me = Number(data.termExam?.maxScore) || 0;
+
+  const ps1 = m1 === 0 ? 0 : (s1 / m1) * 100;
+  const ps2 = m2 === 0 ? 0 : (s2 / m2) * 100;
+  const pse = me === 0 ? 0 : (se / me) * 100;
+
+  let totalActiveWeight = 0;
+  let weightedPsSum = 0;
+
+  if (m1 > 0) {
+    totalActiveWeight += 30;
+    weightedPsSum += 30 * ps1;
+  }
+  if (m2 > 0) {
+    totalActiveWeight += 30;
+    weightedPsSum += 30 * ps2;
+  }
+  if (me > 0) {
+    totalActiveWeight += 40;
+    weightedPsSum += 40 * pse;
+  }
+
+  const taTotal = s1 + s2 + se;
+  const taMax = m1 + m2 + me;
+  const taPs = totalActiveWeight === 0 ? 0 : (weightedPsSum / totalActiveWeight);
   const taWs = taPs * (subject.taWeight / 100);
 
   const rawGrade = ww.ws + pt.ws + taWs;
@@ -1959,7 +1979,9 @@ export default function App() {
     const profEmail = (userProfile?.email || "").trim().toLowerCase();
     const isSecAdviser = adviserEmail && adviserEmail === profEmail;
     
-    if (userProfile?.role === 'teacher' && !isSecAdviser) {
+    const isOnlyUpdatingSubjectTeachers = Object.keys(sectionData).length === 1 && 'subjectTeachers' in sectionData;
+
+    if (userProfile?.role === 'teacher' && !isSecAdviser && !isOnlyUpdatingSubjectTeachers) {
       alert("Teachers are not authorized to edit section details. Please contact the System Administrator.");
       return;
     }
@@ -2766,6 +2788,14 @@ export default function App() {
           nutritionalStatus: learner.nutritionalStatus || {},
           dateOfFirstAttendance: learner.dateOfFirstAttendance || "",
           isTransferredIn: learner.isTransferredIn || false,
+          birthplace: learner.birthplace || "",
+          address: learner.address || "",
+          primaryContact: learner.primaryContact || "father",
+          fatherName: learner.fatherName || "",
+          motherName: learner.motherName || "",
+          guardianName: learner.guardianName || "",
+          guardianRelationship: learner.guardianRelationship || "",
+          contactNumber: learner.contactNumber || "",
           eligibility: learner.eligibility || {},
           grades: {},
           enrolledSubjectIds: subjects.filter(s => {
@@ -3061,9 +3091,17 @@ export default function App() {
       return;
     }
     
+    // Clean undefined fields to prevent Firestore errors
+    const cleanS = { ...s } as any;
+    Object.keys(cleanS).forEach(key => {
+      if (cleanS[key] === undefined) {
+        delete cleanS[key];
+      }
+    });
+    
     try {
       const docRef = await addDoc(collection(db, `global_subjects`), {
-        ...s,
+        ...cleanS,
         teacherEmail: s.teacherEmail ? s.teacherEmail.trim().toLowerCase() : ""
       });
 
@@ -3071,7 +3109,7 @@ export default function App() {
         const relevantSections = sections.filter(sec => parseInt(String(sec.gradeLevel)) === grade);
         for (const sec of relevantSections) {
           await addDoc(collection(db, `sections/${sec.id}/subjects`), {
-            ...s,
+            ...cleanS,
             sectionId: sec.id,
             schoolId: sec.schoolId || userProfile?.schoolId || "",
             teacherEmail: s.teacherEmail ? s.teacherEmail.trim().toLowerCase() : ""
@@ -3487,9 +3525,18 @@ export default function App() {
       alert("Only Administrators and Section Advisers can modify subjects for this section.");
       return;
     }
+    
+    // Clean undefined fields to prevent Firestore errors
+    const cleanS = { ...s } as any;
+    Object.keys(cleanS).forEach(key => {
+      if (cleanS[key] === undefined) {
+        delete cleanS[key];
+      }
+    });
+
     try {
       await addDoc(collection(db, `sections/${selectedSection.id}/subjects`), {
-        ...s,
+        ...cleanS,
         sectionId: selectedSection.id,
         schoolId: selectedSection.schoolId || userProfile?.schoolId || "",
         teacherEmail: s.teacherEmail ? s.teacherEmail.trim().toLowerCase() : ""
@@ -3507,13 +3554,27 @@ export default function App() {
     const isSectionAdviser = adviserEmail && (adviserEmail === authEmail || adviserEmail === profEmail);
     const isAdmin = userProfile?.role === 'system_admin' || userProfile?.role === 'admin';
 
-    if (!isAdmin && !isSectionAdviser) {
-      alert("Only Administrators and Section Advisers can modify subjects for this section.");
+    // Allow the assigned Subject Teacher to edit weights and details of their own subject
+    const existingSubject = subjects.find(sub => sub.id === id);
+    const existingTeacher = existingSubject?.teacherEmail || selectedSection.subjectTeachers?.[id] || "";
+    const isAssignedTeacher = existingTeacher && (existingTeacher.trim().toLowerCase() === authEmail || existingTeacher.trim().toLowerCase() === profEmail);
+
+    if (!isAdmin && !isSectionAdviser && !isAssignedTeacher) {
+      alert("Only Administrators, Section Advisers, and the assigned Subject Teacher can modify subjects for this section.");
       return;
     }
+    
+    // Clean undefined fields to prevent Firestore errors
+    const cleanS = { ...s } as any;
+    Object.keys(cleanS).forEach(key => {
+      if (cleanS[key] === undefined) {
+        delete cleanS[key];
+      }
+    });
+
     try {
       await setDoc(doc(db, `sections/${selectedSection.id}/subjects`, id), {
-        ...s,
+        ...cleanS,
         schoolId: selectedSection.schoolId || userProfile?.schoolId || "",
         teacherEmail: s.teacherEmail ? s.teacherEmail.trim().toLowerCase() : ""
       }, { merge: true });
@@ -6441,9 +6502,9 @@ function SectionsView({
   const [isUploadingDashboard, setIsUploadingDashboard] = useState(false);
 
   const downloadDashboardCSVTemplate = () => {
-    const headers = "LastName,FirstName,MiddleName,NameExt,LRN,Email,Birthdate,Age,Sex,GradeLevel,Section,DateOfFirstAttendance,Weight_kg,Height_cm,EligibilityType,GenAvg,Citation,ElemSchoolName,ElemSchoolId,ElemSchoolAddress,PEPTRating,PEPTDate,ALSRating,ALSCenterInfo,OthersSpecify";
-    const example1 = "Dela Cruz,Juan,,Jr,123456789012,juan.delacruz@email.com,2010-01-15,12,Male,7,Einstein,2023-06-05,45,150,Elementary School Completer,85.50,,,Rizal Elem School,123456,,,,,";
-    const example2 = "Santos,Maria,G,,987654321098,maria.santos@email.com,2011-03-20,11,Female,7,Einstein,2023-06-05,42,148,PEPT Passer.,,,,,,,80.20,2022-05-15,,,";
+    const headers = "LastName,FirstName,MiddleName,NameExt,LRN,Email,Birthdate,Age,Sex,GradeLevel,Section,DateOfFirstAttendance,Weight_kg,Height_cm,EligibilityType,GenAvg,Citation,ElemSchoolName,ElemSchoolId,ElemSchoolAddress,PEPTRating,PEPTDate,ALSRating,ALSCenterInfo,OthersSpecify,IsTransferredIn,Birthplace,HomeAddress,PrimaryContact,FatherName,MotherName,GuardianName,GuardianRelationship,ContactNumber";
+    const example1 = "Dela Cruz,Juan,,Jr,123456789012,juan.delacruz@email.com,2010-01-15,12,Male,7,Einstein,2023-06-05,45,150,Elementary School Completer,85.50,,,Rizal Elem School,123456,,,,,,No,Manila,123 Rizal St. Manila,father,Juan Dela Cruz Sr.,Maria Dela Cruz,,,09123456789";
+    const example2 = "Santos,Maria,G,,987654321098,maria.santos@email.com,2011-03-20,11,Female,7,Einstein,2023-06-05,42,148,PEPT Passer.,,,,,,,80.20,2022-05-15,,,,Yes,Quezon City,456 Quezon Ave. QC,mother,Pedro Santos,Maria Santos,,,09876543210";
     const csvContent = `${headers}\n${example1}\n${example2}`;
     
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -6503,6 +6564,16 @@ function SectionsView({
       let alsCenterInfoColIdx = 21;
       let othersSpecifyColIdx = 22;
 
+      let isTransferredInColIdx = -1;
+      let birthplaceColIdx = -1;
+      let homeAddressColIdx = -1;
+      let primaryContactColIdx = -1;
+      let fatherNameColIdx = -1;
+      let motherNameColIdx = -1;
+      let guardianNameColIdx = -1;
+      let guardianRelationshipColIdx = -1;
+      let contactNumberColIdx = -1;
+
       const firstLine = lines[0];
       if (firstLine && (firstLine.toLowerCase().includes('lastname') || firstLine.toLowerCase().includes('lrn') || firstLine.toLowerCase().includes('name'))) {
         const headerParts: string[] = [];
@@ -6550,6 +6621,17 @@ function SectionsView({
         alsRatingColIdx = headerParts.indexOf("alsrating");
         alsCenterInfoColIdx = headerParts.indexOf("alscenterinfo");
         othersSpecifyColIdx = headerParts.indexOf("othersspecify");
+
+        isTransferredInColIdx = headerParts.indexOf("istransferredin");
+        birthplaceColIdx = headerParts.indexOf("birthplace");
+        homeAddressColIdx = headerParts.indexOf("homeaddress");
+        if (homeAddressColIdx === -1) homeAddressColIdx = headerParts.indexOf("address");
+        primaryContactColIdx = headerParts.indexOf("primarycontact");
+        fatherNameColIdx = headerParts.indexOf("fathername");
+        motherNameColIdx = headerParts.indexOf("mothername");
+        guardianNameColIdx = headerParts.indexOf("guardianname");
+        guardianRelationshipColIdx = headerParts.indexOf("guardianrelationship");
+        contactNumberColIdx = headerParts.indexOf("contactnumber");
       }
 
       // Fallbacks
@@ -6578,6 +6660,16 @@ function SectionsView({
         if (alsRatingColIdx === -1) alsRatingColIdx = 22;
         if (alsCenterInfoColIdx === -1) alsCenterInfoColIdx = 23;
         if (othersSpecifyColIdx === -1) othersSpecifyColIdx = 24;
+
+        if (isTransferredInColIdx === -1) isTransferredInColIdx = 25;
+        if (birthplaceColIdx === -1) birthplaceColIdx = 26;
+        if (homeAddressColIdx === -1) homeAddressColIdx = 27;
+        if (primaryContactColIdx === -1) primaryContactColIdx = 28;
+        if (fatherNameColIdx === -1) fatherNameColIdx = 29;
+        if (motherNameColIdx === -1) motherNameColIdx = 30;
+        if (guardianNameColIdx === -1) guardianNameColIdx = 31;
+        if (guardianRelationshipColIdx === -1) guardianRelationshipColIdx = 32;
+        if (contactNumberColIdx === -1) contactNumberColIdx = 33;
       } else {
         if (dateColIdx === -1) dateColIdx = 9;
         if (weightColIdx === -1) weightColIdx = 10;
@@ -6593,6 +6685,16 @@ function SectionsView({
         if (alsRatingColIdx === -1) alsRatingColIdx = 20;
         if (alsCenterInfoColIdx === -1) alsCenterInfoColIdx = 21;
         if (othersSpecifyColIdx === -1) othersSpecifyColIdx = 22;
+
+        if (isTransferredInColIdx === -1) isTransferredInColIdx = 23;
+        if (birthplaceColIdx === -1) birthplaceColIdx = 24;
+        if (homeAddressColIdx === -1) homeAddressColIdx = 25;
+        if (primaryContactColIdx === -1) primaryContactColIdx = 26;
+        if (fatherNameColIdx === -1) fatherNameColIdx = 27;
+        if (motherNameColIdx === -1) motherNameColIdx = 28;
+        if (guardianNameColIdx === -1) guardianNameColIdx = 29;
+        if (guardianRelationshipColIdx === -1) guardianRelationshipColIdx = 30;
+        if (contactNumberColIdx === -1) contactNumberColIdx = 31;
       }
 
       lines.forEach((line, index) => {
@@ -6652,6 +6754,20 @@ function SectionsView({
             othersSpecify: parts[othersSpecifyColIdx] || ""
           };
 
+          const isTransferredInRaw = parts[isTransferredInColIdx] || "";
+          const isTransferredIn = isTransferredInRaw.toLowerCase().includes('yes') || isTransferredInRaw.toLowerCase().includes('true') || isTransferredInRaw === '1';
+          const birthplace = parts[birthplaceColIdx] || "";
+          const address = parts[homeAddressColIdx] || "";
+          let primaryContact = (parts[primaryContactColIdx] || "father").toLowerCase();
+          if (primaryContact !== 'father' && primaryContact !== 'mother' && primaryContact !== 'guardian') {
+            primaryContact = 'father';
+          }
+          const fatherName = parts[fatherNameColIdx] || "";
+          const motherName = parts[motherNameColIdx] || "";
+          const guardianName = parts[guardianNameColIdx] || "";
+          const guardianRelationship = parts[guardianRelationshipColIdx] || "";
+          const contactNumber = parts[contactNumberColIdx] || "";
+
           // Generate full name automatically
           const nameParts = [
             lastName + (firstName ? "," : ""),
@@ -6668,7 +6784,7 @@ function SectionsView({
             let finalSex: 'Male' | 'Female' = 'Male';
             const sValue = sexInput.toLowerCase();
             if (sValue.startsWith('f') || sValue.includes('girl') || sValue.includes('female')) {
-              finalSex = 'Female';
+               finalSex = 'Female';
             }
 
             learners.push({
@@ -6678,9 +6794,9 @@ function SectionsView({
               extension,
               name,
               lrn,
-              email,
+              email: email.toLowerCase(),
               birthdate,
-              age,
+              age: parseInt(age) || 0,
               sex: finalSex,
               dateOfFirstAttendance: dateInput,
               weight: parseFloat(weight) || 0,
@@ -6691,7 +6807,16 @@ function SectionsView({
               nutritionalStatus: {
                 bmiCategory: category
               },
-              eligibility
+              eligibility,
+              isTransferredIn,
+              birthplace,
+              address,
+              primaryContact,
+              fatherName,
+              motherName,
+              guardianName,
+              guardianRelationship,
+              contactNumber
             });
           }
         }
@@ -9250,6 +9375,14 @@ function SectionsView({
                                 nutritionalStatus: learner.nutritionalStatus || {},
                                 dateOfFirstAttendance: learner.dateOfFirstAttendance || "",
                                 isTransferredIn: learner.isTransferredIn || false,
+                                birthplace: learner.birthplace || "",
+                                address: learner.address || "",
+                                primaryContact: learner.primaryContact || "father",
+                                fatherName: learner.fatherName || "",
+                                motherName: learner.motherName || "",
+                                guardianName: learner.guardianName || "",
+                                guardianRelationship: learner.guardianRelationship || "",
+                                contactNumber: learner.contactNumber || "",
                                 eligibility: learner.eligibility || {},
                                 grades: {},
                                 enrolledSubjectIds: [],
@@ -10695,6 +10828,16 @@ function AddLearnerView({
       let alsCenterInfoColIdx = 21;
       let othersSpecifyColIdx = 22;
 
+      let isTransferredInColIdx = -1;
+      let birthplaceColIdx = -1;
+      let homeAddressColIdx = -1;
+      let primaryContactColIdx = -1;
+      let fatherNameColIdx = -1;
+      let motherNameColIdx = -1;
+      let guardianNameColIdx = -1;
+      let guardianRelationshipColIdx = -1;
+      let contactNumberColIdx = -1;
+
       const firstLine = lines[0];
       if (firstLine && (firstLine.toLowerCase().includes('lastname') || firstLine.toLowerCase().includes('lrn') || firstLine.toLowerCase().includes('name'))) {
         const headerParts: string[] = [];
@@ -10742,6 +10885,17 @@ function AddLearnerView({
         alsRatingColIdx = headerParts.indexOf("alsrating");
         alsCenterInfoColIdx = headerParts.indexOf("alscenterinfo");
         othersSpecifyColIdx = headerParts.indexOf("othersspecify");
+
+        isTransferredInColIdx = headerParts.indexOf("istransferredin");
+        birthplaceColIdx = headerParts.indexOf("birthplace");
+        homeAddressColIdx = headerParts.indexOf("homeaddress");
+        if (homeAddressColIdx === -1) homeAddressColIdx = headerParts.indexOf("address");
+        primaryContactColIdx = headerParts.indexOf("primarycontact");
+        fatherNameColIdx = headerParts.indexOf("fathername");
+        motherNameColIdx = headerParts.indexOf("mothername");
+        guardianNameColIdx = headerParts.indexOf("guardianname");
+        guardianRelationshipColIdx = headerParts.indexOf("guardianrelationship");
+        contactNumberColIdx = headerParts.indexOf("contactnumber");
       }
 
       // Fallbacks
@@ -10770,6 +10924,16 @@ function AddLearnerView({
         if (alsRatingColIdx === -1) alsRatingColIdx = 22;
         if (alsCenterInfoColIdx === -1) alsCenterInfoColIdx = 23;
         if (othersSpecifyColIdx === -1) othersSpecifyColIdx = 24;
+
+        if (isTransferredInColIdx === -1) isTransferredInColIdx = 25;
+        if (birthplaceColIdx === -1) birthplaceColIdx = 26;
+        if (homeAddressColIdx === -1) homeAddressColIdx = 27;
+        if (primaryContactColIdx === -1) primaryContactColIdx = 28;
+        if (fatherNameColIdx === -1) fatherNameColIdx = 29;
+        if (motherNameColIdx === -1) motherNameColIdx = 30;
+        if (guardianNameColIdx === -1) guardianNameColIdx = 31;
+        if (guardianRelationshipColIdx === -1) guardianRelationshipColIdx = 32;
+        if (contactNumberColIdx === -1) contactNumberColIdx = 33;
       } else {
         if (dateColIdx === -1) dateColIdx = 9;
         if (weightColIdx === -1) weightColIdx = 10;
@@ -10785,6 +10949,16 @@ function AddLearnerView({
         if (alsRatingColIdx === -1) alsRatingColIdx = 20;
         if (alsCenterInfoColIdx === -1) alsCenterInfoColIdx = 21;
         if (othersSpecifyColIdx === -1) othersSpecifyColIdx = 22;
+
+        if (isTransferredInColIdx === -1) isTransferredInColIdx = 23;
+        if (birthplaceColIdx === -1) birthplaceColIdx = 24;
+        if (homeAddressColIdx === -1) homeAddressColIdx = 25;
+        if (primaryContactColIdx === -1) primaryContactColIdx = 26;
+        if (fatherNameColIdx === -1) fatherNameColIdx = 27;
+        if (motherNameColIdx === -1) motherNameColIdx = 28;
+        if (guardianNameColIdx === -1) guardianNameColIdx = 29;
+        if (guardianRelationshipColIdx === -1) guardianRelationshipColIdx = 30;
+        if (contactNumberColIdx === -1) contactNumberColIdx = 31;
       }
 
       lines.forEach((line, index) => {
@@ -10844,6 +11018,20 @@ function AddLearnerView({
             othersSpecify: parts[othersSpecifyColIdx] || ""
           };
 
+          const isTransferredInRaw = parts[isTransferredInColIdx] || "";
+          const isTransferredIn = isTransferredInRaw.toLowerCase().includes('yes') || isTransferredInRaw.toLowerCase().includes('true') || isTransferredInRaw === '1';
+          const birthplace = parts[birthplaceColIdx] || "";
+          const address = parts[homeAddressColIdx] || "";
+          let primaryContact = (parts[primaryContactColIdx] || "father").toLowerCase();
+          if (primaryContact !== 'father' && primaryContact !== 'mother' && primaryContact !== 'guardian') {
+            primaryContact = 'father';
+          }
+          const fatherName = parts[fatherNameColIdx] || "";
+          const motherName = parts[motherNameColIdx] || "";
+          const guardianName = parts[guardianNameColIdx] || "";
+          const guardianRelationship = parts[guardianRelationshipColIdx] || "";
+          const contactNumber = parts[contactNumberColIdx] || "";
+
           // Generate full name automatically
           const nameParts = [
             lastName + (firstName ? "," : ""),
@@ -10872,7 +11060,7 @@ function AddLearnerView({
               lrn,
               email: email.toLowerCase(),
               birthdate,
-              age,
+              age: parseInt(age) || 0,
               sex: finalSex,
               dateOfFirstAttendance: dateInput,
               weight: parseFloat(weight) || 0,
@@ -10883,7 +11071,16 @@ function AddLearnerView({
               nutritionalStatus: {
                 bmiCategory: category
               },
-              eligibility
+              eligibility,
+              isTransferredIn,
+              birthplace,
+              address,
+              primaryContact,
+              fatherName,
+              motherName,
+              guardianName,
+              guardianRelationship,
+              contactNumber
             });
           }
         }
@@ -10901,9 +11098,9 @@ function AddLearnerView({
   };
 
   const downloadCSVTemplate = () => {
-    const headers = "LastName,FirstName,MiddleName,NameExt,LRN,Email,Birthdate,Age,Sex,GradeLevel,Section,DateOfFirstAttendance,Weight_kg,Height_cm,EligibilityType,GenAvg,Citation,ElemSchoolName,ElemSchoolId,ElemSchoolAddress,PEPTRating,PEPTDate,ALSRating,ALSCenterInfo,OthersSpecify";
-    const example1 = "Dela Cruz,Juan,,Jr,123456789012,juan.delacruz@email.com,2010-01-15,12,Male,7,Einstein,2023-06-05,45,150,Elementary School Completer,85.50,,,Rizal Elem School,123456,,,,,";
-    const example2 = "Santos,Maria,G,,987654321098,maria.santos@email.com,2011-03-20,11,Female,7,Einstein,2023-06-05,42,148,PEPT Passer.,,,,,,,80.20,2022-05-15,,,";
+    const headers = "LastName,FirstName,MiddleName,NameExt,LRN,Email,Birthdate,Age,Sex,GradeLevel,Section,DateOfFirstAttendance,Weight_kg,Height_cm,EligibilityType,GenAvg,Citation,ElemSchoolName,ElemSchoolId,ElemSchoolAddress,PEPTRating,PEPTDate,ALSRating,ALSCenterInfo,OthersSpecify,IsTransferredIn,Birthplace,HomeAddress,PrimaryContact,FatherName,MotherName,GuardianName,GuardianRelationship,ContactNumber";
+    const example1 = "Dela Cruz,Juan,,Jr,123456789012,juan.delacruz@email.com,2010-01-15,12,Male,7,Einstein,2023-06-05,45,150,Elementary School Completer,85.50,,,Rizal Elem School,123456,,,,,,No,Manila,123 Rizal St. Manila,father,Juan Dela Cruz Sr.,Maria Dela Cruz,,,09123456789";
+    const example2 = "Santos,Maria,G,,987654321098,maria.santos@email.com,2011-03-20,11,Female,7,Einstein,2023-06-05,42,148,PEPT Passer.,,,,,,,80.20,2022-05-15,,,,Yes,Quezon City,456 Quezon Ave. QC,mother,Pedro Santos,Maria Santos,,,09876543210";
     const csvContent = `${headers}\n${example1}\n${example2}`;
     
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -14392,6 +14589,22 @@ function GradebookView({
   const [showDataEntryHint, setShowDataEntryHint] = useState(false);
   const [confirmFinalizeConfig, setConfirmFinalizeConfig] = useState<{ subjectId: string, term: number, finalize: boolean } | null>(null);
 
+  const [localGrades, setLocalGrades] = useState<Record<string, Record<string, Record<number, any>>>>({});
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    if (hasUnsavedChanges) {
+      const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+        e.preventDefault();
+        e.returnValue = "You have unsaved grade changes in your Class Record. Are you sure you want to leave?";
+        return e.returnValue;
+      };
+      window.addEventListener("beforeunload", handleBeforeUnload);
+      return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+    }
+  }, [hasUnsavedChanges]);
+
   const isYearEndFinalized = useMemo(() => {
     const isGlobalFinalized = globalSettings?.finalizedSchoolYears?.includes(selectedSection?.schoolYear);
     return isGlobalFinalized || selectedSection?.isFinalized || students.some(s => s.status === 'Promoted' || s.status === 'Retained');
@@ -14801,7 +15014,7 @@ function GradebookView({
       ...new Array(7).fill(createCell("", { bg: "107C41" })), // pad PT
       
       // SA Header
-      createCell(`Summative Assessment (SA) - ${selectedSubject.taWeight || 20}%`, { bold: true, color: "FFFFFF", bg: "107C41", align: "center" }),
+      createCell(`Summative Test and Term Exam (SA) - ${selectedSubject.taWeight || 20}%`, { bold: true, color: "FFFFFF", bg: "107C41", align: "center" }),
       ...new Array(5).fill(createCell("", { bg: "107C41" })), // pad SA
       
       createCell("Initial Grade", { bold: true, color: "FFFFFF", bg: "107C41", align: "center" }),
@@ -14834,7 +15047,7 @@ function GradebookView({
       // SA Subheaders
       createCell("ST 1", { bold: true, color: "FFFFFF", bg: "194D33", align: "center" }),
       createCell("ST 2", { bold: true, color: "FFFFFF", bg: "194D33", align: "center" }),
-      createCell("Exam", { bold: true, color: "FFFFFF", bg: "194D33", align: "center" }),
+      createCell("Term Exam", { bold: true, color: "FFFFFF", bg: "194D33", align: "center" }),
       createCell("Total", { bold: true, color: "000000", bg: "C6E0B4", align: "center" }),
       createCell("PS", { bold: true, color: "000000", bg: "C6E0B4", align: "center" }),
       createCell("WS", { bold: true, color: "000000", bg: "C6E0B4", align: "center" }),
@@ -15108,7 +15321,59 @@ function GradebookView({
 
   const getStudentTermData = (student: Student) => {
     const sId = selectedSubject.id;
-    return student.grades?.[sId]?.[activeTerm] || JSON.parse(JSON.stringify(DEFAULT_TERM_DATA));
+    const baseGrades = student.grades?.[sId]?.[activeTerm] || JSON.parse(JSON.stringify(DEFAULT_TERM_DATA));
+    if (localGrades[student.id]?.[sId]?.[activeTerm]) {
+      return {
+        ...baseGrades,
+        ...localGrades[student.id][sId][activeTerm]
+      };
+    }
+    return baseGrades;
+  };
+
+  const saveAllLocalGrades = async () => {
+    if (!selectedSubject) return;
+    setIsSaving(true);
+    try {
+      const updatedStudentsList: Student[] = [];
+
+      students.forEach(student => {
+        const studentLocal = localGrades[student.id];
+        if (studentLocal) {
+          const mergedGrades = { ...(student.grades || {}) };
+          
+          Object.keys(studentLocal).forEach(subId => {
+            mergedGrades[subId] = { ...(mergedGrades[subId] || {}) };
+            Object.keys(studentLocal[subId]).forEach(tStr => {
+              const termNum = Number(tStr);
+              mergedGrades[subId][termNum] = {
+                ...(mergedGrades[subId][termNum] || {}),
+                ...studentLocal[subId][termNum]
+              };
+            });
+          });
+
+          updatedStudentsList.push({
+            ...student,
+            grades: mergedGrades
+          });
+        }
+      });
+
+      if (updatedStudentsList.length > 0) {
+        await onBulkUpdate(updatedStudentsList, selectedSubject.id, activeTerm);
+        setLocalGrades({});
+        setHasUnsavedChanges(false);
+        alert("Grades successfully saved to the cloud!");
+      } else {
+        alert("No unsaved changes detected.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("An error occurred while saving grades.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleScoreChange = (studentId: string, category: string, index: number, value: string) => {
@@ -15135,7 +15400,29 @@ function GradebookView({
     const updated = { ...data[categoryKey as keyof typeof data] } as any;
     updated.scores = [...(updated.scores || [])];
     updated.scores[index] = numValue;
-    onUpdateGrades(studentId, { [categoryKey]: updated }, selectedSubject.id, activeTerm);
+
+    setLocalGrades(prev => {
+      const studentIdGrades = prev[studentId] || {};
+      const subjectGrades = studentIdGrades[selectedSubject.id] || {};
+      const termGrades = subjectGrades[activeTerm] || {};
+      
+      const newTermGrades = {
+        ...termGrades,
+        [categoryKey]: updated
+      };
+      
+      return {
+        ...prev,
+        [studentId]: {
+          ...studentIdGrades,
+          [selectedSubject.id]: {
+            ...subjectGrades,
+            [activeTerm]: newTermGrades
+          }
+        }
+      };
+    });
+    setHasUnsavedChanges(true);
   };
 
   const handleExamChange = (studentId: string, value: string) => {
@@ -15155,7 +15442,30 @@ function GradebookView({
     }
 
     const data = getStudentTermData(student);
-    onUpdateGrades(studentId, { termExam: { ...(data.termExam || DEFAULT_TERM_DATA.termExam), score: numValue } }, selectedSubject.id, activeTerm);
+    const updatedExam = { ...(data.termExam || DEFAULT_TERM_DATA.termExam), score: numValue };
+
+    setLocalGrades(prev => {
+      const studentIdGrades = prev[studentId] || {};
+      const subjectGrades = studentIdGrades[selectedSubject.id] || {};
+      const termGrades = subjectGrades[activeTerm] || {};
+      
+      const newTermGrades = {
+        ...termGrades,
+        termExam: updatedExam
+      };
+      
+      return {
+        ...prev,
+        [studentId]: {
+          ...studentIdGrades,
+          [selectedSubject.id]: {
+            ...subjectGrades,
+            [activeTerm]: newTermGrades
+          }
+        }
+      };
+    });
+    setHasUnsavedChanges(true);
   };
 
   const handleManualFinalGradeChange = (studentId: string, value: string) => {
@@ -15164,7 +15474,29 @@ function GradebookView({
        alert("Error: Grade must be between 60 and 100.");
        return;
     }
-    onUpdateGrades(studentId, { manualFinalGrade: numValue }, selectedSubject.id, activeTerm);
+    
+    setLocalGrades(prev => {
+      const studentIdGrades = prev[studentId] || {};
+      const subjectGrades = studentIdGrades[selectedSubject.id] || {};
+      const termGrades = subjectGrades[activeTerm] || {};
+      
+      const newTermGrades = {
+        ...termGrades,
+        manualFinalGrade: numValue
+      };
+      
+      return {
+        ...prev,
+        [studentId]: {
+          ...studentIdGrades,
+          [selectedSubject.id]: {
+            ...subjectGrades,
+            [activeTerm]: newTermGrades
+          }
+        }
+      };
+    });
+    setHasUnsavedChanges(true);
   };
 
   const handleMassUpdate = (category: string, field: 'maxScores' | 'names', index: number, value: any) => {
@@ -15335,19 +15667,26 @@ function GradebookView({
         const isDisabled = !hasHps || isInactive || isNotOffered || isSubjectTermFinalized || isTermLocked;
         return (
           <td key={`st-${i}`} className={`p-1 border-r border-slate-100 text-center w-12 ${isNotOffered ? '!bg-black' : !hasHps ? 'bg-slate-50/20' : 'bg-transparent'}`}>
-            <input 
-              type="text"
-              inputMode="numeric"
-              disabled={isDisabled}
-              value={data.summativeTests?.scores?.[i] ?? ''}
-              placeholder={hasHps ? "0" : ""}
-              onChange={(e) => handleScoreChange(student.id, 'summative', i, e.target.value)}
-              className={`w-full text-center text-xs text-slate-700 font-medium p-1 outline-none transition-all h-7 ${
-                hasHps 
-                  ? 'bg-transparent hover:bg-slate-100 focus:bg-white focus:ring-1 focus:ring-slate-300 rounded' 
-                  : 'opacity-0 cursor-not-allowed'
-              } ${(isInactive || isSubjectTermFinalized || isTermLocked) ? 'cursor-not-allowed text-slate-400 bg-transparent' : ''}`}
-            />
+            <div className="flex flex-col items-center justify-center">
+              <input 
+                type="text"
+                inputMode="numeric"
+                disabled={isDisabled}
+                value={data.summativeTests?.scores?.[i] ?? ''}
+                placeholder={hasHps ? "0" : ""}
+                onChange={(e) => handleScoreChange(student.id, 'summative', i, e.target.value)}
+                className={`w-full text-center text-xs text-slate-700 font-medium p-1 outline-none transition-all h-7 ${
+                  hasHps 
+                    ? 'bg-transparent hover:bg-slate-100 focus:bg-white focus:ring-1 focus:ring-slate-300 rounded' 
+                    : 'opacity-0 cursor-not-allowed'
+                } ${(isInactive || isSubjectTermFinalized || isTermLocked) ? 'cursor-not-allowed text-slate-400 bg-transparent' : ''}`}
+              />
+              {hasHps && (
+                <span className="text-[9px] text-indigo-600 font-bold tracking-tight select-none mt-px" title="Weighted score (30% of category)">
+                  {(((Number(data.summativeTests?.scores?.[i]) || 0) / hps) * 30).toFixed(1)}
+                </span>
+              )}
+            </div>
           </td>
         );
       })}
@@ -15356,20 +15695,29 @@ function GradebookView({
           const hps = (refData.termExam?.maxScore || 0);
           const hasHps = hps > 0;
           const isDisabled = !hasHps || isInactive || isNotOffered || isSubjectTermFinalized || isTermLocked;
+          const score = Number(data.termExam?.score) || 0;
+          const wsValue = hasHps ? (score / hps) * 40 : 0;
           return (
-            <input 
-              type="text"
-              inputMode="numeric"
-              disabled={isDisabled}
-              value={data.termExam?.score ?? ''}
-              placeholder={hasHps ? "0" : ""}
-              onChange={(e) => handleExamChange(student.id, e.target.value)}
-              className={`w-full text-center text-xs text-slate-700 font-medium p-1 outline-none transition-all h-7 ${
-                hasHps 
-                  ? 'bg-transparent hover:bg-slate-100 focus:bg-white focus:ring-1 focus:ring-slate-300 rounded' 
-                  : 'opacity-0 cursor-not-allowed'
-              } ${(isInactive || isNotOffered || isSubjectTermFinalized || isTermLocked) ? 'cursor-not-allowed text-slate-400 bg-transparent' : ''}`}
-            />
+            <div className="flex flex-col items-center justify-center">
+              <input 
+                type="text"
+                inputMode="numeric"
+                disabled={isDisabled}
+                value={data.termExam?.score ?? ''}
+                placeholder={hasHps ? "0" : ""}
+                onChange={(e) => handleExamChange(student.id, e.target.value)}
+                className={`w-full text-center text-xs text-slate-700 font-medium p-1 outline-none transition-all h-7 ${
+                  hasHps 
+                    ? 'bg-transparent hover:bg-slate-100 focus:bg-white focus:ring-1 focus:ring-slate-300 rounded' 
+                    : 'opacity-0 cursor-not-allowed'
+                } ${(isInactive || isNotOffered || isSubjectTermFinalized || isTermLocked) ? 'cursor-not-allowed text-slate-400 bg-transparent' : ''}`}
+              />
+              {hasHps && (
+                <span className="text-[9px] text-indigo-600 font-bold tracking-tight select-none mt-px" title="Weighted score (40% of category)">
+                  {wsValue.toFixed(1)}
+                </span>
+              )}
+            </div>
           );
         })()}
       </td>
@@ -15571,25 +15919,75 @@ function GradebookView({
         </div>
       )}
 
-      {!isSubjectTermFinalized && isActiveTermReady && onToggleFinalizeSubjectTerm && (
+      {!isSubjectTermFinalized && (
         <div className="mx-8 mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
-           <div className="p-4 bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-indigo-800 shadow-sm">
+           <div className={`p-4 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm transition-all duration-300 ${
+             hasUnsavedChanges 
+               ? 'bg-gradient-to-r from-amber-50 to-orange-50 border-amber-200 text-amber-800' 
+               : 'bg-gradient-to-r from-indigo-50/70 to-blue-50/70 border-indigo-150 text-indigo-800 bg-white'
+           }`}>
              <div className="flex items-center gap-4">
-               <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center shrink-0 animate-pulse">
-                 <Sparkles size={20} className="text-indigo-650 animate-bounce" />
+               <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
+                 hasUnsavedChanges ? 'bg-amber-100' : 'bg-indigo-50 border border-indigo-100'
+               }`}>
+                 {hasUnsavedChanges ? (
+                   <Save size={18} className="text-amber-700 animate-bounce" />
+                 ) : (
+                   <Sparkles size={18} className="text-indigo-600" />
+                 )}
                </div>
                <div>
-                 <h4 className="font-black uppercase tracking-widest text-[10px] mb-1 text-indigo-900">Term Grades Ready</h4>
-                 <p className="text-xs font-medium text-indigo-700">If you are ready to finalize the grades for this term, click the 'Finalize - Terms' button to unlock the subsequent terms.</p>
+                 <h4 className={`font-black uppercase tracking-widest text-[10px] mb-1 ${
+                   hasUnsavedChanges ? 'text-amber-900' : 'text-indigo-950'
+                 }`}>
+                   {hasUnsavedChanges ? 'Unsaved Grade Changes Detected' : 'Grade Entry / Editing Mode'}
+                 </h4>
+                 <p className="text-xs font-medium opacity-90">
+                   {hasUnsavedChanges 
+                     ? 'You have inputted new scores. Please click the "Save Grades" button to persist them in the database.' 
+                     : 'Learner grades are ready to be inputted. Changes will be kept locally until you click "Save Grades".'}
+                 </p>
                </div>
              </div>
-             <button 
-               onClick={() => setConfirmFinalizeConfig({ subjectId: selectedSubject.id, term: activeTerm, finalize: true })}
-               className="self-start sm:self-auto shrink-0 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold rounded-xl text-xs transition-all uppercase tracking-wider shadow-md shadow-indigo-600/15 cursor-pointer flex items-center gap-2"
-             >
-               <Sparkles size={14} className="animate-spin" style={{ animationDuration: '6s' }} />
-               Finalize - Terms
-             </button>
+             
+             <div className="flex flex-wrap items-center gap-3">
+               <button 
+                 onClick={saveAllLocalGrades}
+                 disabled={isSaving || !hasUnsavedChanges}
+                 className={`px-5 py-2.5 font-bold rounded-xl text-xs transition-all uppercase tracking-wider flex items-center gap-2 cursor-pointer shadow-md ${
+                   hasUnsavedChanges 
+                     ? 'bg-emerald-600 hover:bg-emerald-700 text-white active:scale-95 shadow-emerald-600/15' 
+                     : 'bg-slate-100 text-slate-400 cursor-not-allowed shadow-none'
+                 }`}
+               >
+                 {isSaving ? (
+                   <Loader2 size={14} className="animate-spin" />
+                 ) : (
+                   <Save size={14} />
+                 )}
+                 Save Grades
+               </button>
+
+               {isActiveTermReady && onToggleFinalizeSubjectTerm && (
+                 <button 
+                   onClick={() => {
+                     if (hasUnsavedChanges) {
+                       alert("Please save your grade changes before finalizing.");
+                       return;
+                     }
+                     setConfirmFinalizeConfig({ subjectId: selectedSubject.id, term: activeTerm, finalize: true });
+                   }}
+                   className={`px-5 py-2.5 font-bold rounded-xl text-xs transition-all uppercase tracking-wider shadow-md flex items-center gap-2 cursor-pointer ${
+                     hasUnsavedChanges
+                       ? 'bg-indigo-400 text-indigo-100 cursor-not-allowed'
+                       : 'bg-indigo-600 hover:bg-indigo-700 text-white active:scale-95 shadow-indigo-600/15'
+                   }`}
+                 >
+                   <Sparkles size={14} className={hasUnsavedChanges ? "" : "animate-spin"} style={{ animationDuration: '6s' }} />
+                   Finalize - Terms
+                 </button>
+               )}
+             </div>
            </div>
         </div>
       )}
@@ -15619,7 +16017,7 @@ function GradebookView({
                     Performance Tasks ({selectedSubject.ptWeight}%)
                   </th>
                   <th className="px-2 py-1.5 border border-slate-200 border-b border-b-slate-200 text-slate-700 bg-slate-50" colSpan={6}>
-                    Tests & Exam ({selectedSubject.taWeight}%)
+                    Summative Test and Term Exam ({selectedSubject.taWeight}%)
                   </th>
                   <th className="px-2 py-2 border border-slate-200 border-b border-b-slate-200 bg-slate-50 text-slate-600 min-w-[60px] text-[9px]" rowSpan={2}>Initial Grade</th>
                   <th className="px-4 py-2 border border-slate-200 border-b border-b-slate-200 bg-slate-100 text-slate-800 min-w-[80px]" rowSpan={2}>Term Grade</th>
@@ -15661,18 +16059,22 @@ function GradebookView({
 
                   {/* ST sub-headers */}
                   {[0, 1].map(i => (
-                    <th key={`sth-${i}`} className="p-0 border-r border-slate-200 min-w-[40px]">
+                    <th key={`sth-${i}`} className="p-0 border-r border-slate-200 min-w-[40px] py-1">
                        <input 
                         type="text"
                         disabled={isNotOffered || isYearEndFinalized || isSubjectTermFinalized}
                         value={refData.summativeTests?.names?.[i] || ""}
                         onChange={(e) => handleMassUpdate('summative', 'names', i, e.target.value)}
                         placeholder={`ST${i+1}`}
-                        className={`w-full text-center bg-transparent outline-none py-2 text-[9px] font-bold text-slate-600 placeholder:text-slate-300 ${(isNotOffered || isYearEndFinalized || isSubjectTermFinalized) ? 'cursor-not-allowed opacity-50' : ''}`}
+                        className={`w-full text-center bg-transparent outline-none text-[9px] font-bold text-slate-600 placeholder:text-slate-300 ${(isNotOffered || isYearEndFinalized || isSubjectTermFinalized) ? 'cursor-not-allowed opacity-50' : ''}`}
                        />
+                       <div className="text-[8px] text-slate-400 font-bold text-center select-none leading-none pb-0.5">30% WS</div>
                     </th>
                   ))}
-                  <th className="bg-slate-50 text-slate-700 border-r border-slate-200 w-16 text-center">Exam</th>
+                  <th className="bg-slate-50 text-slate-700 border-r border-slate-200 w-16 text-center py-1">
+                    <div className="font-bold">Term Exam</div>
+                    <div className="text-[8px] text-slate-400 font-bold select-none leading-none mt-0.5">40% WS</div>
+                  </th>
                   <th className="bg-slate-50 text-slate-700 border-r border-slate-200 w-12 text-center">Total</th>
                   <th className="bg-slate-50 text-slate-700 border-r border-slate-200 w-10 text-center">PS</th>
                   <th className="bg-slate-50/80 text-slate-700 border-r border-slate-200 w-12 font-bold text-center">WS</th>
@@ -15725,18 +16127,26 @@ function GradebookView({
                   {/* ST HPS */}
                   {[0, 1].map(i => (
                     <td key={`sthps-${i}`} className="p-1 border-r border-slate-200 bg-transparent text-center w-12">
-                      <input 
-                        type="text"
-                        inputMode="numeric"
-                        disabled={isNotOffered || isYearEndFinalized || isSubjectTermFinalized}
-                        value={refData.summativeTests?.maxScores?.[i] === 0 ? "" : (refData.summativeTests?.maxScores?.[i] || "")}
-                        onChange={(e) => handleMassUpdate('summative', 'maxScores', i, e.target.value)}
-                        placeholder="--"
-                        className={`w-full text-center text-xs font-bold p-1 outline-none bg-transparent hover:bg-slate-100 focus:bg-white border text-slate-700 border-transparent focus:border-slate-300 rounded transition-all ${(isNotOffered || isYearEndFinalized || isSubjectTermFinalized) ? 'cursor-not-allowed text-slate-400 bg-transparent' : ''}`}
-                      />
+                      <div className="flex flex-col items-center justify-center">
+                        <input 
+                          type="text"
+                          inputMode="numeric"
+                          disabled={isNotOffered || isYearEndFinalized || isSubjectTermFinalized}
+                          value={refData.summativeTests?.maxScores?.[i] === 0 ? "" : (refData.summativeTests?.maxScores?.[i] || "")}
+                          onChange={(e) => handleMassUpdate('summative', 'maxScores', i, e.target.value)}
+                          placeholder="--"
+                          className={`w-full text-center text-xs font-bold p-1 outline-none bg-transparent hover:bg-slate-100 focus:bg-white border text-slate-700 border-transparent focus:border-slate-300 rounded transition-all ${(isNotOffered || isYearEndFinalized || isSubjectTermFinalized) ? 'cursor-not-allowed text-slate-400 bg-transparent' : ''}`}
+                        />
+                        {(refData.summativeTests?.maxScores?.[i] || 0) > 0 && (
+                          <span className="text-[8px] text-slate-400 font-bold select-none mt-px" title="Max Weight Score">
+                            Max: 30.0
+                          </span>
+                        )}
+                      </div>
                     </td>
                   ))}
                   <td className="p-1 border-r border-slate-200 bg-transparent text-center w-16">
+                    <div className="flex flex-col items-center justify-center">
                       <input 
                         type="text"
                         inputMode="numeric"
@@ -15746,6 +16156,12 @@ function GradebookView({
                         placeholder="--"
                         className={`w-full text-center text-xs font-bold p-1 outline-none bg-transparent hover:bg-slate-100 focus:bg-white border text-slate-700 border-transparent focus:border-slate-300 rounded transition-all ${(isNotOffered || isYearEndFinalized || isSubjectTermFinalized) ? 'cursor-not-allowed text-slate-400 bg-transparent' : ''}`}
                       />
+                      {(refData.termExam?.maxScore || 0) > 0 && (
+                        <span className="text-[8px] text-slate-400 font-bold select-none mt-px" title="Max Weight Score">
+                          Max: 40.0
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="bg-slate-50/50 text-slate-800 font-bold text-center border-r border-slate-200 py-2">
                     {((refData.summativeTests?.maxScores || []).reduce((a: number, b: any) => a + (Number(b) || 0), 0) + Number(refData.termExam?.maxScore || 0)) || ""}
@@ -17380,7 +17796,7 @@ function SubjectsView({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name || (selectedSection && !form.teacherEmail)) return;
+    if (!form.name) return;
     
     try {
       if (editingId) {
@@ -17795,15 +18211,21 @@ function SubjectsView({
               <form onSubmit={async (e) => {
                 e.preventDefault();
                 if (selectedSection && editingId && onUpdateSection) {
-                  // Save teacher assignment
-                  onUpdateSection(selectedSection.id, {
-                    subjectTeachers: {
-                      ...(selectedSection.subjectTeachers || {}),
-                      [editingId]: form.teacherEmail
-                    }
-                  });
-                  resetForm();
-                  return;
+                  try {
+                    // Save teacher assignment in section
+                    onUpdateSection(selectedSection.id, {
+                      subjectTeachers: {
+                        ...(selectedSection.subjectTeachers || {}),
+                        [editingId]: form.teacherEmail || ""
+                      }
+                    });
+                    // Also save subject details (such as weights and metadata) in the section's subject subcollection
+                    await onEditSubject(editingId, form);
+                    resetForm();
+                    return;
+                  } catch (error) {
+                    console.error("Error updating section subject:", error);
+                  }
                 }
                 if (isAddingPreset && selectedSection && !editingId && onUpdateSection) {
                   // Save selected subjects
@@ -18126,11 +18548,15 @@ function SubjectsView({
                   </button>
                   <button 
                     type="submit"
-                    disabled={(selectedSection && editingId) ? !isActiveSY : (isAddingPreset && selectedSection && !editingId) ? false : ((form.wwWeight || 0) + (form.ptWeight || 0) + (form.taWeight || 0) !== 100 || !isActiveSY)}
+                    disabled={
+                      (isAddingPreset && selectedSection && !editingId) 
+                        ? !isActiveSY 
+                        : (((form.wwWeight || 0) + (form.ptWeight || 0) + (form.taWeight || 0) !== 100) || !isActiveSY)
+                    }
                     className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold rounded-xl shadow-sm transition-all flex items-center justify-center gap-2"
                   >
                     {editingId ? <Check size={18} /> : <Plus size={18} />}
-                    {editingId ? (selectedSection ? 'Assign Teacher' : 'Save Changes') : (isAddingPreset && selectedSection ? 'Save Selected Subjects' : 'Add Subject')}
+                    {editingId ? 'Save Changes' : (isAddingPreset && selectedSection ? 'Save Selected Subjects' : 'Add Subject')}
                   </button>
                 </div>
               </form>
@@ -18291,31 +18717,37 @@ function SubjectsView({
                     <td className="px-6 py-4 text-center">
                         <span className="text-xs font-semibold text-slate-700">{subject.taWeight}%</span>
                     </td>
-                    {canModifySubjects && (
+                    {isActiveSY && (
                       <td className="px-6 py-4 text-right align-middle">
                         <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 flex-wrap">
-                          <button 
-                            onClick={() => {
-                              setForm(subject);
-                              setEditingId(subject.id);
-                              setIsModalOpen(true);
-                            }}
-                            className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 border border-transparent hover:border-indigo-100 rounded-md transition-all flex items-center gap-1 text-xs"
-                            title={selectedSection ? "Assign Teacher" : "Edit Subject"}
-                          >
-                            <Edit2 size={13} />
-                            {selectedSection ? <span className="font-bold px-1 whitespace-nowrap">Assign Teacher</span> : <span className="font-bold px-1 whitespace-nowrap">Edit</span>}
-                          </button>
-                          <button 
-                            onClick={() => {
-                              onDeleteSubject(subject.id);
-                            }}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-100 rounded-md transition-all flex items-center gap-1 text-xs"
-                            title="Remove Subject"
-                          >
-                            <Trash2 size={13} />
-                            <span className="font-bold px-1 whitespace-nowrap">Delete</span>
-                          </button>
+                          {(isAdmin || isSectionAdviser || (!!currentUser?.email && !!subject.teacherEmail && currentUser.email.trim().toLowerCase() === subject.teacherEmail.trim().toLowerCase())) && (
+                            <button 
+                              onClick={() => {
+                                setForm(subject);
+                                setEditingId(subject.id);
+                                setIsModalOpen(true);
+                              }}
+                              className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 border border-transparent hover:border-indigo-100 rounded-md transition-all flex items-center gap-1 text-xs"
+                              title={selectedSection ? "Edit Weights / Teacher" : "Edit Subject"}
+                            >
+                              <Edit2 size={13} />
+                              <span className="font-bold px-1 whitespace-nowrap">
+                                {selectedSection ? "Edit Weights / Teacher" : "Edit"}
+                              </span>
+                            </button>
+                          )}
+                          {(isAdmin || isSectionAdviser) && (
+                            <button 
+                              onClick={() => {
+                                onDeleteSubject(subject.id);
+                              }}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-100 rounded-md transition-all flex items-center gap-1 text-xs"
+                              title="Remove Subject"
+                            >
+                              <Trash2 size={13} />
+                              <span className="font-bold px-1 whitespace-nowrap">Delete</span>
+                            </button>
+                          )}
                         </div>
                       </td>
                     )}
@@ -23948,9 +24380,16 @@ function StudentPortal({
                                        return (
                                           <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
                                              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-2">1st Summative</p>
-                                             <div className="flex items-baseline gap-1">
-                                                <span className="text-xl font-bold text-slate-900">{max > 0 ? score : '-'}</span>
-                                                {max > 0 && <span className="text-[10px] text-slate-400">/ {max}</span>}
+                                             <div className="flex items-baseline justify-between w-full">
+                                                <div className="flex items-baseline gap-1">
+                                                   <span className="text-xl font-bold text-slate-900">{max > 0 ? score : '-'}</span>
+                                                   {max > 0 && <span className="text-[10px] text-slate-400">/ {max}</span>}
+                                                </div>
+                                                {max > 0 && (
+                                                   <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100" title="Weighted Score (30% of category)">
+                                                      WS: {((score / max) * 30).toFixed(1)}
+                                                   </span>
+                                                )}
                                              </div>
                                           </div>
                                        );
@@ -23962,9 +24401,16 @@ function StudentPortal({
                                        return (
                                           <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
                                              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-2">2nd Summative</p>
-                                             <div className="flex items-baseline gap-1">
-                                                <span className="text-xl font-bold text-slate-900">{max > 0 ? score : '-'}</span>
-                                                {max > 0 && <span className="text-[10px] text-slate-400">/ {max}</span>}
+                                             <div className="flex items-baseline justify-between w-full">
+                                                <div className="flex items-baseline gap-1">
+                                                   <span className="text-xl font-bold text-slate-900">{max > 0 ? score : '-'}</span>
+                                                   {max > 0 && <span className="text-[10px] text-slate-400">/ {max}</span>}
+                                                </div>
+                                                {max > 0 && (
+                                                   <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100" title="Weighted Score (30% of category)">
+                                                      WS: {((score / max) * 30).toFixed(1)}
+                                                   </span>
+                                                )}
                                              </div>
                                           </div>
                                        );
@@ -23976,9 +24422,16 @@ function StudentPortal({
                                        return (
                                           <div className="p-4 bg-indigo-50 border border-indigo-100 rounded-xl">
                                              <p className="text-[9px] font-bold text-indigo-600 uppercase tracking-wider mb-2">Term Examination</p>
-                                             <div className="flex items-baseline gap-1">
-                                                <span className="text-xl font-bold text-indigo-700">{max > 0 ? score : '-'}</span>
-                                                {max > 0 && <span className="text-[10px] text-indigo-400">/ {max}</span>}
+                                             <div className="flex items-baseline justify-between w-full">
+                                                <div className="flex items-baseline gap-1">
+                                                   <span className="text-xl font-bold text-indigo-700">{max > 0 ? score : '-'}</span>
+                                                   {max > 0 && <span className="text-[10px] text-indigo-400">/ {max}</span>}
+                                                </div>
+                                                {max > 0 && (
+                                                   <span className="text-[10px] font-bold text-indigo-700 bg-indigo-100 px-1.5 py-0.5 rounded border border-indigo-200" title="Weighted Score (40% of category)">
+                                                      WS: {((score / max) * 40).toFixed(1)}
+                                                   </span>
+                                                 )}
                                              </div>
                                           </div>
                                        );
