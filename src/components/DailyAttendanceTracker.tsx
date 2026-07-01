@@ -500,15 +500,15 @@ export const DailyAttendanceTracker: React.FC<DailyAttendanceTrackerProps> = ({ 
         </div>
       </div>
 
-      <div className="p-6 overflow-x-auto">
+      <div className="px-6 pb-6 pt-0 overflow-auto max-h-[650px] relative custom-scrollbar">
           <table className="w-full border-collapse border border-black text-[10px] text-black">
               <thead>
                   <tr className="bg-white border-b-2 border-black">
-                      <th className="p-2 border border-black font-black uppercase text-left sticky left-0 bg-white z-10">Month</th>
+                      <th className="p-2 border border-black font-black uppercase text-left sticky left-0 top-0 bg-white z-30 shadow-[inset_0_-2px_0_#000]">Month</th>
                       {[...Array(31)].map((_, i) => (
-                          <th key={i} className="p-1 border border-black text-center font-black">{i + 1}</th>
+                          <th key={i} className="p-1 border border-black text-center font-black sticky top-0 bg-white z-20 shadow-[inset_0_-2px_0_#000]">{i + 1}</th>
                       ))}
-                      <th className="p-2 border border-black text-center font-black bg-black text-white">Total</th>
+                      <th className="p-2 border border-black text-center font-black bg-black text-white sticky top-0 z-20 shadow-[inset_0_-2px_0_#000]">Total</th>
                   </tr>
               </thead>
               <tbody>
