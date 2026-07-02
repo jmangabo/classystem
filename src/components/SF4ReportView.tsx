@@ -2,10 +2,9 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { db, handleFirestoreError, safeGetDocs as getDocs } from '../firebase';
 import { collection, query, where, collectionGroup } from 'firebase/firestore';
 import { Section, Student, School, TermNumber } from '../types';
-import { FileText, Download, Loader2, Calendar, RefreshCw, X } from 'lucide-react';
+import { FileText, Download, Loader2, Calendar, RefreshCw, X, Printer } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx-js-style';
-import { jsPDF } from "jspdf";
-import html2canvas from "html2canvas-pro";
 
 interface SF4ReportViewProps {
   schoolId: string;
@@ -53,6 +52,7 @@ export const SF4ReportView: React.FC<SF4ReportViewProps> = ({ schoolId, calendar
   const [sectionStudents, setSectionStudents] = useState<{[sectionId: string]: Student[]}>({});
   const [selectedMonthKey, setSelectedMonthKey] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<'dropped' | 'transOut' | 'transIn' | 'late' | null>(null);
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -595,73 +595,7 @@ export const SF4ReportView: React.FC<SF4ReportViewProps> = ({ schoolId, calendar
     XLSX.writeFile(workbook, `SF4_Report_${currentMonthData.month}_${currentMonthData.schoolYear}.xlsx`);
   };
 
-  const handleExportPDF = async () => {
-    if (!currentMonthData) return;
-    const element = document.getElementById('sf4-print-area');
-    if (!element) return;
 
-    try {
-      setLoading(true);
-      
-      // Temporarily modify styles to ensure the full table is visible for capture
-      const originalStyle = element.style.cssText;
-      const parentElement = element.parentElement;
-      const originalParentStyle = parentElement ? parentElement.style.cssText : '';
-      
-      if (parentElement) {
-        parentElement.style.overflow = 'visible';
-      }
-      
-      element.style.width = `${element.scrollWidth}px`;
-      element.style.maxWidth = 'none';
-
-      const canvas = await html2canvas(element, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        windowWidth: element.scrollWidth,
-        windowHeight: element.scrollHeight
-      });
-      
-      // Restore styles
-      element.style.cssText = originalStyle;
-      if (parentElement) {
-        parentElement.style.cssText = originalParentStyle;
-      }
-
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF({
-        orientation: 'landscape',
-        unit: 'mm',
-        format: 'a4'
-      });
-      
-      const imgProps = pdf.getImageProperties(imgData);
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-      
-      // Add multiple pages if the content is taller than A4 landscape
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      let heightLeft = pdfHeight;
-      let position = 0;
-
-      pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, pdfHeight);
-      heightLeft -= pageHeight;
-
-      while (heightLeft >= 0) {
-        position = heightLeft - pdfHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, pdfHeight);
-        heightLeft -= pageHeight;
-      }
-
-      pdf.save(`SF4_Report_${currentMonthData.month}_${currentMonthData.schoolYear}.pdf`);
-    } catch (error) {
-      console.error("PDF generation failed", error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   if (loading) {
     return (
@@ -723,19 +657,20 @@ export const SF4ReportView: React.FC<SF4ReportViewProps> = ({ schoolId, calendar
             Refresh Data
           </button>
           <button 
+            onClick={() => setIsPrintModalOpen(true)}
+            className="flex items-center gap-2 px-6 h-12 bg-slate-950 hover:bg-slate-900 border border-slate-800 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-100 hover:scale-105 transition-all active:scale-95"
+          >
+            <Printer size={16} />
+            View & Print Form
+          </button>
+          <button 
             onClick={handleExportExcel}
             className="flex items-center gap-2 px-6 h-12 bg-emerald-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-100 hover:scale-105 transition-all active:scale-95"
           >
             <Download size={16} />
             Excel Export
           </button>
-          <button 
-            onClick={handleExportPDF}
-            className="flex items-center gap-2 px-6 h-12 bg-rose-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-rose-100 hover:scale-105 transition-all active:scale-95"
-          >
-            <FileText size={16} />
-            PDF Export
-          </button>
+
 
         </div>
       </div>
@@ -1090,6 +1025,266 @@ export const SF4ReportView: React.FC<SF4ReportViewProps> = ({ schoolId, calendar
           </div>
         </div>
       )}
+
+      {/* Full-Screen Landscape Print Modal matching School Form 2 */}
+      <AnimatePresence>
+        {isPrintModalOpen && currentMonthData && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] bg-slate-50 overflow-y-auto flex flex-col font-sans text-slate-800 print-modal-container"
+          >
+            <style dangerouslySetInnerHTML={{ __html: `
+              @media print {
+                @page { size: landscape; margin: 10mm; }
+                body { background: white !important; }
+                .print-card-sf4 {
+                  width: 277mm !important;
+                  max-width: 277mm !important;
+                  box-shadow: none !important;
+                  border: none !important;
+                  margin: 0 !important;
+                  padding: 0 !important;
+                }
+                .print-modal-container {
+                  background: white !important;
+                }
+              }
+            `}} />
+
+            {/* STICKY TOP BAR */}
+            <div className="sticky top-0 z-[210] bg-slate-900 text-white shadow-xl px-8 py-4 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 border-b border-white/10 print:hidden shrink-0">
+              <div className="flex flex-col">
+                <h2 className="text-sm font-black uppercase tracking-widest text-indigo-400">School Form 4 (SF4) - Monthly Learner Movement and Attendance</h2>
+                <p className="text-xs text-slate-400 font-bold mt-0.5">
+                  School Name: <span className="text-white uppercase font-black">{school?.name || ''}</span> • Month: <span className="text-white uppercase font-black">{currentMonthData.month} {currentMonthData.year}</span>
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <button 
+                  onClick={() => window.print()}
+                  className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full font-bold text-[10px] uppercase tracking-wide shadow flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+                >
+                  <Printer size={12} />
+                  Print Form
+                </button>
+                <button 
+                  onClick={() => setIsPrintModalOpen(false)}
+                  className="px-4 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-full font-bold text-[10px] uppercase tracking-wide shadow flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+                >
+                  <X size={12} />
+                  Close Page
+                </button>
+              </div>
+            </div>
+
+            {/* PRINT WRAPPER */}
+            <div className="flex-1 flex flex-col items-center justify-start py-8 overflow-y-auto bg-slate-100 gap-10 print:bg-white print:p-0 print:overflow-visible print:block w-full">
+              <motion.div
+                initial={{ scale: 0.98, opacity: 0, y: 15 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                className="flex flex-col gap-8 print:gap-0 print:block print:transform-none select-none shadow-xl border border-slate-200/50 rounded-lg p-2 bg-white/50 print:border-0 print:p-0 print:bg-transparent"
+              >
+                {/* PRINT PAGE CARD */}
+                <div className="bg-white w-[297mm] p-[0.35in] shadow-2xl rounded text-black border border-black flex flex-col overflow-hidden print:shadow-none print:m-0 border-collapse print-card-sf4">
+                  
+                  {/* Header Section */}
+                  <div className="text-center mb-4">
+                    <h1 className="font-black text-[12pt] uppercase leading-none">Monthly Learner Movement and Attendance Report</h1>
+                    <p className="text-[7pt] tracking-tight italic mt-1 font-bold text-slate-600 leading-none">(School Form 4)</p>
+                  </div>
+
+                  {/* Info Row block */}
+                  <div className="grid grid-cols-4 gap-x-4 gap-y-2 text-[7.5pt] font-black mb-3 uppercase leading-none">
+                    <div className="flex gap-1 items-end"><span>School ID:</span> <span className="border-b border-black flex-1 text-center font-bold pb-0.5">{schoolId}</span></div>
+                    <div className="flex gap-1 items-end"><span>Region:</span> <span className="border-b border-black flex-1 text-center font-bold pb-0.5">{school?.region || ''}</span></div>
+                    <div className="flex gap-1 items-end"><span>Division:</span> <span className="border-b border-black flex-1 text-center font-bold pb-0.5">{school?.division || ''}</span></div>
+                    <div className="flex gap-1 items-end"><span>District:</span> <span className="border-b border-black flex-1 text-center font-bold pb-0.5">{school?.district || ''}</span></div>
+                    
+                    <div className="flex gap-1 items-end col-span-2"><span>School Name:</span> <span className="border-b border-black flex-1 text-center font-bold pb-0.5">{school?.name || ''}</span></div>
+                    <div className="flex gap-1 items-end"><span>School Year:</span> <span className="border-b border-black flex-1 text-center font-bold pb-0.5">{currentMonthData.schoolYear}</span></div>
+                    <div className="flex gap-1 items-end"><span>Month / Year:</span> <span className="border-b border-black flex-1 text-center text-indigo-700 font-bold pb-0.5">{currentMonthData.month} {currentMonthData.year}</span></div>
+                  </div>
+
+                  {/* Table Section */}
+                  <div className="w-full overflow-visible">
+                    <table className="w-full border-collapse border border-black text-[6.5px] leading-tight print:text-[6.5px]">
+                      <thead>
+                        <tr className="bg-slate-100 font-bold">
+                          <th rowSpan={3} className="border border-black p-1 text-left">Grade Level & Section</th>
+                          <th colSpan={3} rowSpan={2} className="border border-black p-1 text-center uppercase font-black">Enrolment</th>
+                          <th colSpan={6} className="border border-black p-1 text-center uppercase font-black bg-slate-50">Attendance</th>
+                          <th colSpan={9} className="border border-black p-1 text-center uppercase font-black bg-slate-50">NLPA (Dropped Out)</th>
+                          <th colSpan={9} className="border border-black p-1 text-center uppercase font-black bg-slate-50">Transferred Out</th>
+                          <th colSpan={9} className="border border-black p-1 text-center uppercase font-black bg-slate-50">Transferred In / Late Enrollees</th>
+                        </tr>
+                        <tr className="bg-slate-100 font-bold">
+                          <th colSpan={3} className="border border-black p-0.5 text-center">Daily Average</th>
+                          <th colSpan={3} className="border border-black p-0.5 text-center font-black">Percentage</th>
+                          
+                          <th colSpan={3} className="border border-black p-0.5 text-center leading-tight">(A) Cum. Prev</th>
+                          <th colSpan={3} className="border border-black p-0.5 text-center font-black leading-tight">(B) This Month</th>
+                          <th colSpan={3} className="border border-black p-0.5 text-center font-black bg-slate-200 leading-tight">(A+B) Total</th>
+
+                          <th colSpan={3} className="border border-black p-0.5 text-center leading-tight">(A) Cum. Prev</th>
+                          <th colSpan={3} className="border border-black p-0.5 text-center font-black leading-tight">(B) This Month</th>
+                          <th colSpan={3} className="border border-black p-0.5 text-center font-black bg-slate-200 leading-tight">(A+B) Total</th>
+
+                          <th colSpan={3} className="border border-black p-0.5 text-center leading-tight">(A) Cum. Prev</th>
+                          <th colSpan={3} className="border border-black p-0.5 text-center font-black leading-tight">(B) This Month</th>
+                          <th colSpan={3} className="border border-black p-0.5 text-center font-black bg-slate-200 leading-tight">(A+B) Total</th>
+                        </tr>
+                        <tr className="bg-slate-100 text-[6px] font-black">
+                          <th className="border border-black p-0.5">M</th><th className="border border-black p-0.5">F</th><th className="border border-black p-0.5 bg-slate-200">T</th>
+                          
+                          <th className="border border-black p-0.5">M</th><th className="border border-black p-0.5">F</th><th className="border border-black p-0.5 bg-slate-200">T</th>
+                          <th className="border border-black p-0.5">M</th><th className="border border-black p-0.5">F</th><th className="border border-black p-0.5 bg-slate-200">T</th>
+
+                          <th className="border border-black p-0.5">M</th><th className="border border-black p-0.5">F</th><th className="border border-black p-0.5">T</th>
+                          <th className="border border-black p-0.5">M</th><th className="border border-black p-0.5">F</th><th className="border border-black p-0.5">T</th>
+                          <th className="border border-black p-0.5 bg-slate-200">M</th><th className="border border-black p-0.5 bg-slate-200">F</th><th className="border border-black p-0.5 bg-slate-200">T</th>
+
+                          <th className="border border-black p-0.5">M</th><th className="border border-black p-0.5">F</th><th className="border border-black p-0.5">T</th>
+                          <th className="border border-black p-0.5">M</th><th className="border border-black p-0.5">F</th><th className="border border-black p-0.5">T</th>
+                          <th className="border border-black p-0.5 bg-slate-200">M</th><th className="border border-black p-0.5 bg-slate-200">F</th><th className="border border-black p-0.5 bg-slate-200">T</th>
+
+                          <th className="border border-black p-0.5">M</th><th className="border border-black p-0.5">F</th><th className="border border-black p-0.5">T</th>
+                          <th className="border border-black p-0.5">M</th><th className="border border-black p-0.5">F</th><th className="border border-black p-0.5">T</th>
+                          <th className="border border-black p-0.5 bg-slate-200">M</th><th className="border border-black p-0.5 bg-slate-200">F</th><th className="border border-black p-0.5 bg-slate-200">T</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {reportData.map(row => (
+                          <tr key={row.sectionId} className="hover:bg-slate-50">
+                            <td className="border border-black p-0.5 font-bold whitespace-nowrap">Gr. {row.gradeLevel} - {row.sectionName}</td>
+                            
+                            <td className="border border-black p-0.5 text-center">{row.maleEnrolment}</td>
+                            <td className="border border-black p-0.5 text-center">{row.femaleEnrolment}</td>
+                            <td className="border border-black p-0.5 text-center font-bold bg-slate-50">{row.maleEnrolment + row.femaleEnrolment}</td>
+                            
+                            <td className="border border-black p-0.5 text-center">{row.maleAvgAttendance.toFixed(2)}</td>
+                            <td className="border border-black p-0.5 text-center">{row.femaleAvgAttendance.toFixed(2)}</td>
+                            <td className="border border-black p-0.5 text-center font-bold bg-slate-50">{(row.maleAvgAttendance + row.femaleAvgAttendance).toFixed(2)}</td>
+
+                            <td className="border border-black p-0.5 text-center">{row.maleAttendancePercentage.toFixed(2)}%</td>
+                            <td className="border border-black p-0.5 text-center">{row.femaleAttendancePercentage.toFixed(2)}%</td>
+                            <td className="border border-black p-0.5 text-center font-bold bg-slate-50">{((row.maleAvgAttendance + row.femaleAvgAttendance) / (row.maleEnrolment + row.femaleEnrolment || 1) * 100).toFixed(2)}%</td>
+                            
+                            <td className="border border-black p-0.5 text-center">{row.maleDroppedPrev}</td>
+                            <td className="border border-black p-0.5 text-center">{row.femaleDroppedPrev}</td>
+                            <td className="border border-black p-0.5 text-center">{row.maleDroppedPrev + row.femaleDroppedPrev}</td>
+                            
+                            <td className="border border-black p-0.5 text-center font-bold">{row.maleDroppedMonth}</td>
+                            <td className="border border-black p-0.5 text-center font-bold">{row.femaleDroppedMonth}</td>
+                            <td className="border border-black p-0.5 text-center font-bold">{row.maleDroppedMonth + row.femaleDroppedMonth}</td>
+
+                            <td className="border border-black p-0.5 text-center bg-slate-50 font-black">{row.maleDroppedPrev + row.maleDroppedMonth}</td>
+                            <td className="border border-black p-0.5 text-center bg-slate-50 font-black">{row.femaleDroppedPrev + row.femaleDroppedMonth}</td>
+                            <td className="border border-black p-0.5 text-center bg-slate-100 font-black">{row.maleDroppedPrev + row.maleDroppedMonth + row.femaleDroppedPrev + row.femaleDroppedMonth}</td>
+                            
+                            <td className="border border-black p-0.5 text-center">{row.maleTransOutPrev}</td>
+                            <td className="border border-black p-0.5 text-center">{row.femaleTransOutPrev}</td>
+                            <td className="border border-black p-0.5 text-center">{row.maleTransOutPrev + row.femaleTransOutPrev}</td>
+                            
+                            <td className="border border-black p-0.5 text-center font-bold">{row.maleTransOutMonth}</td>
+                            <td className="border border-black p-0.5 text-center font-bold">{row.femaleTransOutMonth}</td>
+                            <td className="border border-black p-0.5 text-center font-bold">{row.maleTransOutMonth + row.femaleTransOutMonth}</td>
+
+                            <td className="border border-black p-0.5 text-center bg-slate-50 font-black">{row.maleTransOutPrev + row.maleTransOutMonth}</td>
+                            <td className="border border-black p-0.5 text-center bg-slate-50 font-black">{row.femaleTransOutPrev + row.femaleTransOutMonth}</td>
+                            <td className="border border-black p-0.5 text-center bg-slate-100 font-black">{row.maleTransOutPrev + row.maleTransOutMonth + row.femaleTransOutPrev + row.femaleTransOutMonth}</td>
+                            
+                            <td className="border border-black p-0.5 text-center"><span className="text-[6px] text-emerald-800">{row.maleTransInPrev}</span>/<span className="text-[6px] text-teal-700">{row.maleLatePrev}</span><br/><span className="font-bold">{row.maleTransInPrev + row.maleLatePrev}</span></td>
+                            <td className="border border-black p-0.5 text-center"><span className="text-[6px] text-emerald-800">{row.femaleTransInPrev}</span>/<span className="text-[6px] text-teal-700">{row.femaleLatePrev}</span><br/><span className="font-bold">{row.femaleTransInPrev + row.femaleLatePrev}</span></td>
+                            <td className="border border-black p-0.5 text-center bg-slate-50 font-black">{row.maleTransInPrev + row.maleLatePrev + row.femaleTransInPrev + row.femaleLatePrev}</td>
+
+                            <td className="border border-black p-0.5 text-center"><span className="text-[6px] text-emerald-800">{row.maleTransInMonth}</span>/<span className="text-[6px] text-teal-700">{row.maleLateMonth}</span><br/><span className="font-bold">{row.maleTransInMonth + row.maleLateMonth}</span></td>
+                            <td className="border border-black p-0.5 text-center"><span className="text-[6px] text-emerald-800">{row.femaleTransInMonth}</span>/<span className="text-[6px] text-teal-700">{row.femaleLateMonth}</span><br/><span className="font-bold">{row.femaleTransInMonth + row.femaleLateMonth}</span></td>
+                            <td className="border border-black p-0.5 text-center bg-slate-50 font-black">{row.maleTransInMonth + row.maleLateMonth + row.femaleTransInMonth + row.femaleLateMonth}</td>
+
+                            <td className="border border-black p-0.5 text-center bg-slate-100 font-black">{row.maleTransInPrev + row.maleTransInMonth + row.maleLatePrev + row.maleLateMonth}</td>
+                            <td className="border border-black p-0.5 text-center bg-slate-100 font-black">{row.femaleTransInPrev + row.femaleTransInMonth + row.femaleLatePrev + row.femaleLateMonth}</td>
+                            <td className="border border-black p-0.5 text-center bg-slate-200 font-black">{row.maleTransInPrev + row.maleTransInMonth + row.maleLatePrev + row.maleLateMonth + row.femaleTransInPrev + row.femaleTransInMonth + row.femaleLatePrev + row.femaleLateMonth}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="bg-slate-100 font-black text-center">
+                          <td className="border border-black p-0.5 text-left uppercase">School Total</td>
+                          <td className="border border-black p-0.5">{reportData.reduce((s, r) => s + r.maleEnrolment, 0)}</td>
+                          <td className="border border-black p-0.5">{reportData.reduce((s, r) => s + r.femaleEnrolment, 0)}</td>
+                          <td className="border border-black p-0.5 underline font-bold">{reportData.reduce((s, r) => s + r.maleEnrolment + r.femaleEnrolment, 0)}</td>
+                          
+                          <td className="border border-black p-0.5">{(reportData.reduce((s, r) => s + r.maleAvgAttendance, 0)).toFixed(2)}</td>
+                          <td className="border border-black p-0.5">{(reportData.reduce((s, r) => s + r.femaleAvgAttendance, 0)).toFixed(2)}</td>
+                          <td className="border border-black p-0.5 underline">{(reportData.reduce((s, r) => s + r.maleAvgAttendance + r.femaleAvgAttendance, 0)).toFixed(2)}</td>
+
+                          <td className="border border-black p-0.5">{(reportData.reduce((s, r) => s + r.maleAvgAttendance, 0) / (reportData.reduce((s, r) => s + r.maleEnrolment, 0) || 1) * 100).toFixed(2)}%</td>
+                          <td className="border border-black p-0.5">{(reportData.reduce((s, r) => s + r.femaleAvgAttendance, 0) / (reportData.reduce((s, r) => s + r.femaleEnrolment, 0) || 1) * 100).toFixed(2)}%</td>
+                          <td className="border border-black p-0.5 underline">{(reportData.reduce((s, r) => s + r.maleAvgAttendance + r.femaleAvgAttendance, 0) / (reportData.reduce((s, r) => s + r.maleEnrolment + r.femaleEnrolment, 0) || 1) * 100).toFixed(2)}%</td>
+                          
+                          <td className="border border-black p-0.5">{reportData.reduce((s, r) => s + r.maleDroppedPrev, 0)}</td>
+                          <td className="border border-black p-0.5">{reportData.reduce((s, r) => s + r.femaleDroppedPrev, 0)}</td>
+                          <td className="border border-black p-0.5">{reportData.reduce((s, r) => s + r.maleDroppedPrev + r.femaleDroppedPrev, 0)}</td>
+                          
+                          <td className="border border-black p-0.5">{reportData.reduce((s, r) => s + r.maleDroppedMonth, 0)}</td>
+                          <td className="border border-black p-0.5">{reportData.reduce((s, r) => s + r.femaleDroppedMonth, 0)}</td>
+                          <td className="border border-black p-0.5">{reportData.reduce((s, r) => s + r.maleDroppedMonth + r.femaleDroppedMonth, 0)}</td>
+
+                          <td className="border border-black p-0.5 bg-slate-200">{reportData.reduce((s, r) => s + r.maleDroppedPrev + r.maleDroppedMonth, 0)}</td>
+                          <td className="border border-black p-0.5 bg-slate-200">{reportData.reduce((s, r) => s + r.femaleDroppedPrev + r.femaleDroppedMonth, 0)}</td>
+                          <td className="border border-black p-0.5 bg-slate-300">{reportData.reduce((s, r) => s + r.maleDroppedPrev + r.maleDroppedMonth + r.femaleDroppedPrev + r.femaleDroppedMonth, 0)}</td>
+                          
+                          <td className="border border-black p-0.5">{reportData.reduce((s, r) => s + r.maleTransOutPrev, 0)}</td>
+                          <td className="border border-black p-0.5">{reportData.reduce((s, r) => s + r.femaleTransOutPrev, 0)}</td>
+                          <td className="border border-black p-0.5">{reportData.reduce((s, r) => s + r.maleTransOutPrev + r.femaleTransOutPrev, 0)}</td>
+                          
+                          <td className="border border-black p-0.5">{reportData.reduce((s, r) => s + r.maleTransOutMonth, 0)}</td>
+                          <td className="border border-black p-0.5">{reportData.reduce((s, r) => s + r.femaleTransOutMonth, 0)}</td>
+                          <td className="border border-black p-0.5">{reportData.reduce((s, r) => s + r.maleTransOutMonth + r.femaleTransOutMonth, 0)}</td>
+
+                          <td className="border border-black p-0.5 bg-slate-200">{reportData.reduce((s, r) => s + r.maleTransOutPrev + r.maleTransOutMonth, 0)}</td>
+                          <td className="border border-black p-0.5 bg-slate-200">{reportData.reduce((s, r) => s + r.femaleTransOutPrev + r.femaleTransOutMonth, 0)}</td>
+                          <td className="border border-black p-0.5 bg-slate-300">{reportData.reduce((s, r) => s + r.maleTransOutPrev + r.maleTransOutMonth + r.femaleTransOutPrev + r.femaleTransOutMonth, 0)}</td>
+                          
+                          <td className="border border-black p-0.5"><span className="text-[6px] font-normal text-emerald-800">{reportData.reduce((s, r) => s + r.maleTransInPrev, 0)}</span> / <span className="text-[6px] font-normal text-teal-700">{reportData.reduce((s, r) => s + r.maleLatePrev, 0)}</span><br/>{reportData.reduce((s, r) => s + r.maleTransInPrev + r.maleLatePrev, 0)}</td>
+                          <td className="border border-black p-0.5"><span className="text-[6px] font-normal text-emerald-800">{reportData.reduce((s, r) => s + r.femaleTransInPrev, 0)}</span> / <span className="text-[6px] font-normal text-teal-700">{reportData.reduce((s, r) => s + r.femaleLatePrev, 0)}</span><br/>{reportData.reduce((s, r) => s + r.femaleTransInPrev + r.femaleLatePrev, 0)}</td>
+                          <td className="border border-black p-0.5 whitespace-nowrap"><span className="text-[6px] font-normal text-slate-500">{reportData.reduce((s, r) => s + r.maleTransInPrev + r.femaleTransInPrev, 0)} / {reportData.reduce((s, r) => s + r.maleLatePrev + r.femaleLatePrev, 0)}</span><br/>{reportData.reduce((s, r) => s + r.maleTransInPrev + r.femaleTransInPrev + r.maleLatePrev + r.femaleLatePrev, 0)}</td>
+
+                          <td className="border border-black p-0.5"><span className="text-[6px] font-normal text-emerald-800">{reportData.reduce((s, r) => s + r.maleTransInMonth, 0)}</span> / <span className="text-[6px] font-normal text-teal-700">{reportData.reduce((s, r) => s + r.maleLateMonth, 0)}</span><br/>{reportData.reduce((s, r) => s + r.maleTransInMonth + r.maleLateMonth, 0)}</td>
+                          <td className="border border-black p-0.5"><span className="text-[6px] font-normal text-emerald-800">{reportData.reduce((s, r) => s + r.femaleTransInMonth, 0)}</span> / <span className="text-[6px] font-normal text-teal-700">{reportData.reduce((s, r) => s + r.femaleLateMonth, 0)}</span><br/>{reportData.reduce((s, r) => s + r.femaleTransInMonth + r.femaleLateMonth, 0)}</td>
+                          <td className="border border-black p-0.5 whitespace-nowrap"><span className="text-[6px] font-normal text-slate-500">{reportData.reduce((s, r) => s + r.maleTransInMonth + r.femaleTransInMonth, 0)} / {reportData.reduce((s, r) => s + r.maleLateMonth + r.femaleLateMonth, 0)}</span><br/>{reportData.reduce((s, r) => s + r.maleTransInMonth + r.femaleTransInMonth + r.maleLateMonth + r.femaleLateMonth, 0)}</td>
+
+                          <td className="border border-black p-0.5 bg-slate-200">{reportData.reduce((s, r) => s + r.maleTransInPrev + r.maleTransInMonth + r.maleLatePrev + r.maleLateMonth, 0)}</td>
+                          <td className="border border-black p-0.5 bg-slate-200">{reportData.reduce((s, r) => s + r.femaleTransInPrev + r.femaleTransInMonth + r.femaleLatePrev + r.femaleLateMonth, 0)}</td>
+                          <td className="border border-black p-0.5 bg-slate-300">{reportData.reduce((s, r) => s + r.maleTransInPrev + r.maleTransInMonth + r.femaleTransInPrev + r.femaleTransInMonth + r.maleLatePrev + r.maleLateMonth + r.femaleLatePrev + r.femaleLateMonth, 0)}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+
+                  {/* Signatures */}
+                  <div className="mt-8 grid grid-cols-2 gap-12 text-[8px] font-bold">
+                    <div className="text-center space-y-6">
+                      <p>Prepared by:</p>
+                      <div className="border-b border-black mx-auto w-48 pb-1"></div>
+                      <p className="uppercase text-[7px] text-slate-500">(Signature over Printed Name of School Head)</p>
+                    </div>
+                    <div className="text-center space-y-6">
+                      <p>Submitted to:</p>
+                      <div className="border-b border-black mx-auto w-48 pb-1"></div>
+                      <p className="uppercase text-[7px] text-slate-500">(Signature over Printed Name of District/Division Official)</p>
+                    </div>
+                  </div>
+
+                </div>
+              </motion.div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
     </div>
   );
