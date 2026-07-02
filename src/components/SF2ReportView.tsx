@@ -637,21 +637,39 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
                   </tr>
                   <tr>
                     <td class="font-bold" style="font-style: italic; font-size: 7px;">Percentage of Enrolment</td>
-                    <td class="text-center font-bold">${summaryData?.percEnrolment.m.toFixed(1)}%</td>
-                    <td class="text-center font-bold">${summaryData?.percEnrolment.f.toFixed(1)}%</td>
-                    <td class="text-center font-bold" style="font-weight: 900;">${summaryData?.percEnrolment.t.toFixed(1)}%</td>
+                    <td class="text-center font-bold">${summaryData?.percEnrolment.m.toFixed(2)}%</td>
+                    <td class="text-center font-bold">${summaryData?.percEnrolment.f.toFixed(2)}%</td>
+                    <td class="text-center font-bold" style="font-weight: 900;">${summaryData?.percEnrolment.t.toFixed(2)}%</td>
                   </tr>
                   <tr>
                     <td class="font-bold" style="font-style: italic; font-size: 7px;">Average Daily Attendance</td>
-                    <td class="text-center font-bold">${summaryData?.avgAttendance.m.toFixed(1)}</td>
-                    <td class="text-center font-bold">${summaryData?.avgAttendance.f.toFixed(1)}</td>
-                    <td class="text-center font-bold" style="font-weight: 900;">${summaryData?.avgAttendance.t.toFixed(1)}</td>
+                    <td class="text-center font-bold">${summaryData?.avgAttendance.m.toFixed(2)}</td>
+                    <td class="text-center font-bold">${summaryData?.avgAttendance.f.toFixed(2)}</td>
+                    <td class="text-center font-bold" style="font-weight: 900;">${summaryData?.avgAttendance.t.toFixed(2)}</td>
                   </tr>
                   <tr>
                     <td class="font-bold" style="font-style: italic; font-size: 7px;">Percentage of Attendance</td>
-                    <td class="text-center font-bold">${summaryData?.percAttendance.m.toFixed(1)}%</td>
-                    <td class="text-center font-bold">${summaryData?.percAttendance.f.toFixed(1)}%</td>
-                    <td class="text-center font-bold" style="font-weight: 900;">${summaryData?.percAttendance.t.toFixed(1)}%</td>
+                    <td class="text-center font-bold">${summaryData?.percAttendance.m.toFixed(2)}%</td>
+                    <td class="text-center font-bold">${summaryData?.percAttendance.f.toFixed(2)}%</td>
+                    <td class="text-center font-bold" style="font-weight: 900;">${summaryData?.percAttendance.t.toFixed(2)}%</td>
+                  </tr>
+                  <tr>
+                    <td class="font-bold" style="font-style: italic; font-size: 7px;">Absent 5+ Consecutive Days</td>
+                    <td class="text-center font-bold">${summaryData?.absent5Consecutive.m}</td>
+                    <td class="text-center font-bold">${summaryData?.absent5Consecutive.f}</td>
+                    <td class="text-center font-bold" style="font-weight: 900;">${summaryData?.absent5Consecutive.t}</td>
+                  </tr>
+                  <tr>
+                    <td class="font-bold" style="font-style: italic; font-size: 7px;">Transferred Out</td>
+                    <td class="text-center font-bold">${summaryData?.transferredOut.m}</td>
+                    <td class="text-center font-bold">${summaryData?.transferredOut.f}</td>
+                    <td class="text-center font-bold" style="font-weight: 900;">${summaryData?.transferredOut.t}</td>
+                  </tr>
+                  <tr>
+                    <td class="font-bold" style="font-style: italic; font-size: 7px;">Transferred In</td>
+                    <td class="text-center font-bold">${summaryData?.transferredIn.m}</td>
+                    <td class="text-center font-bold">${summaryData?.transferredIn.f}</td>
+                    <td class="text-center font-bold" style="font-weight: 900;">${summaryData?.transferredIn.t}</td>
                   </tr>
                 </tbody>
               </table>
@@ -928,12 +946,34 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
   const summaryData = useMemo(() => {
     if (!currentMonthData || !schoolDaysInMonth.length) return null;
 
-    const maleCount = sortedStudents.male.length;
-    const femaleCount = sortedStudents.female.length;
-    const totalCount = maleCount + femaleCount;
+    // Define global late enrollee detector based on 80% cut-off
+    const isLateEnrolleeGlobal = (s: Student) => {
+      if (!s.dateOfFirstAttendance) return false;
+      if (allSchoolDaysOfYear.length === 0) return false;
+      const firstAttendIndex = allSchoolDaysOfYear.findIndex(d => d.dateStr >= s.dateOfFirstAttendance);
+      if (firstAttendIndex === -1) return false;
+      
+      const remainingDays = allSchoolDaysOfYear.length - firstAttendIndex;
+      return (remainingDays / allSchoolDaysOfYear.length) < 0.8;
+    };
 
-    // Determine late enrollees for the current month (beyond 80% yearly cut-off)
-    const isLateEnrollee = (s: Student) => {
+    // enrolment June is constant (all students who did not late enroll, regardless of drop status later)
+    const enrolmentJuneMale = students.filter(s => 
+      s.sex?.toLowerCase() === 'male' && 
+      s.dateOfFirstAttendance && 
+      !isLateEnrolleeGlobal(s)
+    ).length;
+
+    const enrolmentJuneFemale = students.filter(s => 
+      s.sex?.toLowerCase() === 'female' && 
+      s.dateOfFirstAttendance && 
+      !isLateEnrolleeGlobal(s)
+    ).length;
+
+    const enrolmentJuneTotal = enrolmentJuneMale + enrolmentJuneFemale;
+
+    // Late enrollees in the CURRENT month only
+    const isLateEnrolleeInCurrentMonth = (s: Student) => {
       if (!s.dateOfFirstAttendance) return false;
       const parts = s.dateOfFirstAttendance.split('-');
       if (parts.length < 3) return false;
@@ -941,30 +981,45 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
       const monthIndex = parseInt(parts[1]) - 1;
       const reportMonthIndex = monthIndices[currentMonthData.month];
       
-      // Must join in the current report month to be counted in this row
       if (year !== currentMonthData.year || monthIndex !== reportMonthIndex) return false;
 
-      // 80% yearly cut-off logic
-      if (allSchoolDaysOfYear.length === 0) return true;
-      const firstAttendIndex = allSchoolDaysOfYear.findIndex(d => d.dateStr >= s.dateOfFirstAttendance);
-      if (firstAttendIndex === -1) return true;
-      
-      const remainingDays = allSchoolDaysOfYear.length - firstAttendIndex;
-      return (remainingDays / allSchoolDaysOfYear.length) < 0.8;
+      return isLateEnrolleeGlobal(s);
     };
 
-    const lateEnrollMale = sortedStudents.male.filter(isLateEnrollee).length;
-    const lateEnrollFemale = sortedStudents.female.filter(isLateEnrollee).length;
+    const lateEnrollMale = students.filter(s => 
+      s.sex?.toLowerCase() === 'male' && 
+      isLateEnrolleeInCurrentMonth(s)
+    ).length;
+
+    const lateEnrollFemale = students.filter(s => 
+      s.sex?.toLowerCase() === 'female' && 
+      isLateEnrolleeInCurrentMonth(s)
+    ).length;
+
     const lateEnrollTotal = lateEnrollMale + lateEnrollFemale;
 
-    const registeredMale = maleCount;
-    const registeredFemale = femaleCount;
-    const registeredTotal = totalCount;
+    // Registered learners as of end of the current month (excludes students who dropped out in or before this month)
+    const isRegisteredAtEndOfMonth = (s: Student) => {
+      if (s.status === 'Dropped Out' || s.status === 'Transferred Out') {
+        if (!s.dropoutDate) return false;
+        const dParts = s.dropoutDate.split('-');
+        if (dParts.length === 3) {
+          const dropYear = parseInt(dParts[0]);
+          const dropMonth = parseInt(dParts[1]) - 1;
+          const reportMonthIndex = monthIndices[currentMonthData.month];
+          if (currentMonthData.year > dropYear || (currentMonthData.year === dropYear && reportMonthIndex >= dropMonth)) {
+            return false;
+          }
+        } else {
+          return false;
+        }
+      }
+      return true;
+    };
 
-    // Enrolment as of 1st Friday
-    const enrolmentJuneMale = registeredMale - lateEnrollMale;
-    const enrolmentJuneFemale = registeredFemale - lateEnrollFemale;
-    const enrolmentJuneTotal = registeredTotal - lateEnrollTotal;
+    const registeredMale = sortedStudents.male.filter(isRegisteredAtEndOfMonth).length;
+    const registeredFemale = sortedStudents.female.filter(isRegisteredAtEndOfMonth).length;
+    const registeredTotal = registeredMale + registeredFemale;
 
     // Calculate Average Daily Attendance
     let totalPresentMale = 0;
@@ -981,18 +1036,85 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
       });
     });
 
-    const avgDailyMale = totalPresentMale / schoolDaysInMonth.length;
-    const avgDailyFemale = totalPresentFemale / schoolDaysInMonth.length;
-    const avgDailyTotal = (totalPresentMale + totalPresentFemale) / schoolDaysInMonth.length;
+    const avgDailyMale = schoolDaysInMonth.length > 0 ? Math.round((totalPresentMale / schoolDaysInMonth.length) * 100) / 100 : 0;
+    const avgDailyFemale = schoolDaysInMonth.length > 0 ? Math.round((totalPresentFemale / schoolDaysInMonth.length) * 100) / 100 : 0;
+    const avgDailyTotal = Math.round((avgDailyMale + avgDailyFemale) * 100) / 100;
 
     // Percentages
-    const percEnrolmentMale = enrolmentJuneMale > 0 ? (registeredMale / enrolmentJuneMale) * 100 : 0;
-    const percEnrolmentFemale = enrolmentJuneFemale > 0 ? (registeredFemale / enrolmentJuneFemale) * 100 : 0;
-    const percEnrolmentTotal = enrolmentJuneTotal > 0 ? (registeredTotal / enrolmentJuneTotal) * 100 : 0;
+    const percEnrolmentMale = enrolmentJuneMale > 0 ? Math.round(((registeredMale / enrolmentJuneMale) * 100) * 100) / 100 : 0;
+    const percEnrolmentFemale = enrolmentJuneFemale > 0 ? Math.round(((registeredFemale / enrolmentJuneFemale) * 100) * 100) / 100 : 0;
+    const percEnrolmentTotal = enrolmentJuneTotal > 0 ? Math.round(((registeredTotal / enrolmentJuneTotal) * 100) * 100) / 100 : 0;
 
-    const percAttendanceMale = registeredMale > 0 ? (avgDailyMale / registeredMale) * 100 : 0;
-    const percAttendanceFemale = registeredFemale > 0 ? (avgDailyFemale / registeredFemale) * 100 : 0;
-    const percAttendanceTotal = registeredTotal > 0 ? (avgDailyTotal / registeredTotal) * 100 : 0;
+    const percAttendanceMale = registeredMale > 0 ? Math.round(((avgDailyMale / registeredMale) * 100) * 100) / 100 : 0;
+    const percAttendanceFemale = registeredFemale > 0 ? Math.round(((avgDailyFemale / registeredFemale) * 100) * 100) / 100 : 0;
+    const percAttendanceTotal = registeredTotal > 0 ? Math.round(((avgDailyTotal / registeredTotal) * 100) * 100) / 100 : 0;
+
+    // Helper to check if student is active on a given day
+    const isDayWithinEnrollment = (student: Student, dayInfo: { day: number, dateStr: string }) => {
+      if (!student.dateOfFirstAttendance) return false;
+      if (dayInfo.dateStr < student.dateOfFirstAttendance) return false;
+      if (student.status === 'Dropped Out' || student.status === 'Transferred Out') {
+        if (student.dropoutDate && dayInfo.dateStr > student.dropoutDate) {
+          return false;
+        }
+      }
+      return true;
+    };
+
+    // Helper to count consecutive absences
+    const countConsecutiveAbsences = (student: Student) => {
+      const dailyData = student.dailyAttendance?.[selectedMonthKey] || student.dailyAttendance?.[currentMonthData!.month] || {};
+      let consecutiveAbsences = 0;
+      let maxConsecutive = 0;
+      for (const dayInfo of schoolDaysInMonth) {
+        if (isDayWithinEnrollment(student, dayInfo)) {
+          const isPresent = !!dailyData[dayInfo.day];
+          if (!isPresent) {
+            consecutiveAbsences++;
+            if (consecutiveAbsences > maxConsecutive) {
+              maxConsecutive = consecutiveAbsences;
+            }
+          } else {
+            consecutiveAbsences = 0;
+          }
+        } else {
+          consecutiveAbsences = 0;
+        }
+      }
+      return maxConsecutive;
+    };
+
+    const absent5ConsecMale = sortedStudents.male.filter(s => countConsecutiveAbsences(s) >= 5).length;
+    const absent5ConsecFemale = sortedStudents.female.filter(s => countConsecutiveAbsences(s) >= 5).length;
+    const absent5ConsecTotal = absent5ConsecMale + absent5ConsecFemale;
+
+    const isTransferredOutInCurrentMonth = (s: Student) => {
+      if (s.status !== 'Transferred Out') return false;
+      if (!s.dropoutDate) return false;
+      const dParts = s.dropoutDate.split('-');
+      if (dParts.length !== 3) return false;
+      const dropYear = parseInt(dParts[0]);
+      const dropMonth = parseInt(dParts[1]) - 1;
+      return currentMonthData.year === dropYear && monthIndices[currentMonthData.month] === dropMonth;
+    };
+
+    const transOutMale = sortedStudents.male.filter(isTransferredOutInCurrentMonth).length;
+    const transOutFemale = sortedStudents.female.filter(isTransferredOutInCurrentMonth).length;
+    const transOutTotal = transOutMale + transOutFemale;
+
+    const isTransferredInInCurrentMonth = (s: Student) => {
+      if (!s.isTransferredIn) return false;
+      if (!s.dateOfFirstAttendance) return false;
+      const foaParts = s.dateOfFirstAttendance.split('-');
+      if (foaParts.length !== 3) return false;
+      const foaYear = parseInt(foaParts[0]);
+      const foaMonth = parseInt(foaParts[1]) - 1;
+      return currentMonthData.year === foaYear && monthIndices[currentMonthData.month] === foaMonth;
+    };
+
+    const transInMale = sortedStudents.male.filter(isTransferredInInCurrentMonth).length;
+    const transInFemale = sortedStudents.female.filter(isTransferredInInCurrentMonth).length;
+    const transInTotal = transInMale + transInFemale;
 
     return {
       enrolmentJune: { m: enrolmentJuneMale, f: enrolmentJuneFemale, t: enrolmentJuneTotal },
@@ -1000,9 +1122,12 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
       registered: { m: registeredMale, f: registeredFemale, t: registeredTotal },
       avgAttendance: { m: avgDailyMale, f: avgDailyFemale, t: avgDailyTotal },
       percEnrolment: { m: percEnrolmentMale, f: percEnrolmentFemale, t: percEnrolmentTotal },
-      percAttendance: { m: percAttendanceMale, f: percAttendanceFemale, t: percAttendanceTotal }
+      percAttendance: { m: percAttendanceMale, f: percAttendanceFemale, t: percAttendanceTotal },
+      absent5Consecutive: { m: absent5ConsecMale, f: absent5ConsecFemale, t: absent5ConsecTotal },
+      transferredOut: { m: transOutMale, f: transOutFemale, t: transOutTotal },
+      transferredIn: { m: transInMale, f: transInFemale, t: transInTotal }
     };
-  }, [currentMonthData, schoolDaysInMonth, sortedStudents, selectedMonthKey, allSchoolDaysOfYear]);
+  }, [currentMonthData, schoolDaysInMonth, sortedStudents, selectedMonthKey, allSchoolDaysOfYear, students]);
 
   const handleExport = () => {
     if (!currentMonthData || !schoolDaysInMonth.length) return;
@@ -1199,7 +1324,10 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
         ["Registered Learner as of end of month", summaryData.registered.m, summaryData.registered.f, summaryData.registered.t],
         ["Percentage of Enrolment", `${summaryData.percEnrolment.m.toFixed(2)}%`, `${summaryData.percEnrolment.f.toFixed(2)}%`, `${summaryData.percEnrolment.t.toFixed(2)}%`],
         ["Average Daily Attendance", summaryData.avgAttendance.m.toFixed(2), summaryData.avgAttendance.f.toFixed(2), summaryData.avgAttendance.t.toFixed(2)],
-        ["Percentage of Attendance", `${summaryData.percAttendance.m.toFixed(2)}%`, `${summaryData.percAttendance.f.toFixed(2)}%`, `${summaryData.percAttendance.t.toFixed(2)}%`]
+        ["Percentage of Attendance", `${summaryData.percAttendance.m.toFixed(2)}%`, `${summaryData.percAttendance.f.toFixed(2)}%`, `${summaryData.percAttendance.t.toFixed(2)}%`],
+        ["Absent 5+ Consecutive Days", summaryData.absent5Consecutive.m, summaryData.absent5Consecutive.f, summaryData.absent5Consecutive.t],
+        ["Transferred Out", summaryData.transferredOut.m, summaryData.transferredOut.f, summaryData.transferredOut.t],
+        ["Transferred In", summaryData.transferredIn.m, summaryData.transferredIn.f, summaryData.transferredIn.t]
       ];
 
       summaryRows.forEach(row => {
@@ -2024,6 +2152,24 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
                          <td className="border border-black p-1 text-center font-bold">{summaryData?.percAttendance.f.toFixed(2)}%</td>
                          <td className="border border-black p-1 text-center font-bold">{summaryData?.percAttendance.t.toFixed(2)}%</td>
                        </tr>
+                       <tr>
+                         <td className="border border-black p-1 font-bold italic text-xs">Absent 5+ Consecutive Days</td>
+                         <td className="border border-black p-1 text-center font-bold">{summaryData?.absent5Consecutive.m}</td>
+                         <td className="border border-black p-1 text-center font-bold">{summaryData?.absent5Consecutive.f}</td>
+                         <td className="border border-black p-1 text-center font-bold">{summaryData?.absent5Consecutive.t}</td>
+                       </tr>
+                       <tr>
+                         <td className="border border-black p-1 font-bold italic text-xs">Transferred Out</td>
+                         <td className="border border-black p-1 text-center font-bold">{summaryData?.transferredOut.m}</td>
+                         <td className="border border-black p-1 text-center font-bold">{summaryData?.transferredOut.f}</td>
+                         <td className="border border-black p-1 text-center font-bold">{summaryData?.transferredOut.t}</td>
+                       </tr>
+                       <tr>
+                         <td className="border border-black p-1 font-bold italic text-xs">Transferred In</td>
+                         <td className="border border-black p-1 text-center font-bold">{summaryData?.transferredIn.m}</td>
+                         <td className="border border-black p-1 text-center font-bold">{summaryData?.transferredIn.f}</td>
+                         <td className="border border-black p-1 text-center font-bold">{summaryData?.transferredIn.t}</td>
+                       </tr>
                      </tbody>
                    </table>
                  </div>
@@ -2259,21 +2405,39 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
                           </tr>
                           <tr className="text-[7.5px]">
                             <td className="border border-black px-1 py-0.5 font-bold italic text-[7px]">Percentage of Enrolment</td>
-                            <td className="border border-black p-0.5 text-center font-bold">{summaryData?.percEnrolment.m.toFixed(1)}%</td>
-                            <td className="border border-black p-0.5 text-center font-bold">{summaryData?.percEnrolment.f.toFixed(1)}%</td>
-                            <td className="border border-black p-0.5 text-center font-black">{summaryData?.percEnrolment.t.toFixed(1)}%</td>
+                            <td className="border border-black p-0.5 text-center font-bold">{summaryData?.percEnrolment.m.toFixed(2)}%</td>
+                            <td className="border border-black p-0.5 text-center font-bold">{summaryData?.percEnrolment.f.toFixed(2)}%</td>
+                            <td className="border border-black p-0.5 text-center font-black">{summaryData?.percEnrolment.t.toFixed(2)}%</td>
                           </tr>
                           <tr className="text-[7.5px]">
                             <td className="border border-black px-1 py-0.5 font-bold italic text-[7px]">Average Daily Attendance</td>
-                            <td className="border border-black p-0.5 text-center font-bold">{summaryData?.avgAttendance.m.toFixed(1)}</td>
-                            <td className="border border-black p-0.5 text-center font-bold">{summaryData?.avgAttendance.f.toFixed(1)}</td>
-                            <td className="border border-black p-0.5 text-center font-black">{summaryData?.avgAttendance.t.toFixed(1)}</td>
+                            <td className="border border-black p-0.5 text-center font-bold">{summaryData?.avgAttendance.m.toFixed(2)}</td>
+                            <td className="border border-black p-0.5 text-center font-bold">{summaryData?.avgAttendance.f.toFixed(2)}</td>
+                            <td className="border border-black p-0.5 text-center font-black">{summaryData?.avgAttendance.t.toFixed(2)}</td>
                           </tr>
                           <tr className="text-[7.5px]">
                             <td className="border border-black px-1 py-0.5 font-bold italic text-[7px]">Percentage of Attendance</td>
-                            <td className="border border-black p-0.5 text-center font-bold">{summaryData?.percAttendance.m.toFixed(1)}%</td>
-                            <td className="border border-black p-0.5 text-center font-bold">{summaryData?.percAttendance.f.toFixed(1)}%</td>
-                            <td className="border border-black p-0.5 text-center font-black">{summaryData?.percAttendance.t.toFixed(1)}%</td>
+                            <td className="border border-black p-0.5 text-center font-bold">{summaryData?.percAttendance.m.toFixed(2)}%</td>
+                            <td className="border border-black p-0.5 text-center font-bold">{summaryData?.percAttendance.f.toFixed(2)}%</td>
+                            <td className="border border-black p-0.5 text-center font-black">{summaryData?.percAttendance.t.toFixed(2)}%</td>
+                          </tr>
+                          <tr className="text-[7.5px]">
+                            <td className="border border-black px-1 py-0.5 font-bold italic text-[7px]">Absent 5+ Consecutive Days</td>
+                            <td className="border border-black p-0.5 text-center font-bold">{summaryData?.absent5Consecutive.m}</td>
+                            <td className="border border-black p-0.5 text-center font-bold">{summaryData?.absent5Consecutive.f}</td>
+                            <td className="border border-black p-0.5 text-center font-black">{summaryData?.absent5Consecutive.t}</td>
+                          </tr>
+                          <tr className="text-[7.5px]">
+                            <td className="border border-black px-1 py-0.5 font-bold italic text-[7px]">Transferred Out</td>
+                            <td className="border border-black p-0.5 text-center font-bold">{summaryData?.transferredOut.m}</td>
+                            <td className="border border-black p-0.5 text-center font-bold">{summaryData?.transferredOut.f}</td>
+                            <td className="border border-black p-0.5 text-center font-black">{summaryData?.transferredOut.t}</td>
+                          </tr>
+                          <tr className="text-[7.5px]">
+                            <td className="border border-black px-1 py-0.5 font-bold italic text-[7px]">Transferred In</td>
+                            <td className="border border-black p-0.5 text-center font-bold">{summaryData?.transferredIn.m}</td>
+                            <td className="border border-black p-0.5 text-center font-bold">{summaryData?.transferredIn.f}</td>
+                            <td className="border border-black p-0.5 text-center font-black">{summaryData?.transferredIn.t}</td>
                           </tr>
                         </tbody>
                       </table>

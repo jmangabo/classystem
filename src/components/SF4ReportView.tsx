@@ -314,7 +314,7 @@ export const SF4ReportView: React.FC<SF4ReportViewProps> = ({ schoolId, calendar
              totalPresent += (s.attendance[currentMonthData.month].present || 0);
            }
         });
-        return totalPresent / schoolDays;
+        return Math.round((totalPresent / schoolDays) * 100) / 100;
       };
 
       const mAvg = calcAvgAttendance(maleS);
@@ -328,8 +328,8 @@ export const SF4ReportView: React.FC<SF4ReportViewProps> = ({ schoolId, calendar
         femaleEnrolment: femaleS.length,
         maleAvgAttendance: mAvg,
         femaleAvgAttendance: fAvg,
-        maleAttendancePercentage: maleS.length > 0 ? (mAvg / maleS.length) * 100 : 0,
-        femaleAttendancePercentage: femaleS.length > 0 ? (fAvg / femaleS.length) * 100 : 0,
+        maleAttendancePercentage: maleS.length > 0 ? Math.round(((mAvg / maleS.length) * 100) * 100) / 100 : 0,
+        femaleAttendancePercentage: femaleS.length > 0 ? Math.round(((fAvg / femaleS.length) * 100) * 100) / 100 : 0,
         maleDroppedPrev: getStatusCount('Male', 'Dropped Out', 'prev'),
         femaleDroppedPrev: getStatusCount('Female', 'Dropped Out', 'prev'),
         maleDroppedMonth: getStatusCount('Male', 'Dropped Out', 'month'),
@@ -471,7 +471,7 @@ export const SF4ReportView: React.FC<SF4ReportViewProps> = ({ schoolId, calendar
       const femaleCumulLate = row.femaleLatePrev + row.femaleLateMonth;
       const totalEnrolment = row.maleEnrolment + row.femaleEnrolment;
       const totalAvgAtt = row.maleAvgAttendance + row.femaleAvgAttendance;
-      const totalAttPct = totalEnrolment > 0 ? (totalAvgAtt / totalEnrolment) * 100 : 0;
+      const totalAttPct = totalEnrolment > 0 ? Math.round(((totalAvgAtt / totalEnrolment) * 100) * 100) / 100 : 0;
 
       exportData.push(padRow([
         `Gr. ${row.gradeLevel} - ${row.sectionName}`,
@@ -918,9 +918,9 @@ export const SF4ReportView: React.FC<SF4ReportViewProps> = ({ schoolId, calendar
                     <td className="border border-slate-900 p-1 text-center">{row.femaleAvgAttendance.toFixed(2)}</td>
                     <td className="border border-slate-900 p-1 text-center font-bold bg-slate-50">{(row.maleAvgAttendance + row.femaleAvgAttendance).toFixed(2)}</td>
 
-                    <td className="border border-slate-900 p-1 text-center">{row.maleAttendancePercentage.toFixed(1)}%</td>
-                    <td className="border border-slate-900 p-1 text-center">{row.femaleAttendancePercentage.toFixed(1)}%</td>
-                    <td className="border border-slate-900 p-1 text-center font-bold bg-slate-50">{((row.maleAvgAttendance + row.femaleAvgAttendance) / (row.maleEnrolment + row.femaleEnrolment || 1) * 100).toFixed(1)}%</td>
+                    <td className="border border-slate-900 p-1 text-center">{row.maleAttendancePercentage.toFixed(2)}%</td>
+                    <td className="border border-slate-900 p-1 text-center">{row.femaleAttendancePercentage.toFixed(2)}%</td>
+                    <td className="border border-slate-900 p-1 text-center font-bold bg-slate-50">{((row.maleAvgAttendance + row.femaleAvgAttendance) / (row.maleEnrolment + row.femaleEnrolment || 1) * 100).toFixed(2)}%</td>
                     
                     <td className="border border-slate-900 p-1 text-center">{row.maleDroppedPrev}</td>
                     <td className="border border-slate-900 p-1 text-center">{row.femaleDroppedPrev}</td>
@@ -971,9 +971,9 @@ export const SF4ReportView: React.FC<SF4ReportViewProps> = ({ schoolId, calendar
                   <td className="border border-slate-900 p-1 text-center">{(reportData.reduce((s, r) => s + r.femaleAvgAttendance, 0)).toFixed(2)}</td>
                   <td className="border border-slate-900 p-1 text-center underline">{(reportData.reduce((s, r) => s + r.maleAvgAttendance + r.femaleAvgAttendance, 0)).toFixed(2)}</td>
 
-                  <td className="border border-slate-900 p-1 text-center">{(reportData.reduce((s, r) => s + r.maleAvgAttendance, 0) / (reportData.reduce((s, r) => s + r.maleEnrolment, 0) || 1) * 100).toFixed(1)}%</td>
-                  <td className="border border-slate-900 p-1 text-center">{(reportData.reduce((s, r) => s + r.femaleAvgAttendance, 0) / (reportData.reduce((s, r) => s + r.femaleEnrolment, 0) || 1) * 100).toFixed(1)}%</td>
-                  <td className="border border-slate-900 p-1 text-center underline">{(reportData.reduce((s, r) => s + r.maleAvgAttendance + r.femaleAvgAttendance, 0) / (reportData.reduce((s, r) => s + r.maleEnrolment + r.femaleEnrolment, 0) || 1) * 100).toFixed(1)}%</td>
+                  <td className="border border-slate-900 p-1 text-center">{(reportData.reduce((s, r) => s + r.maleAvgAttendance, 0) / (reportData.reduce((s, r) => s + r.maleEnrolment, 0) || 1) * 100).toFixed(2)}%</td>
+                  <td className="border border-slate-900 p-1 text-center">{(reportData.reduce((s, r) => s + r.femaleAvgAttendance, 0) / (reportData.reduce((s, r) => s + r.femaleEnrolment, 0) || 1) * 100).toFixed(2)}%</td>
+                  <td className="border border-slate-900 p-1 text-center underline">{(reportData.reduce((s, r) => s + r.maleAvgAttendance + r.femaleAvgAttendance, 0) / (reportData.reduce((s, r) => s + r.maleEnrolment + r.femaleEnrolment, 0) || 1) * 100).toFixed(2)}%</td>
                   
                   <td className="border border-slate-900 p-1 text-center">{reportData.reduce((s, r) => s + r.maleDroppedPrev, 0)}</td>
                   <td className="border border-slate-900 p-1 text-center">{reportData.reduce((s, r) => s + r.femaleDroppedPrev, 0)}</td>
