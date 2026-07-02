@@ -23,6 +23,7 @@ import html2canvas from 'html2canvas-pro';
 import * as XLSX from 'xlsx-js-style';
 import { Student, Section, Subject, TermNumber, UserProfile } from '../types';
 import { calculateGrade } from '../lib/calculations';
+import { PhotoCropModal } from './PhotoCropModal';
 import { formatStudentName, getSubjectSortScore, isTleSubject, getTleDisplayName } from '../utils';
 import { db, safeGetDoc as getDoc, safeGetDocs as getDocs } from '../firebase';
 import { collectionGroup, query, where, onSnapshot, doc, collection, updateDoc, writeBatch, addDoc, deleteField } from 'firebase/firestore';
@@ -214,42 +215,45 @@ export function SF10View({
     }
   }, [currentStudent, historicalData]);
 
+  const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
+
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0] && currentStudent) {
       const reader = new FileReader();
       reader.onload = async (ev) => {
         if (ev.target?.result) {
-            const photoDataUrl = ev.target.result as string;
-            setLearnerPhoto(photoDataUrl);
-            try {
-                // Update across documents where we have permission
-                const lrn = currentStudent.lrn;
-                if (lrn) {
-                  const q = query(collectionGroup(db, 'students'), where('lrn', '==', lrn));
-                  const snapshot = await getDocs(q);
-                  
-                  // Use individual updates so failure in one (permission error in another school) 
-                  // doesn't block updates in current school
-                  const updatePromises = snapshot.docs.map(async (d) => {
-                    try {
-                      await updateDoc(d.ref, { photo: photoDataUrl });
-                    } catch (err) {
-                      // Silently skip if no permission (expected for cross-school records)
-                      console.debug("Skipping photo update for a record due to lack of permission:", d.ref.path);
-                    }
-                  });
-                  await Promise.allSettled(updatePromises);
-                } else {
-                  // Fallback if LRN is missing
-                  const studentRef = doc(db, 'sections', section!.id, 'students', currentStudent.id);
-                  await updateDoc(studentRef, { photo: photoDataUrl });
-                }
-            } catch (error) {
-                console.error("Error updating photo:", error);
-            }
+          setCropImageSrc(ev.target.result as string);
         }
       };
       reader.readAsDataURL(e.target.files[0]);
+      e.target.value = '';
+    }
+  };
+
+  const handleApplyCroppedPhoto = async (croppedBase64: string) => {
+    setLearnerPhoto(croppedBase64);
+    setCropImageSrc(null);
+    if (!currentStudent) return;
+    try {
+        const lrn = currentStudent.lrn;
+        if (lrn) {
+          const q = query(collectionGroup(db, 'students'), where('lrn', '==', lrn));
+          const snapshot = await getDocs(q);
+          
+          const updatePromises = snapshot.docs.map(async (d) => {
+            try {
+              await updateDoc(d.ref, { photo: croppedBase64 });
+            } catch (err) {
+              console.debug("Skipping photo update for a record due to lack of permission:", d.ref.path);
+            }
+          });
+          await Promise.allSettled(updatePromises);
+        } else {
+          const studentRef = doc(db, 'sections', section!.id, 'students', currentStudent.id);
+          await updateDoc(studentRef, { photo: croppedBase64 });
+        }
+    } catch (error) {
+        console.error("Error updating photo:", error);
     }
   };
 
@@ -1503,6 +1507,13 @@ export function SF10View({
            )}
         </section>
       </div>
+      {cropImageSrc && (
+         <PhotoCropModal
+           imageSrc={cropImageSrc}
+           onCrop={handleApplyCroppedPhoto}
+           onCancel={() => setCropImageSrc(null)}
+         />
+      )}
     </div>
   );
 }

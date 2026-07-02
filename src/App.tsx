@@ -94,6 +94,7 @@ import {
 import { SystemDocumentationView } from "./components/SystemDocumentationView";
 import { SF8View } from "./components/SF8View";
 import { ManualSiblingSelector } from "./components/ManualSiblingSelector";
+import { PhotoCropModal } from "./components/PhotoCropModal";
 
 const formatGradeSection = (gradeLevel?: string | number, sectionName?: string) => {
   const g = String(gradeLevel || "7").trim();
@@ -9703,49 +9704,19 @@ function AddLearnerModal({
   }, [subjects, globalSubjects, section]);
 
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
 
   const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || !e.target.files[0]) return;
     const file = e.target.files[0];
     const reader = new FileReader();
     reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        const MAX_WIDTH = 150;
-        const MAX_HEIGHT = 192;
-        
-        let width = img.width;
-        let height = img.height;
-        
-        const targetRatio = 35 / 45;
-        let sourceX = 0;
-        let sourceY = 0;
-        let sourceWidth = img.width;
-        let sourceHeight = img.height;
-        
-        if (width / height > targetRatio) {
-          sourceWidth = height * targetRatio;
-          sourceX = (width - sourceWidth) / 2;
-        } else {
-          sourceHeight = width / targetRatio;
-          sourceY = (height - sourceHeight) / 2;
-        }
-        
-        canvas.width = MAX_WIDTH;
-        canvas.height = MAX_HEIGHT;
-        const ctx = canvas.getContext("2d");
-        if (ctx) {
-          ctx.imageSmoothingEnabled = true;
-          ctx.imageSmoothingQuality = 'high';
-          ctx.drawImage(img, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, MAX_WIDTH, MAX_HEIGHT);
-          const compressedBase64 = canvas.toDataURL("image/jpeg", 0.85);
-          setForm((prev: any) => ({ ...prev, photo: compressedBase64 }));
-        }
-      };
-      img.src = event.target?.result as string;
+      if (event.target?.result) {
+        setCropImageSrc(event.target.result as string);
+      }
     };
     reader.readAsDataURL(file);
+    e.target.value = '';
   };
 
   const handleSearch = async () => {
@@ -10276,6 +10247,16 @@ function AddLearnerModal({
           </div>
         </form>
         </div>
+        {cropImageSrc && (
+          <PhotoCropModal
+            imageSrc={cropImageSrc}
+            onCrop={(croppedBase64) => {
+              setForm((prev: any) => ({ ...prev, photo: croppedBase64 }));
+              setCropImageSrc(null);
+            }}
+            onCancel={() => setCropImageSrc(null)}
+          />
+        )}
       </motion.div>
     </motion.div>
   );
@@ -14034,49 +14015,19 @@ function EditLearnerModal({
   }, [subjects, globalSubjects, section]);
 
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
 
   const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || !e.target.files[0]) return;
     const file = e.target.files[0];
     const reader = new FileReader();
     reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        const MAX_WIDTH = 150;
-        const MAX_HEIGHT = 192;
-        
-        let width = img.width;
-        let height = img.height;
-        
-        const targetRatio = 35 / 45;
-        let sourceX = 0;
-        let sourceY = 0;
-        let sourceWidth = img.width;
-        let sourceHeight = img.height;
-        
-        if (width / height > targetRatio) {
-          sourceWidth = height * targetRatio;
-          sourceX = (width - sourceWidth) / 2;
-        } else {
-          sourceHeight = width / targetRatio;
-          sourceY = (height - sourceHeight) / 2;
-        }
-        
-        canvas.width = MAX_WIDTH;
-        canvas.height = MAX_HEIGHT;
-        const ctx = canvas.getContext("2d");
-        if (ctx) {
-          ctx.imageSmoothingEnabled = true;
-          ctx.imageSmoothingQuality = 'high';
-          ctx.drawImage(img, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, MAX_WIDTH, MAX_HEIGHT);
-          const compressedBase64 = canvas.toDataURL("image/jpeg", 0.85);
-          setForm((prev: any) => ({ ...prev, photo: compressedBase64 }));
-        }
-      };
-      img.src = event.target?.result as string;
+      if (event.target?.result) {
+        setCropImageSrc(event.target.result as string);
+      }
     };
     reader.readAsDataURL(file);
+    e.target.value = '';
   };
   
   return (
@@ -14514,6 +14465,16 @@ function EditLearnerModal({
                 )
             )}
         </div>
+        {cropImageSrc && (
+          <PhotoCropModal
+            imageSrc={cropImageSrc}
+            onCrop={(croppedBase64) => {
+              setForm((prev: any) => ({ ...prev, photo: croppedBase64 }));
+              setCropImageSrc(null);
+            }}
+            onCancel={() => setCropImageSrc(null)}
+          />
+        )}
       </motion.div>
     </motion.div>
   );
