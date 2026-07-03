@@ -1627,9 +1627,9 @@ const AcademicYearTable: React.FC<AcademicYearTableProps> = ({ section, student,
       
       const fullExpectedLength = terms.length;
 
-      if (s.offeredTerms && s.offeredTerms.length > 0) {
-         terms = terms.filter(t => s.offeredTerms!.includes(t));
-      }
+      const offeredTermsForSubject = s.offeredTerms && s.offeredTerms.length > 0
+        ? terms.filter(t => s.offeredTerms!.includes(t))
+        : terms;
 
       let grades = terms.map(t => calculateGrade(student, s, t as TermNumber).final);
       
@@ -1675,12 +1675,18 @@ const AcademicYearTable: React.FC<AcademicYearTableProps> = ({ section, student,
         }
       }
 
-      const valid = grades.filter(g => g > 0);
+      const offeredGrades = grades.filter((g, i) => {
+         const termNum = terms[i];
+         const isOffered = !s.offeredTerms || s.offeredTerms.length === 0 || s.offeredTerms.includes(termNum);
+         return isOffered;
+      });
+      const validOffered = offeredGrades.filter(g => g > 0);
+
       let final = 0;
       if (s.offeredTerms && s.offeredTerms.length > 0) {
-         final = valid.length === terms.length && terms.length > 0 ? Math.round(valid.reduce((a, b) => a + b, 0) / terms.length) : 0;
+         final = validOffered.length === offeredTermsForSubject.length && offeredTermsForSubject.length > 0 ? Math.round(validOffered.reduce((a, b) => a + b, 0) / offeredTermsForSubject.length) : 0;
       } else {
-         final = valid.length === fullExpectedLength && fullExpectedLength > 0 ? Math.round(valid.reduce((a, b) => a + b, 0) / fullExpectedLength) : 0;
+         final = validOffered.length === fullExpectedLength && fullExpectedLength > 0 ? Math.round(validOffered.reduce((a, b) => a + b, 0) / fullExpectedLength) : 0;
       }
 
       let isMapehComponent = false;
@@ -1715,6 +1721,16 @@ const AcademicYearTable: React.FC<AcademicYearTableProps> = ({ section, student,
     return totalUnits > 0 ? Math.round(totalWeightedGrades / totalUnits) : 0;
   }, [finalGrades]);
 
+  const termColsCount = useMemo(() => {
+    const has1stPart = (semMode === 'all' || semMode === '1st');
+    const has2ndPart = (semMode === 'all' || semMode === '2nd');
+    return (has1stPart ? 2 : 0) + (has2ndPart ? (termMode === 4 ? 2 : 1) : 0);
+  }, [semMode, termMode]);
+
+  const totalColsCount = useMemo(() => {
+    return 1 + termColsCount + 1 + 1;
+  }, [termColsCount]);
+
   return (
     <div className="space-y-4">
        <div className="flex items-center justify-between mb-4 px-2">
@@ -1746,12 +1762,12 @@ const AcademicYearTable: React.FC<AcademicYearTableProps> = ({ section, student,
               <thead>
                  <tr className="bg-slate-50 text-slate-900 text-[10px] font-bold uppercase tracking-wider h-10">
                     <th className="px-3 text-left w-1/3 border border-slate-600">Learning Area</th>
-                    {(semMode === 'all' || semMode === '1st') && <th className="px-1 text-center w-10 border border-slate-600 font-medium">1</th>}
-                    {(semMode === 'all' || semMode === '1st') && <th className="px-1 text-center w-10 border border-slate-600 font-medium">2</th>}
-                    {(semMode === 'all' || semMode === '2nd') && <th className="px-1 text-center w-10 border border-slate-600 font-medium">3</th>}
-                    {(semMode === 'all' || semMode === '2nd') && termMode === 4 && <th className="px-1 text-center w-10 border border-slate-600 font-medium">4</th>}
+                    {(semMode === 'all' || semMode === '1st') && <th className="px-1 text-center w-10 border border-slate-600 font-bold">1</th>}
+                    {(semMode === 'all' || semMode === '1st') && <th className="px-1 text-center w-10 border border-slate-600 font-bold">2</th>}
+                    {(semMode === 'all' || semMode === '2nd') && <th className="px-1 text-center w-10 border border-slate-600 font-bold">3</th>}
+                    {(semMode === 'all' || semMode === '2nd') && termMode === 4 && <th className="px-1 text-center w-10 border border-slate-600 font-bold">4</th>}
                     <th className="px-2 text-center w-20 border border-slate-600 font-bold">Final</th>
-                    <th className="px-3 text-center w-24 border border-slate-600">Remarks</th>
+                    <th className="px-3 text-center w-24 border border-slate-600 font-bold">Remarks</th>
                  </tr>
               </thead>
               <tbody className="text-[10px]">
@@ -1770,13 +1786,13 @@ const AcademicYearTable: React.FC<AcademicYearTableProps> = ({ section, student,
                      <React.Fragment key={f.id}>
                        {shouldShowHeader && (
                          <tr className="bg-slate-100">
-                           <td colSpan={semMode === 'all' && termMode === 4 ? 7 : 6} className="px-3 py-1.5 font-bold italic text-slate-800 border border-slate-600 text-xs text-left">
+                           <td colSpan={totalColsCount} className="px-3 py-1.5 font-bold italic text-slate-800 border border-slate-600 text-xs text-left">
                              {typeTitle}
                            </td>
                          </tr>
                        )}
                        <tr className="h-8">
-                          <td className={`px-3 font-medium text-slate-900 border border-slate-600 truncate ${f.isMapehComponent ? 'pl-8 italic' : ''}`}>{f.name}</td>
+                          <td className={`px-3 text-left font-medium text-slate-900 border border-slate-600 truncate ${f.isMapehComponent ? 'pl-8 italic text-slate-500' : ''}`}>{f.name}</td>
                           {f.grades.map((g, i) => {
                              const termNum = f.terms[i];
                              const isNotOffered = isGrade11or12 && f.offeredTerms && f.offeredTerms.length > 0 && !f.offeredTerms.includes(termNum as TermNumber);
@@ -1788,7 +1804,7 @@ const AcademicYearTable: React.FC<AcademicYearTableProps> = ({ section, student,
                          }
 
                          return (
-                           <td key={i} className={`px-1 font-medium text-slate-700 border border-slate-600 ${f.isMapehComponent ? 'text-right pr-4 italic' : 'text-center'}`}>{g || '--'}</td>
+                           <td key={i} className={`px-1 text-center font-medium border border-slate-600 ${f.isMapehComponent ? 'italic text-slate-500' : 'text-slate-700'}`}>{g || '--'}</td>
                          );
                       })}
                       <td className="px-2 text-center font-bold text-slate-900 border border-slate-600">{f.isMapehComponent ? '' : (f.final || '--')}</td>
@@ -1803,7 +1819,7 @@ const AcademicYearTable: React.FC<AcademicYearTableProps> = ({ section, student,
               <tfoot>
                  <tr className="bg-slate-50 h-10">
                     <td className="px-3 font-bold text-slate-900 text-xs border border-slate-600">General Average</td>
-                    <td colSpan={semMode === 'all' ? termMode : 2} className="border border-slate-600"></td>
+                    <td colSpan={termColsCount} className="border border-slate-600"></td>
                     <td className="px-2 text-center font-bold text-slate-900 border border-slate-600 text-sm">{genAvg || '--'}</td>
                     <td className="px-3 text-center font-bold uppercase text-slate-900 text-[10px] border border-slate-600">
                        {genAvg > 0 ? (genAvg >= 75 ? 'Promoted' : 'Retained') : '--'}
