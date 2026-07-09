@@ -1783,7 +1783,7 @@ const AcademicYearTable: React.FC<AcademicYearTableProps> = ({ section, student,
                    else if (currentType === 'ELECTIVE') typeTitle = 'Elective Subjects';
 
                    return (
-                     <React.Fragment key={f.id}>
+                     <React.Fragment key={`${f.id}-${index}`}>
                        {shouldShowHeader && (
                          <tr className="bg-slate-100">
                            <td colSpan={totalColsCount} className="px-3 py-1.5 font-bold italic text-slate-800 border border-slate-600 text-xs text-left">

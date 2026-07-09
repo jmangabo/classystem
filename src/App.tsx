@@ -34,6 +34,7 @@ import {
   Check,
   Zap,
   Layout,
+  Layers,
   Loader2,
   UserPlus,
   UserCheck,
@@ -95,6 +96,17 @@ import { SystemDocumentationView } from "./components/SystemDocumentationView";
 import { SF8View } from "./components/SF8View";
 import { ManualSiblingSelector } from "./components/ManualSiblingSelector";
 import { PhotoCropModal } from "./components/PhotoCropModal";
+import { AralProgram } from "./components/AralProgram";
+import { AralMasterData } from "./components/AralMasterData";
+import { 
+  DEFAULT_SCHOOL_INFO, 
+  DEFAULT_COMPETENCIES,
+  DEFAULT_ARAL_SECTIONS,
+  AralSchoolInfo,
+  AralCompetency,
+  AralSection,
+  AralRole
+} from "./components/AralData";
 
 const formatGradeSection = (gradeLevel?: string | number, sectionName?: string) => {
   const g = String(gradeLevel || "7").trim();
@@ -738,6 +750,81 @@ export default function App() {
   const [isAuthorizedCashier, setIsAuthorizedCashier] = useState(false);
   const [confirmYearEndUnfinalize, setConfirmYearEndUnfinalize] = useState(false);
   const [confirmFinalizeSection, setConfirmFinalizeSection] = useState(false);
+
+  // ARAL Master Data States
+  const [aralSchoolInfo, setAralSchoolInfo] = useState<AralSchoolInfo>(() => {
+    try {
+      const saved = localStorage.getItem('aral_v2_school_info');
+      return saved ? JSON.parse(saved) : DEFAULT_SCHOOL_INFO;
+    } catch {
+      return DEFAULT_SCHOOL_INFO;
+    }
+  });
+
+  const [aralCompetencies, setAralCompetencies] = useState<AralCompetency[]>(() => {
+    try {
+      const saved = localStorage.getItem('aral_v2_competencies');
+      return saved ? JSON.parse(saved) : DEFAULT_COMPETENCIES;
+    } catch {
+      return DEFAULT_COMPETENCIES;
+    }
+  });
+
+  const [aralSections, setAralSections] = useState<AralSection[]>(() => {
+    try {
+      const saved = localStorage.getItem('aral_v2_sections');
+      return saved ? JSON.parse(saved) : DEFAULT_ARAL_SECTIONS;
+    } catch {
+      return DEFAULT_ARAL_SECTIONS;
+    }
+  });
+
+  const [isMasterDataOpen, setIsMasterDataOpen] = useState(true);
+
+  const mapUserRoleToAralRole = (role?: string): AralRole => {
+    if (!role) return 'Teacher';
+    switch (role) {
+      case 'system_admin':
+      case 'admin':
+      case 'school_head':
+        return 'ARAL Coordinator';
+      case 'teacher':
+        return 'Teacher';
+      default:
+        return 'Teacher';
+    }
+  };
+
+  const handleUpdateAralSchool = (info: AralSchoolInfo) => {
+    setAralSchoolInfo(info);
+    localStorage.setItem('aral_v2_school_info', JSON.stringify(info));
+  };
+
+  const handleAddAralCompetency = (comp: AralCompetency) => {
+    const updated = [...aralCompetencies, comp];
+    setAralCompetencies(updated);
+    localStorage.setItem('aral_v2_competencies', JSON.stringify(updated));
+  };
+
+  const handleDeleteAralCompetency = (id: string) => {
+    if (window.confirm("Are you sure you want to delete this learning competency?")) {
+      const updated = aralCompetencies.filter(c => c.id !== id);
+      setAralCompetencies(updated);
+      localStorage.setItem('aral_v2_competencies', JSON.stringify(updated));
+    }
+  };
+
+  const handleAddAralSection = (section: AralSection) => {
+    const updated = [...aralSections, section];
+    setAralSections(updated);
+    localStorage.setItem('aral_v2_sections', JSON.stringify(updated));
+  };
+
+  const handleUpdateAralSection = (section: AralSection) => {
+    const updated = aralSections.map(s => s.id === section.id ? section : s);
+    setAralSections(updated);
+    localStorage.setItem('aral_v2_sections', JSON.stringify(updated));
+  };
 
   useEffect(() => {
     if (!currentUser || !userProfile?.schoolId) {
@@ -3260,6 +3347,15 @@ export default function App() {
           activeSchool={activeSchool}
           teacherCount={teacherCount}
           onRenew={handleRenewSubscription}
+          aralSchoolInfo={aralSchoolInfo}
+          onUpdateAralSchool={handleUpdateAralSchool}
+          aralCompetencies={aralCompetencies}
+          onAddAralCompetency={handleAddAralCompetency}
+          onDeleteAralCompetency={handleDeleteAralCompetency}
+          aralSections={aralSections}
+          onAddAralSection={handleAddAralSection}
+          onUpdateAralSection={handleUpdateAralSection}
+          mapUserRoleToAralRole={mapUserRoleToAralRole}
         />
 
         {/* Render Global Scanner if open */}
@@ -3649,6 +3745,7 @@ export default function App() {
                 { id: 'anecdotes', label: 'Anecdotal Records', icon: <MessageSquare size={14} /> },
                 { id: 'sf8', label: 'School Form 8', icon: <Activity size={14} /> },
                 { id: 'sf4', label: 'School Form 4', icon: <FileText size={14} /> },
+                { id: 'aral', label: 'ARAL Program', icon: <GraduationCap size={14} /> },
                 { id: 'guide', label: 'Guide', icon: <HelpCircle size={14} /> },
                 { id: 'sys-docs', label: 'System Documentation', icon: <Terminal size={14} /> },
                 ...(currentUser?.email === 'jessiemangabo@gmail.com' ? [
@@ -3672,7 +3769,7 @@ export default function App() {
 
                 if (userProfile?.role === 'system_admin' || userProfile?.role === 'admin' || isAuthorizedCashier) {
                   const allowedTabsList = [
-                    'dashboard', 'enroll', 'subjects', 'pta', 'sf8', 'guide', 'sys-docs', 'gradebook', 'summary', 'attendance', 'observed-values', 'sf2', 'transfers', 'sf10', 'sf4', 'anecdotes', 'logs', 'logs-clear'
+                    'dashboard', 'enroll', 'subjects', 'pta', 'sf8', 'guide', 'sys-docs', 'gradebook', 'summary', 'attendance', 'observed-values', 'sf2', 'transfers', 'sf10', 'sf4', 'anecdotes', 'logs', 'logs-clear', 'aral'
                   ];
                   if (userProfile?.role === 'system_admin') {
                     return allowedTabsList.filter(id => {
@@ -3685,17 +3782,17 @@ export default function App() {
                   return allowedTabsList.filter(id => id !== 'sf4').includes(tab.id);
                 }
                 if (userProfile?.role === 'school_head') {
-                   return ['sf8', 'sf4', 'sf10', 'anecdotes'].includes(tab.id);
+                   return ['sf8', 'sf4', 'sf10', 'anecdotes', 'aral'].includes(tab.id);
                 }
                 if (userProfile?.role === 'guidance_designate') {
-                  return ['anecdotes'].includes(tab.id);
+                   return ['anecdotes', 'aral'].includes(tab.id);
                 }
                 if (userProfile?.role === 'teacher') {
                   if (isSectionAdviser) {
                     // Advisers see most things except restricted ones like SF4
-                    return ['dashboard', 'enroll', 'subjects', 'pta', 'sf8', 'sf10', 'attendance', 'observed-values', 'sf2', 'transfers', 'anecdotes', 'guide', 'gradebook', 'summary'].includes(tab.id);
+                    return ['dashboard', 'enroll', 'subjects', 'pta', 'sf8', 'sf10', 'attendance', 'observed-values', 'sf2', 'transfers', 'anecdotes', 'guide', 'gradebook', 'summary', 'aral'].includes(tab.id);
                   }
-                  return tab.id === 'gradebook' || tab.id === 'dashboard' || tab.id === 'anecdotes' || tab.id === 'pta';
+                  return tab.id === 'gradebook' || tab.id === 'dashboard' || tab.id === 'anecdotes' || tab.id === 'pta' || tab.id === 'aral';
                 }
                 return true;
               });
@@ -3783,6 +3880,7 @@ export default function App() {
               return (
                 <>
                   {allowedTabs.find(t => t.id === 'dashboard') && renderButton(allowedTabs.find(t => t.id === 'dashboard'))}
+                  {allowedTabs.find(t => t.id === 'aral') && renderButton(allowedTabs.find(t => t.id === 'aral'))}
                   
                   {renderDropdown('student-mgmt', 'Student Management', <Users size={14} />, mgmtTabs)}
                   {renderDropdown('attendance', 'Attendance & Behavior', <Calendar size={14} />, attTabs)}
@@ -4305,6 +4403,24 @@ export default function App() {
                     schoolId={userProfile.schoolId}
                     calendar={schoolCalendar}
                     globalSettings={globalSettings}
+                 />
+               </motion.div>
+            )}
+
+            {activeTab === 'aral' && (
+               <motion.div 
+                 key="aral"
+                 initial={{ opacity: 0, y: 10 }}
+                 animate={{ opacity: 1, y: 0 }}
+                 exit={{ opacity: 0, y: -10 }}
+                 transition={{ duration: 0.2 }}
+               >
+                 <AralProgram 
+                   enrolledStudents={enrolledStudents}
+                   selectedSection={selectedSection}
+                   sections={sections}
+                   userProfile={userProfile}
+                   globalSettings={globalSettings}
                  />
                </motion.div>
             )}
@@ -4985,9 +5101,8 @@ function SectionForm({
   }, [form.schoolYear, user]);
 
   useEffect(() => {
-    // Only admins need the full school list to pick from. 
-    // System admins and teachers are usually locked to their own school.
-    if (user?.role === 'admin') {
+    // Both admins and system admins can see the full school list to pick from.
+    if (user?.role === 'admin' || user?.role === 'system_admin') {
       const q = query(collection(db, "schools"));
       getDocs(q).then(snap => {
         setAvailableSchools(snap.docs.map(d => ({ ...d.data(), id: d.id })));
@@ -5116,7 +5231,7 @@ function SectionForm({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         <div className="space-y-1.5">
             <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider ml-1">Select School ID <span className="text-rose-500">*</span></label>
-            {user?.role === 'admin' ? (
+            {(user?.role === 'admin' || user?.role === 'system_admin') ? (
               <select 
                 value={form.schoolId}
                 required
@@ -5133,8 +5248,7 @@ function SectionForm({
                 value={form.schoolId}
                 required
                 onChange={e => setForm({...form, schoolId: e.target.value})}
-                disabled={user?.role === 'system_admin'}
-                className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-indigo-500 font-semibold text-sm disabled:opacity-50 transition-all"
+                className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-indigo-500 font-semibold text-sm transition-all"
                 placeholder="School ID"
               />
             )}
@@ -6394,7 +6508,16 @@ function SectionsView({
   onToggleFinalizeSubjectTerm,
   activeSchool = null,
   teacherCount = 0,
-  onRenew
+  onRenew,
+  aralSchoolInfo,
+  onUpdateAralSchool,
+  aralCompetencies,
+  onAddAralCompetency,
+  onDeleteAralCompetency,
+  aralSections,
+  onAddAralSection,
+  onUpdateAralSection,
+  mapUserRoleToAralRole
 }: { 
   sections: Section[], 
   expiredSchoolIds?: string[],
@@ -6430,10 +6553,20 @@ function SectionsView({
   onToggleFinalizeSubjectTerm?: (subjectId: string, term: TermNumber, finalize: boolean) => void,
   activeSchool?: any,
   teacherCount?: number,
-  onRenew?: (yearIndex: number) => Promise<void>
+  onRenew?: (yearIndex: number) => Promise<void>,
+  aralSchoolInfo: AralSchoolInfo,
+  onUpdateAralSchool: (info: AralSchoolInfo) => void,
+  aralCompetencies: AralCompetency[],
+  onAddAralCompetency: (comp: AralCompetency) => void,
+  onDeleteAralCompetency: (id: string) => void,
+  aralSections?: AralSection[],
+  onAddAralSection?: (section: AralSection) => void,
+  onUpdateAralSection?: (section: AralSection) => void,
+  mapUserRoleToAralRole: (role?: string) => AralRole
 }) {
   const [showAdd, setShowAdd] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [isMasterDataOpen, setIsMasterDataOpen] = useState(true);
   const [showSOA, setShowSOA] = useState(false);
   const [isBannerPaying, setIsBannerPaying] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -8181,6 +8314,62 @@ function SectionsView({
               </motion.div>
             )}
           </AnimatePresence>
+
+          {/* Master Data Registries Section */}
+          <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm transition-all mt-8">
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => setIsMasterDataOpen(!isMasterDataOpen)}
+              onKeyDown={(e) => { if (e.key === "Enter") setIsMasterDataOpen(!isMasterDataOpen); }}
+              className="w-full px-6 py-4 flex items-center justify-between bg-slate-50 hover:bg-slate-100/70 border-b border-slate-100 transition-colors text-left font-sans cursor-pointer"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                  <Layers size={16} />
+                </div>
+                <div>
+                  <h4 className="font-bold text-slate-800 text-sm uppercase tracking-wider leading-none">MASTER DATA REGISTRIES (ARAL Program)</h4>
+                  <p className="text-[10px] text-slate-500 font-medium uppercase tracking-widest mt-1">
+                    {filters.gradeLevel ? `Remediation benchmarks populated for Grade ${filters.gradeLevel}` : "Remediation benchmarks across grade levels"}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="text-slate-400 p-1 bg-white hover:bg-slate-200 rounded-lg border border-slate-200 transition-all">
+                  {isMasterDataOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                </div>
+              </div>
+            </div>
+
+            <AnimatePresence initial={false}>
+              {isMasterDataOpen && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="overflow-hidden"
+                >
+                  <div className="p-6 border-t border-slate-100 bg-white">
+                    <AralMasterData
+                      schoolInfo={aralSchoolInfo}
+                      onUpdateSchool={onUpdateAralSchool}
+                      competencies={aralCompetencies}
+                      onAddCompetency={onAddAralCompetency}
+                      onDeleteCompetency={onDeleteAralCompetency}
+                      activeRole={mapUserRoleToAralRole(user?.role)}
+                      selectedSection={filters.gradeLevel ? { gradeLevel: filters.gradeLevel } : null}
+                      sections={sections}
+                      aralSections={aralSections}
+                      onAddAralSection={onAddAralSection}
+                      onUpdateAralSection={onUpdateAralSection}
+                    />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
 
           <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm transition-all mt-8">
             <div

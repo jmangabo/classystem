@@ -1,6 +1,6 @@
 {
   "name": "CLASS - Centralized Learner Assessment and School System",
-  "description": "A comprehensive centralized learner assessment and school system for tracking student information, course details, grades, and attendance. Built for precision and educational excellence.",
+  "description": "A comprehensive centralized learner assessment and school system for tracking student information, course details, grades, attendance, and official DepEd ARAL (Academic Recovery and Accessible Learning) Program Forms 1-10.",
   "requestFramePermissions": [
     "camera"
   ],

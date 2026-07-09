@@ -183,6 +183,7 @@ export interface Section {
   headOfSchool?: string;
   teacherId?: string;
   teacherSubjects?: string[];
+  learnerIdentified?: number;
   signatureEnabled?: {
     [term in TermNumber]?: boolean;
   };
