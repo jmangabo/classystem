@@ -14,16 +14,6 @@ export interface AralSchoolInfo {
   schoolYear: string;
 }
 
-export interface AralSection {
-  id: string;
-  name: string;
-  gradeLevel: string;
-  subject: string;
-  teacherName: string;
-  teacherEmail: string;
-  learnerIdentified: number;
-}
-
 export interface AralLearner {
   id: string;
   lrn: string;
@@ -99,7 +89,5 @@ export const DEFAULT_COMPETENCIES: AralCompetency[] = [];
 export const DEFAULT_LEARNERS: AralLearner[] = [];
 
 export const DEFAULT_SESSIONS: AralSession[] = [];
-
-export const DEFAULT_ARAL_SECTIONS: AralSection[] = [];
 
 export const DEFAULT_NOTIFICATIONS: any[] = [];

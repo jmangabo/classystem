@@ -101,10 +101,8 @@ import { AralMasterData } from "./components/AralMasterData";
 import { 
   DEFAULT_SCHOOL_INFO, 
   DEFAULT_COMPETENCIES,
-  DEFAULT_ARAL_SECTIONS,
   AralSchoolInfo,
   AralCompetency,
-  AralSection,
   AralRole
 } from "./components/AralData";
 
@@ -770,15 +768,6 @@ export default function App() {
     }
   });
 
-  const [aralSections, setAralSections] = useState<AralSection[]>(() => {
-    try {
-      const saved = localStorage.getItem('aral_v2_sections');
-      return saved ? JSON.parse(saved) : DEFAULT_ARAL_SECTIONS;
-    } catch {
-      return DEFAULT_ARAL_SECTIONS;
-    }
-  });
-
   const [isMasterDataOpen, setIsMasterDataOpen] = useState(true);
 
   const mapUserRoleToAralRole = (role?: string): AralRole => {
@@ -812,18 +801,6 @@ export default function App() {
       setAralCompetencies(updated);
       localStorage.setItem('aral_v2_competencies', JSON.stringify(updated));
     }
-  };
-
-  const handleAddAralSection = (section: AralSection) => {
-    const updated = [...aralSections, section];
-    setAralSections(updated);
-    localStorage.setItem('aral_v2_sections', JSON.stringify(updated));
-  };
-
-  const handleUpdateAralSection = (section: AralSection) => {
-    const updated = aralSections.map(s => s.id === section.id ? section : s);
-    setAralSections(updated);
-    localStorage.setItem('aral_v2_sections', JSON.stringify(updated));
   };
 
   useEffect(() => {
@@ -3352,9 +3329,6 @@ export default function App() {
           aralCompetencies={aralCompetencies}
           onAddAralCompetency={handleAddAralCompetency}
           onDeleteAralCompetency={handleDeleteAralCompetency}
-          aralSections={aralSections}
-          onAddAralSection={handleAddAralSection}
-          onUpdateAralSection={handleUpdateAralSection}
           mapUserRoleToAralRole={mapUserRoleToAralRole}
         />
 
@@ -6514,9 +6488,6 @@ function SectionsView({
   aralCompetencies,
   onAddAralCompetency,
   onDeleteAralCompetency,
-  aralSections,
-  onAddAralSection,
-  onUpdateAralSection,
   mapUserRoleToAralRole
 }: { 
   sections: Section[], 
@@ -6559,9 +6530,6 @@ function SectionsView({
   aralCompetencies: AralCompetency[],
   onAddAralCompetency: (comp: AralCompetency) => void,
   onDeleteAralCompetency: (id: string) => void,
-  aralSections?: AralSection[],
-  onAddAralSection?: (section: AralSection) => void,
-  onUpdateAralSection?: (section: AralSection) => void,
   mapUserRoleToAralRole: (role?: string) => AralRole
 }) {
   const [showAdd, setShowAdd] = useState(false);
@@ -8361,9 +8329,7 @@ function SectionsView({
                       activeRole={mapUserRoleToAralRole(user?.role)}
                       selectedSection={filters.gradeLevel ? { gradeLevel: filters.gradeLevel } : null}
                       sections={sections}
-                      aralSections={aralSections}
-                      onAddAralSection={onAddAralSection}
-                      onUpdateAralSection={onUpdateAralSection}
+                      onUpdateSectionTutor={(sectionId, tutorName, tutorEmail, learnerIdentified) => onUpdate(sectionId, { adviserName: tutorName, adviserEmail: tutorEmail, learnerIdentified })}
                     />
                   </div>
                 </motion.div>

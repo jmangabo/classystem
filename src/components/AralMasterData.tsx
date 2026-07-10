@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { 
   AralSchoolInfo, 
   AralCompetency, 
-  AralSection,
   AralRole 
 } from './AralData';
 import { 
@@ -29,10 +28,6 @@ interface AralMasterDataProps {
   activeRole: AralRole;
   selectedSection?: any;
   sections?: any[];
-  aralSections?: AralSection[];
-  onAddAralSection?: (section: AralSection) => void;
-  onUpdateAralSection?: (section: AralSection) => void;
-  onDeleteAralSection?: (id: string) => void;
   onUpdateSectionTutor?: (sectionId: string, tutorName: string, tutorEmail: string, learnerIdentified: number) => void;
 }
 
@@ -45,10 +40,6 @@ export const AralMasterData: React.FC<AralMasterDataProps> = ({
   activeRole,
   selectedSection = null,
   sections = [],
-  aralSections = [],
-  onAddAralSection,
-  onUpdateAralSection,
-  onDeleteAralSection,
   onUpdateSectionTutor
 }) => {
   const [subTab, setSubTab] = useState<'school' | 'competencies' | 'subjects' | 'sections'>('competencies');
@@ -91,14 +82,8 @@ export const AralMasterData: React.FC<AralMasterDataProps> = ({
   }, [schoolInfo?.schoolId, sections]);
 
   const handleSaveTutor = (sectionId: string) => {
-    const sToUpdate = aralSections.find(s => s.id === sectionId);
-    if (onUpdateAralSection && sToUpdate) {
-      onUpdateAralSection({
-        ...sToUpdate,
-        teacherName: editingTutorName,
-        teacherEmail: editingTutorEmail,
-        learnerIdentified: editingLearnerIdentified
-      });
+    if (onUpdateSectionTutor) {
+      onUpdateSectionTutor(sectionId, editingTutorName, editingTutorEmail, editingLearnerIdentified);
     }
     setEditingSectionId(null);
     setEditingTutorName('');
@@ -123,27 +108,6 @@ export const AralMasterData: React.FC<AralMasterDataProps> = ({
     code: '',
     description: ''
   });
-
-  const [newAralSection, setNewAralSection] = useState({
-    name: '',
-    gradeLevel: activeGradeText,
-    subject: 'Reading',
-    teacherName: '',
-    teacherEmail: '',
-    learnerIdentified: 0
-  });
-
-  const handleAddAralSec = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newAralSection.name || !newAralSection.teacherName) return;
-    if (onAddAralSection) {
-      onAddAralSection({
-        id: `aral-sec-${Date.now()}`,
-        ...newAralSection
-      });
-    }
-    setNewAralSection(prev => ({ ...prev, name: '', teacherName: '', teacherEmail: '', learnerIdentified: 0 }));
-  };
 
   // Sync newComp grade level when active grade level changes
   React.useEffect(() => {
@@ -179,16 +143,17 @@ export const AralMasterData: React.FC<AralMasterDataProps> = ({
   const [showAllSections, setShowAllSections] = useState(false);
 
   const displayedSections = React.useMemo(() => {
-    if (!aralSections || aralSections.length === 0) return [];
-    if (showAllSections || !selectedSection) return aralSections;
+    if (!sections || sections.length === 0) return [];
+    if (showAllSections || !selectedSection) return sections;
     
-    const activeGradeTextFormatted = activeGradeText.toLowerCase().replace(/\s/g, '');
+    const activeGradeNum = selectedSection.gradeLevel ? parseInt(String(selectedSection.gradeLevel).replace(/\D/g, ''), 10) : 0;
     
-    return aralSections.filter(s => {
+    return sections.filter(s => {
       if (!s.gradeLevel) return false;
-      return s.gradeLevel.toLowerCase().replace(/\s/g, '') === activeGradeTextFormatted;
+      const secGradeNum = parseInt(String(s.gradeLevel).replace(/\D/g, ''), 10);
+      return activeGradeNum === secGradeNum;
     });
-  }, [aralSections, selectedSection, showAllSections, activeGradeText]);
+  }, [sections, selectedSection, showAllSections]);
 
   const isEditable = activeRole === 'Admin' || activeRole === 'ARAL Coordinator';
 
@@ -590,13 +555,13 @@ export const AralMasterData: React.FC<AralMasterDataProps> = ({
               <div>
                 <h3 className="text-base font-black text-slate-800 uppercase tracking-tight flex items-center gap-2 text-[#002060]">
                   <Layers size={18} />
-                  ARAL Remedial Sections
+                  Grade Levels & Advisory Sections
                 </h3>
                 <p className="text-xs text-slate-400">
-                  Manage ARAL sections, subjects, teachers, and identified learners manually.
+                  Listing of available advisory groups participating in active ARAL remedial tutoring:
                 </p>
               </div>
-              {aralSections && aralSections.length > 0 && (
+              {sections && sections.length > 0 && (
                 <button
                   type="button"
                   onClick={() => setShowAllSections(prev => !prev)}
@@ -606,100 +571,6 @@ export const AralMasterData: React.FC<AralMasterDataProps> = ({
                 </button>
               )}
             </div>
-
-            {isEditable && (
-              <form onSubmit={handleAddAralSec} className="bg-slate-50 border border-slate-100 rounded-2xl p-5 mb-4">
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
-                    <Plus size={12} />
-                  </div>
-                  <h4 className="font-bold text-slate-700 text-sm">Register ARAL Section</h4>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-                  <div>
-                    <label className="text-[10px] font-black text-slate-400 block uppercase mb-1">Section Name</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. Sampaguita"
-                      value={newAralSection.name}
-                      onChange={e => setNewAralSection(prev => ({ ...prev, name: e.target.value }))}
-                      className="w-full text-xs font-semibold text-slate-700 bg-white border border-slate-200 focus:border-[#002060] rounded-xl px-3 py-2 outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-black text-slate-400 block uppercase mb-1">Grade Level</label>
-                    <select
-                      value={newAralSection.gradeLevel}
-                      onChange={e => setNewAralSection(prev => ({ ...prev, gradeLevel: e.target.value }))}
-                      className="w-full text-xs font-semibold text-slate-700 bg-white border border-slate-200 focus:border-[#002060] rounded-xl px-3 py-2"
-                    >
-                      <option value="Grade 1">Grade 1</option>
-                      <option value="Grade 2">Grade 2</option>
-                      <option value="Grade 3">Grade 3</option>
-                      <option value="Grade 4">Grade 4</option>
-                      <option value="Grade 5">Grade 5</option>
-                      <option value="Grade 6">Grade 6</option>
-                      <option value="Grade 7">Grade 7</option>
-                      <option value="Grade 8">Grade 8</option>
-                      <option value="Grade 9">Grade 9</option>
-                      <option value="Grade 10">Grade 10</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-black text-slate-400 block uppercase mb-1">Target Subject</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. Mathematics"
-                      value={newAralSection.subject}
-                      onChange={e => setNewAralSection(prev => ({ ...prev, subject: e.target.value }))}
-                      className="w-full text-xs font-semibold text-slate-700 bg-white border border-slate-200 focus:border-[#002060] rounded-xl px-3 py-2 outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-black text-slate-400 block uppercase mb-1">Learners Identified</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={newAralSection.learnerIdentified}
-                      onChange={e => setNewAralSection(prev => ({ ...prev, learnerIdentified: parseInt(e.target.value) || 0 }))}
-                      className="w-full text-xs font-semibold text-slate-700 bg-white border border-slate-200 focus:border-[#002060] rounded-xl px-3 py-2 outline-none"
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                  <div>
-                    <label className="text-[10px] font-black text-slate-400 block uppercase mb-1">Teacher Name</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. Teacher Karen"
-                      value={newAralSection.teacherName}
-                      onChange={e => setNewAralSection(prev => ({ ...prev, teacherName: e.target.value }))}
-                      className="w-full text-xs font-semibold text-slate-700 bg-white border border-slate-200 focus:border-[#002060] rounded-xl px-3 py-2 outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-black text-slate-400 block uppercase mb-1">Teacher Email (Optional)</label>
-                    <input
-                      type="email"
-                      placeholder="teacher@school.edu"
-                      value={newAralSection.teacherEmail}
-                      onChange={e => setNewAralSection(prev => ({ ...prev, teacherEmail: e.target.value }))}
-                      className="w-full text-xs font-semibold text-slate-700 bg-white border border-slate-200 focus:border-[#002060] rounded-xl px-3 py-2 outline-none"
-                    />
-                  </div>
-                </div>
-                <button
-                  type="submit"
-                  className="flex items-center gap-2 px-4 py-2 bg-[#002060] hover:bg-blue-800 text-white rounded-xl text-xs font-bold transition-all"
-                >
-                  <Plus size={14} />
-                  Add ARAL Section
-                </button>
-              </form>
-            )}
 
             {/* Filter Notice */}
             <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 text-xs font-semibold text-slate-600 flex items-center gap-2">
@@ -742,8 +613,8 @@ export const AralMasterData: React.FC<AralMasterDataProps> = ({
                               </span>
                             )}
                           </td>
-                          <td className="p-3">{s.gradeLevel}</td>
-                          <td className="p-3">{s.subject}</td>
+                          <td className="p-3">Grade {s.gradeLevel}</td>
+                          <td className="p-3">Mathematics & Reading</td>
                           <td className="p-3">
                             {editingSectionId === s.id ? (
                               <div className="flex flex-col gap-2 p-1.5 bg-slate-50 rounded-xl border border-slate-200 max-w-[280px]">
@@ -848,9 +719,9 @@ export const AralMasterData: React.FC<AralMasterDataProps> = ({
                             ) : (
                               <div className="flex items-center justify-between group/tutor max-w-[280px]">
                                 <div className="flex flex-col">
-                                  <span className="font-semibold text-slate-800">{s.teacherName || 'Not Assigned'}</span>
-                                  {s.teacherEmail ? (
-                                    <span className="text-[10px] text-slate-400 font-normal mt-0.5">{s.teacherEmail}</span>
+                                  <span className="font-semibold text-slate-800">{s.adviserName || 'Teacher Karen Villena'}</span>
+                                  {s.adviserEmail ? (
+                                    <span className="text-[10px] text-slate-400 font-normal mt-0.5">{s.adviserEmail}</span>
                                   ) : (
                                     <span className="text-[10px] text-slate-400 font-normal italic mt-0.5">No email registered</span>
                                   )}
@@ -860,8 +731,8 @@ export const AralMasterData: React.FC<AralMasterDataProps> = ({
                                     type="button"
                                     onClick={() => {
                                       setEditingSectionId(s.id);
-                                      setEditingTutorName(s.teacherName || '');
-                                      setEditingTutorEmail(s.teacherEmail || '');
+                                      setEditingTutorName(s.adviserName || 'Teacher Karen Villena');
+                                      setEditingTutorEmail(s.adviserEmail || '');
                                       setEditingLearnerIdentified(s.learnerIdentified || 0);
                                     }}
                                     className="opacity-0 group-hover/tutor:opacity-100 p-1 hover:bg-slate-100 text-slate-400 hover:text-[#002060] rounded-lg transition-all ml-2"
