@@ -167,6 +167,17 @@ export interface School {
   isFinalized?: boolean;
 }
 
+export interface AralClass {
+  id: string;
+  name: string; // e.g., "Class 1", "Class 2"
+  gradeLevel: number;
+  schoolId: string;
+  schoolYear: string;
+  adviserName?: string;
+  adviserEmail?: string;
+  studentIds: string[];
+}
+
 export interface Section {
   id: string;
   name: string;
@@ -184,6 +195,7 @@ export interface Section {
   teacherId?: string;
   teacherSubjects?: string[];
   learnerIdentified?: number;
+  aralLearnerIds?: string[];
   signatureEnabled?: {
     [term in TermNumber]?: boolean;
   };

@@ -724,6 +724,7 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(true);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [sections, setSectionsRaw] = useState<Section[]>([]);
+  const [aralClasses, setAralClasses] = useState<AralClass[]>([]);
   const setSections = React.useCallback((val: Section[] | ((prev: Section[]) => Section[])) => {
     const sortFn = (list: Section[]) => {
       return [...list].sort((a, b) => {
@@ -800,6 +801,42 @@ export default function App() {
       const updated = aralCompetencies.filter(c => c.id !== id);
       setAralCompetencies(updated);
       localStorage.setItem('aral_v2_competencies', JSON.stringify(updated));
+    }
+  };
+
+  const handleCreateAralClass = async (gradeLevelNum: number) => {
+    if (!userProfile?.schoolId) return;
+    try {
+      // Find current aral classes for this grade to name it properly
+      const currentGradeClasses = aralClasses.filter(c => String(c.gradeLevel) === String(gradeLevelNum));
+      const nextClassNum = currentGradeClasses.length + 1;
+      const newClassData = {
+        name: `Class ${nextClassNum}`,
+        gradeLevel: gradeLevelNum,
+        schoolId: userProfile.schoolId,
+        schoolYear: globalSettings?.activeSchoolYear || "2026-2027",
+        studentIds: []
+      };
+      await addDoc(collection(db, "aral_classes"), newClassData);
+      alert(`Successfully created ARAL Class ${nextClassNum} for Grade ${gradeLevelNum}`);
+    } catch (err) {
+      console.error("Error creating ARAL Class:", err);
+      alert("Failed to create ARAL Class.");
+    }
+  };
+
+  const handleUpdateAralClass = async (classId: string, tutorName: string, tutorEmail: string, studentIds: string[]) => {
+    try {
+      const docRef = doc(db, "aral_classes", classId);
+      await updateDoc(docRef, {
+        adviserName: tutorName,
+        adviserEmail: tutorEmail,
+        studentIds: studentIds
+      });
+      alert("Successfully updated ARAL Class.");
+    } catch (err) {
+      console.error("Error updating ARAL Class:", err);
+      alert("Failed to update ARAL Class.");
     }
   };
 
@@ -1699,6 +1736,23 @@ export default function App() {
       if (unsubscribeSections) unsubscribeSections();
     };
   }, [currentUser, userProfile, globalSubjects]);
+
+  useEffect(() => {
+    if (!currentUser || !userProfile?.schoolId) {
+      setAralClasses([]);
+      return;
+    }
+    const q = query(
+      collection(db, "aral_classes"),
+      where("schoolId", "==", userProfile.schoolId)
+    );
+    const unsub = onSnapshot(q, (snapshot) => {
+      setAralClasses(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as AralClass)));
+    }, (err) => {
+      console.error("Failed to load aral classes", err);
+    });
+    return () => unsub();
+  }, [currentUser, userProfile?.schoolId]);
 
   // Students & Subjects Listener for Selected Section
   useEffect(() => {
@@ -8329,7 +8383,9 @@ function SectionsView({
                       activeRole={mapUserRoleToAralRole(user?.role)}
                       selectedSection={filters.gradeLevel ? { gradeLevel: filters.gradeLevel } : null}
                       sections={sections}
-                      onUpdateSectionTutor={(sectionId, tutorName, tutorEmail, learnerIdentified) => onUpdate(sectionId, { adviserName: tutorName, adviserEmail: tutorEmail, learnerIdentified })}
+                      aralClasses={aralClasses}
+                      onCreateAralClass={handleCreateAralClass}
+                      onUpdateAralClass={handleUpdateAralClass}
                     />
                   </div>
                 </motion.div>
