@@ -265,6 +265,21 @@
       },
       "required": ["actionType", "details", "performedByEmail", "timestamp", "schoolId"]
     },
+    "AralClass": {
+      "title": "ARAL Class",
+      "description": "ARAL remediation tutoring class",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "gradeLevel": { "type": "number" },
+        "schoolId": { "type": "string" },
+        "schoolYear": { "type": "string" },
+        "adviserName": { "type": "string" },
+        "adviserEmail": { "type": "string" },
+        "studentIds": { "type": "array" }
+      },
+      "required": ["name", "gradeLevel", "schoolId", "schoolYear"]
+    },
     "Settings": {
       "title": "Global Settings",
       "description": "System-wide and school-wide configuration",
@@ -425,6 +440,10 @@
     "guidance_assessments/{assessmentId}": {
       "schema": "GuidanceAssessment",
       "description": "Logs of self-screening forms submitted by students"
+    },
+    "aral_classes/{classId}": {
+      "schema": "AralClass",
+      "description": "ARAL remedial tutoring classes"
     }
   }
 }

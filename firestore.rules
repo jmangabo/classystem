@@ -302,5 +302,23 @@ service cloud.firestore {
       allow update: if isTeacher() || isAdmin() || isSystemAdmin();
       allow delete: if isAdmin() || isSystemAdmin();
     }
+
+    // 10. ARAL Classes Rules
+    match /aral_classes/{classId} {
+      function isValidAralClass(data) {
+        return (!('name' in data) || (data.name is string && data.name.size() <= 100)) &&
+               (!('gradeLevel' in data) || (data.gradeLevel is number)) &&
+               (!('schoolId' in data) || (data.schoolId is string)) &&
+               (!('schoolYear' in data) || (data.schoolYear is string)) &&
+               (!('adviserName' in data) || (data.adviserName is string)) &&
+               (!('adviserEmail' in data) || (data.adviserEmail is string)) &&
+               (!('studentIds' in data) || (data.studentIds is list));
+      }
+
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if (isAdmin() || isSystemAdmin() || isTeacher()) && isValidAralClass(incoming()) && (
+        !isSystemAdmin() || incoming().schoolId == getSchoolId()
+      );
+    }
   }
 }

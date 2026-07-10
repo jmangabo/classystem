@@ -521,7 +521,7 @@ import {
   arrayUnion
 } from "firebase/firestore";
 import { auth, db, handleFirestoreError, safeGetDoc as getDoc, safeGetDocs as getDocs } from "./firebase";
-import { Subject, Student, Course, TermNumber, RatedValue, Section, UserProfile, School, Eligibility, AnecdotalRecord } from "./types";
+import { Subject, Student, Course, TermNumber, RatedValue, Section, UserProfile, School, Eligibility, AnecdotalRecord, AralClass } from "./types";
 import { formatStudentName, capitalizeName, capitalizeFirst, getSubjectSortScore, printHTMLContent, isTleSubject, getTleDisplayName } from "./utils";
 import { INITIAL_STUDENTS, DEFAULT_TERM_DATA } from "./constants";
 import { AttendanceCard } from "./components/AttendanceCard";
@@ -804,39 +804,70 @@ export default function App() {
     }
   };
 
-  const handleCreateAralClass = async (gradeLevelNum: number) => {
+  const handleCreateAralClass = async (
+    gradeLevelNum: number,
+    name: string,
+    tutorName: string,
+    tutorEmail: string,
+    studentIds: string[],
+    targetSubject?: string
+  ) => {
     if (!userProfile?.schoolId) return;
     try {
-      // Find current aral classes for this grade to name it properly
-      const currentGradeClasses = aralClasses.filter(c => String(c.gradeLevel) === String(gradeLevelNum));
-      const nextClassNum = currentGradeClasses.length + 1;
       const newClassData = {
-        name: `Class ${nextClassNum}`,
+        name: name,
         gradeLevel: gradeLevelNum,
         schoolId: userProfile.schoolId,
         schoolYear: globalSettings?.activeSchoolYear || "2026-2027",
-        studentIds: []
+        adviserName: tutorName,
+        adviserEmail: tutorEmail,
+        studentIds: studentIds,
+        targetSubject: targetSubject || "Mathematics & Reading"
       };
       await addDoc(collection(db, "aral_classes"), newClassData);
-      alert(`Successfully created ARAL Class ${nextClassNum} for Grade ${gradeLevelNum}`);
+      alert("Successfully created ARAL Class.");
     } catch (err) {
       console.error("Error creating ARAL Class:", err);
       alert("Failed to create ARAL Class.");
     }
   };
 
-  const handleUpdateAralClass = async (classId: string, tutorName: string, tutorEmail: string, studentIds: string[]) => {
+  const handleUpdateAralClass = async (
+    classId: string,
+    tutorName: string,
+    tutorEmail: string,
+    studentIds: string[],
+    targetSubject?: string,
+    name?: string,
+    gradeLevel?: number
+  ) => {
     try {
       const docRef = doc(db, "aral_classes", classId);
-      await updateDoc(docRef, {
+      const updateData: any = {
         adviserName: tutorName,
         adviserEmail: tutorEmail,
-        studentIds: studentIds
-      });
+        studentIds: studentIds,
+        targetSubject: targetSubject || "Mathematics & Reading"
+      };
+      if (name !== undefined) updateData.name = name;
+      if (gradeLevel !== undefined) updateData.gradeLevel = gradeLevel;
+
+      await updateDoc(docRef, updateData);
       alert("Successfully updated ARAL Class.");
     } catch (err) {
       console.error("Error updating ARAL Class:", err);
       alert("Failed to update ARAL Class.");
+    }
+  };
+
+  const handleDeleteAralClass = async (classId: string) => {
+    try {
+      const docRef = doc(db, "aral_classes", classId);
+      await deleteDoc(docRef);
+      alert("Successfully deleted ARAL Class.");
+    } catch (err) {
+      console.error("Error deleting ARAL Class:", err);
+      alert("Failed to delete ARAL Class.");
     }
   };
 
@@ -3326,7 +3357,7 @@ export default function App() {
 
     return (
       <>
-        <SectionsView onCreateAralClass={handleCreateAralClass} onUpdateAralClass={handleUpdateAralClass} 
+        <SectionsView onCreateAralClass={handleCreateAralClass} onUpdateAralClass={handleUpdateAralClass} onDeleteAralClass={handleDeleteAralClass} aralClasses={aralClasses} 
           onScanID={() => {
             setShowGlobalScanner(true);
             setGlobalRecentScan(null);
@@ -6542,7 +6573,11 @@ function SectionsView({
   aralCompetencies,
   onAddAralCompetency,
   onDeleteAralCompetency,
-  mapUserRoleToAralRole
+  mapUserRoleToAralRole,
+  aralClasses = [],
+  onCreateAralClass,
+  onUpdateAralClass,
+  onDeleteAralClass
 }: { 
   sections: Section[], 
   expiredSchoolIds?: string[],
@@ -6584,7 +6619,11 @@ function SectionsView({
   aralCompetencies: AralCompetency[],
   onAddAralCompetency: (comp: AralCompetency) => void,
   onDeleteAralCompetency: (id: string) => void,
-  mapUserRoleToAralRole: (role?: string) => AralRole
+  mapUserRoleToAralRole: (role?: string) => AralRole,
+  aralClasses?: AralClass[],
+  onCreateAralClass?: (gradeLevel: number, name: string, tutorName: string, tutorEmail: string, studentIds: string[], targetSubject?: string) => void,
+  onUpdateAralClass?: (classId: string, tutorName: string, tutorEmail: string, studentIds: string[], targetSubject?: string, name?: string, gradeLevel?: number) => void,
+  onDeleteAralClass?: (classId: string) => void
 }) {
   const [showAdd, setShowAdd] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
@@ -8386,6 +8425,7 @@ function SectionsView({
                       aralClasses={aralClasses}
                       onCreateAralClass={onCreateAralClass}
                       onUpdateAralClass={onUpdateAralClass}
+                      onDeleteAralClass={onDeleteAralClass}
                     />
                   </div>
                 </motion.div>

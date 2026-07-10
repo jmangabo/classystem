@@ -176,6 +176,7 @@ export interface AralClass {
   adviserName?: string;
   adviserEmail?: string;
   studentIds: string[];
+  targetSubject?: string;
 }
 
 export interface Section {

@@ -29,8 +29,9 @@ interface AralMasterDataProps {
   selectedSection?: any;
   sections?: any[];
   aralClasses?: any[];
-  onCreateAralClass?: (gradeLevel: number) => void;
-  onUpdateAralClass?: (classId: string, tutorName: string, tutorEmail: string, studentIds: string[]) => void;
+  onCreateAralClass?: (gradeLevel: number, name: string, tutorName: string, tutorEmail: string, studentIds: string[], targetSubject?: string) => void;
+  onUpdateAralClass?: (classId: string, tutorName: string, tutorEmail: string, studentIds: string[], targetSubject?: string, name?: string, gradeLevel?: number) => void;
+  onDeleteAralClass?: (classId: string) => void;
 }
 
 export const AralMasterData: React.FC<AralMasterDataProps> = ({
@@ -44,7 +45,8 @@ export const AralMasterData: React.FC<AralMasterDataProps> = ({
   sections = [],
   aralClasses = [],
   onCreateAralClass,
-  onUpdateAralClass
+  onUpdateAralClass,
+  onDeleteAralClass
 }) => {
   const [subTab, setSubTab] = useState<'school' | 'competencies' | 'subjects' | 'sections'>('competencies');
 
@@ -60,6 +62,109 @@ export const AralMasterData: React.FC<AralMasterDataProps> = ({
   const [editingAralLearnerIds, setEditingAralLearnerIds] = useState<string[]>([]);
   const [sectionStudents, setSectionStudents] = useState<any[]>([]);
   const [candidates, setCandidates] = useState<any[]>([]);
+
+  // Add ARAL Class Modal States
+  const [isAddClassModalOpen, setIsAddClassModalOpen] = useState(false);
+  const [newClassName, setNewClassName] = useState('');
+  const [newClassGradeLevel, setNewClassGradeLevel] = useState<number>(1);
+  const [newClassTutorName, setNewClassTutorName] = useState('');
+  const [newClassTutorEmail, setNewClassTutorEmail] = useState('');
+  const [newClassStudentIds, setNewClassStudentIds] = useState<string[]>([]);
+  const [newClassTargetSubject, setNewClassTargetSubject] = useState('Mathematics & Reading');
+  const [addClassModalStudents, setAddClassModalStudents] = useState<any[]>([]);
+
+  // Edit ARAL Class Modal States
+  const [isEditClassModalOpen, setIsEditClassModalOpen] = useState(false);
+  const [editClassId, setEditClassId] = useState('');
+  const [editClassName, setEditClassName] = useState('');
+  const [editClassGradeLevel, setEditClassGradeLevel] = useState<number>(1);
+  const [editClassTutorName, setEditClassTutorName] = useState('');
+  const [editClassTutorEmail, setEditClassTutorEmail] = useState('');
+  const [editClassStudentIds, setEditClassStudentIds] = useState<string[]>([]);
+  const [editClassTargetSubject, setEditClassTargetSubject] = useState('');
+  const [editClassModalStudents, setEditClassModalStudents] = useState<any[]>([]);
+
+  // Fetch students belonging to the chosen grade level for the new class modal
+  useEffect(() => {
+    if (!isAddClassModalOpen || !newClassGradeLevel) {
+      setAddClassModalStudents([]);
+      return;
+    }
+
+    const gradeLevelSections = sections.filter(s => {
+      if (s.gradeLevel === undefined || s.gradeLevel === null) return false;
+      const secGradeNum = parseInt(String(s.gradeLevel).replace(/\D/g, ''), 10);
+      return secGradeNum === newClassGradeLevel;
+    });
+    if (gradeLevelSections.length === 0) {
+      setAddClassModalStudents([]);
+      return;
+    }
+
+    const loadStudentsForNewClass = async () => {
+      try {
+        let allStudents: any[] = [];
+        for (const sec of gradeLevelSections) {
+          const q = query(collection(db, `sections/${sec.id}/students`));
+          const snap = await getDocs(q);
+          snap.forEach((doc) => {
+            allStudents.push({ id: doc.id, sectionId: sec.id, sectionName: sec.name, ...doc.data() });
+          });
+        }
+        allStudents.sort((a, b) => {
+          const nameA = `${a.lastName || ''} ${a.firstName || ''}`.trim().toLowerCase();
+          const nameB = `${b.lastName || ''} ${b.firstName || ''}`.trim().toLowerCase();
+          return nameA.localeCompare(nameB);
+        });
+        setAddClassModalStudents(allStudents);
+      } catch (err) {
+        console.error("Error loading students for new class: ", err);
+      }
+    };
+
+    loadStudentsForNewClass();
+  }, [isAddClassModalOpen, newClassGradeLevel, sections]);
+
+  // Fetch students belonging to the chosen grade level for the edit class modal
+  useEffect(() => {
+    if (!isEditClassModalOpen || !editClassGradeLevel) {
+      setEditClassModalStudents([]);
+      return;
+    }
+
+    const gradeLevelSections = sections.filter(s => {
+      if (s.gradeLevel === undefined || s.gradeLevel === null) return false;
+      const secGradeNum = parseInt(String(s.gradeLevel).replace(/\D/g, ''), 10);
+      return secGradeNum === editClassGradeLevel;
+    });
+    if (gradeLevelSections.length === 0) {
+      setEditClassModalStudents([]);
+      return;
+    }
+
+    const loadStudentsForEditClass = async () => {
+      try {
+        let allStudents: any[] = [];
+        for (const sec of gradeLevelSections) {
+          const q = query(collection(db, `sections/${sec.id}/students`));
+          const snap = await getDocs(q);
+          snap.forEach((doc) => {
+            allStudents.push({ id: doc.id, sectionId: sec.id, sectionName: sec.name, ...doc.data() });
+          });
+        }
+        allStudents.sort((a, b) => {
+          const nameA = `${a.lastName || ''} ${a.firstName || ''}`.trim().toLowerCase();
+          const nameB = `${b.lastName || ''} ${b.firstName || ''}`.trim().toLowerCase();
+          return nameA.localeCompare(nameB);
+        });
+        setEditClassModalStudents(allStudents);
+      } catch (err) {
+        console.error("Error loading students for edit class: ", err);
+      }
+    };
+
+    loadStudentsForEditClass();
+  }, [isEditClassModalOpen, editClassGradeLevel, sections]);
 
   // Fetch school users (teachers and coordinators, excluding students) reactively
   useEffect(() => {
@@ -97,7 +202,12 @@ export const AralMasterData: React.FC<AralMasterDataProps> = ({
 
     // Fetch all students for the school and filter by grade level (or fetch via group collection)
     // Actually, since we have the sections array, we can find all section IDs for this grade level.
-    const gradeLevelSections = sections.filter(s => String(s.gradeLevel) === String(cls.gradeLevel));
+    const gradeLevelSections = sections.filter(s => {
+      if (s.gradeLevel === undefined || s.gradeLevel === null) return false;
+      const secGradeNum = parseInt(String(s.gradeLevel).replace(/\D/g, ''), 10);
+      const clsGradeNum = parseInt(String(cls.gradeLevel).replace(/\D/g, ''), 10);
+      return secGradeNum === clsGradeNum;
+    });
     if (gradeLevelSections.length === 0) {
       setSectionStudents([]);
       return;
@@ -131,6 +241,62 @@ export const AralMasterData: React.FC<AralMasterDataProps> = ({
     setEditingTutorEmail('');
     setEditingLearnerIdentified(0);
     setEditingAralLearnerIds([]);
+  };
+
+  const handleSaveNewClass = () => {
+    if (!newClassName.trim()) {
+      alert("Please provide an ARAL Class Name.");
+      return;
+    }
+    if (onCreateAralClass) {
+      onCreateAralClass(
+        newClassGradeLevel,
+        newClassName.trim(),
+        newClassTutorName.trim() || 'Teacher Karen Villena',
+        newClassTutorEmail.trim(),
+        newClassStudentIds,
+        newClassTargetSubject.trim() || 'Mathematics & Reading'
+      );
+    }
+    setIsAddClassModalOpen(false);
+  };
+
+  const handleOpenEditModal = (cls: any) => {
+    setEditClassId(cls.id);
+    setEditClassName(cls.name || '');
+    setEditClassGradeLevel(cls.gradeLevel || 1);
+    setEditClassTutorName(cls.adviserName || '');
+    setEditClassTutorEmail(cls.adviserEmail || '');
+    setEditClassStudentIds(cls.studentIds || []);
+    setEditClassTargetSubject(cls.targetSubject || 'Mathematics & Reading');
+    setIsEditClassModalOpen(true);
+  };
+
+  const handleSaveEditClass = () => {
+    if (!editClassName.trim()) {
+      alert("Please provide an ARAL Class Name.");
+      return;
+    }
+    if (onUpdateAralClass) {
+      onUpdateAralClass(
+        editClassId,
+        editClassTutorName.trim() || 'Teacher Karen Villena',
+        editClassTutorEmail.trim(),
+        editClassStudentIds,
+        editClassTargetSubject.trim() || 'Mathematics & Reading',
+        editClassName.trim(),
+        editClassGradeLevel
+      );
+    }
+    setIsEditClassModalOpen(false);
+  };
+
+  const handleDeleteClass = () => {
+    if (!onDeleteAralClass) return;
+    if (window.confirm(`Are you sure you want to permanently delete the ARAL Class "${editClassName}"? This action cannot be undone.`)) {
+      onDeleteAralClass(editClassId);
+      setIsEditClassModalOpen(false);
+    }
   };
 
   // Active Grade Level text normalization (e.g. "Grade 7")
@@ -604,12 +770,35 @@ export const AralMasterData: React.FC<AralMasterDataProps> = ({
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                {selectedSection && !showAllSections && onCreateAralClass && (
+                {onCreateAralClass && (
                   <button
                     type="button"
                     onClick={() => {
-                      const gradeLevelNum = selectedSection.gradeLevel ? parseInt(String(selectedSection.gradeLevel).replace(/\D/g, ''), 10) : 0;
-                      onCreateAralClass(gradeLevelNum);
+                      let gradeLevelNum = selectedSection?.gradeLevel ? parseInt(String(selectedSection.gradeLevel).replace(/\D/g, ''), 10) : 0;
+                      if (!gradeLevelNum && sections.length > 0) {
+                        for (const sec of sections) {
+                          if (sec.gradeLevel) {
+                            const parsed = parseInt(String(sec.gradeLevel).replace(/\D/g, ''), 10);
+                            if (parsed) {
+                              gradeLevelNum = parsed;
+                              break;
+                            }
+                          }
+                        }
+                      }
+                      if (!gradeLevelNum) gradeLevelNum = 7;
+
+                      const currentGradeClasses = aralClasses.filter(c => {
+                        const classGradeNum = parseInt(String(c.gradeLevel).replace(/\D/g, ''), 10);
+                        return classGradeNum === gradeLevelNum;
+                      });
+                      const nextClassNum = currentGradeClasses.length + 1;
+                      setNewClassName(`Class ${nextClassNum}`);
+                      setNewClassGradeLevel(gradeLevelNum);
+                      setNewClassTutorName('');
+                      setNewClassTutorEmail('');
+                      setNewClassStudentIds([]);
+                      setIsAddClassModalOpen(true);
                     }}
                     className="px-3.5 py-1.5 bg-[#002060] hover:bg-[#001848] text-white text-[10px] font-black uppercase tracking-wider rounded-xl transition-all shadow-xs flex items-center gap-1.5"
                   >
@@ -635,12 +824,12 @@ export const AralMasterData: React.FC<AralMasterDataProps> = ({
               <span>
                 {selectedSection ? (
                   showAllSections ? (
-                    "Showing all registered advisory sections."
+                    "Showing all registered ARAL classes."
                   ) : (
-                    <>Showing advisory sections for <strong className="font-bold text-[#002060]">{activeGradeText}</strong>.</>
+                    <>Showing ARAL classes for <strong className="font-bold text-[#002060]">{activeGradeText}</strong>.</>
                   )
                 ) : (
-                  "Showing all registered advisory sections."
+                  "Showing all registered ARAL classes."
                 )}
               </span>
             </div>
@@ -671,208 +860,480 @@ export const AralMasterData: React.FC<AralMasterDataProps> = ({
                             )}
                           </td>
                           <td className="p-3">Grade {s.gradeLevel}</td>
-                          <td className="p-3">Mathematics & Reading</td>
+                          <td className="p-3">{s.targetSubject || 'Mathematics & Reading'}</td>
                           <td className="p-3">
-                            {editingSectionId === s.id ? (
-                              <div className="flex flex-col gap-2 p-1.5 bg-slate-50 rounded-xl border border-slate-200 max-w-[280px]">
-                                {candidates.length > 0 ? (
-                                  <div className="flex flex-col gap-1.5">
-                                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Registered Tutor Select</label>
-                                    <select 
-                                      value={editingTutorEmail}
-                                      onChange={e => {
-                                        const val = e.target.value;
-                                        const matched = candidates.find(c => c.email === val);
-                                        setEditingTutorEmail(val);
-                                        setEditingTutorName(matched ? (matched.displayName || matched.email) : val);
-                                      }}
-                                      className="px-2 py-1 text-xs border border-slate-200 rounded-lg outline-none bg-white font-semibold text-slate-800 focus:border-[#002060] transition-colors"
-                                    >
-                                      <option value="">Select Registered Email...</option>
-                                      {editingTutorEmail && !candidates.some(c => c.email === editingTutorEmail) && (
-                                        <option value={editingTutorEmail}>{editingTutorName || editingTutorEmail}</option>
-                                      )}
-                                      {candidates.map(c => (
-                                        <option key={c.uid} value={c.email}>
-                                          {c.displayName || c.email} ({c.email})
-                                        </option>
-                                      ))}
-                                    </select>
-                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Or enter manually (Email)</span>
-                                    <input 
-                                      type="email"
-                                      value={editingTutorEmail}
-                                      onChange={e => {
-                                        const val = e.target.value;
-                                        setEditingTutorEmail(val);
-                                        const matched = candidates.find(c => c.email.toLowerCase() === val.toLowerCase());
-                                        if (matched) {
-                                          setEditingTutorName(matched.displayName || matched.email);
-                                        }
-                                      }}
-                                      className="px-2 py-1 text-xs border border-slate-200 rounded-lg outline-none bg-white font-semibold text-slate-800 focus:border-[#002060] transition-colors"
-                                      placeholder="Email Address"
-                                    />
-                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Teacher/Tutor Name</span>
-                                    <input 
-                                      type="text"
-                                      value={editingTutorName}
-                                      onChange={e => setEditingTutorName(e.target.value)}
-                                      className="px-2 py-1 text-xs border border-slate-200 rounded-lg outline-none bg-white font-semibold text-slate-800 focus:border-[#002060] transition-colors"
-                                      placeholder="Teacher Name"
-                                    />
-                                  </div>
+                            <div className="flex items-center justify-between group/tutor max-w-[280px]">
+                              <div className="flex flex-col">
+                                <span className="font-semibold text-slate-800">{s.adviserName || 'Teacher Karen Villena'}</span>
+                                {s.adviserEmail ? (
+                                  <span className="text-[10px] text-slate-400 font-normal mt-0.5">{s.adviserEmail}</span>
                                 ) : (
-                                  <div className="flex flex-col gap-1.5">
-                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Teacher/Tutor Email</span>
-                                    <input 
-                                      type="email"
-                                      value={editingTutorEmail}
-                                      onChange={e => {
-                                        const val = e.target.value;
-                                        setEditingTutorEmail(val);
-                                      }}
-                                      className="px-2 py-1 text-xs border border-slate-200 rounded-lg outline-none bg-white font-semibold text-slate-800 focus:border-[#002060] transition-colors"
-                                      placeholder="teacher@school.edu"
-                                      autoFocus
-                                    />
-                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Teacher/Tutor Name</span>
-                                    <input 
-                                      type="text"
-                                      value={editingTutorName}
-                                      onChange={e => setEditingTutorName(e.target.value)}
-                                      className="px-2 py-1 text-xs border border-slate-200 rounded-lg outline-none bg-white font-semibold text-slate-800 focus:border-[#002060] transition-colors"
-                                      placeholder="Teacher Name"
-                                    />
-                                  </div>
-                                )}
-                                <div className="flex items-center justify-end gap-1.5 pt-1.5 border-t border-slate-100">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleSaveTutor(s.id)}
-                                    className="flex items-center gap-1 px-2.5 py-1 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-[10px] font-bold"
-                                    title="Save Assigned Tutor"
-                                  >
-                                    <CheckCircle2 size={12} />
-                                    Save
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setEditingSectionId(null);
-                                      setEditingTutorName('');
-                                      setEditingTutorEmail('');
-                                      setEditingLearnerIdentified(0);
-                                      setEditingAralLearnerIds([]);
-                                    }}
-                                    className="px-2.5 py-1 border border-slate-200 hover:bg-slate-100 text-slate-500 rounded-lg transition-colors text-[10px] font-bold"
-                                    title="Cancel"
-                                  >
-                                    Cancel
-                                  </button>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="flex items-center justify-between group/tutor max-w-[280px]">
-                                <div className="flex flex-col">
-                                  <span className="font-semibold text-slate-800">{s.adviserName || 'Teacher Karen Villena'}</span>
-                                  {s.adviserEmail ? (
-                                    <span className="text-[10px] text-slate-400 font-normal mt-0.5">{s.adviserEmail}</span>
-                                  ) : (
-                                    <span className="text-[10px] text-slate-400 font-normal italic mt-0.5">No email registered</span>
-                                  )}
-                                </div>
-                                {isEditable && s.id && (
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setEditingSectionId(s.id);
-                                      setEditingTutorName(s.adviserName || 'Teacher Karen Villena');
-                                      setEditingTutorEmail(s.adviserEmail || '');
-                                      setEditingLearnerIdentified(s.studentIds?.length || 0);
-                                      setEditingAralLearnerIds(s.studentIds || []);
-                                    }}
-                                    className="opacity-0 group-hover/tutor:opacity-100 p-1 hover:bg-slate-100 text-slate-400 hover:text-[#002060] rounded-lg transition-all ml-2"
-                                    title="Edit Section Data"
-                                  >
-                                    <Edit size={12} />
-                                  </button>
+                                  <span className="text-[10px] text-slate-400 font-normal italic mt-0.5">No email registered</span>
                                 )}
                               </div>
-                            )}
+                              {isEditable && s.id && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEditModal(s)}
+                                  className="opacity-0 group-hover/tutor:opacity-100 p-1 hover:bg-slate-100 text-slate-400 hover:text-[#002060] rounded-lg transition-all ml-2"
+                                  title="Edit ARAL Class"
+                                >
+                                  <Edit size={12} />
+                                </button>
+                              )}
+                            </div>
                           </td>
                           <td className="p-3">
-                            {editingSectionId === s.id ? (
-                              <div className="flex flex-col gap-2 max-w-[240px]">
-                                <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Select Students</div>
-                                <div className="flex flex-col gap-1 max-h-32 overflow-y-auto border border-slate-200 rounded-lg p-2 bg-white">
-                                  {sectionStudents.length > 0 ? sectionStudents.map(student => (
-                                    <label key={student.id} className="flex items-center gap-2 cursor-pointer">
-                                      <input 
-                                        type="checkbox" 
-                                        className="rounded border-slate-300 text-[#002060] focus:ring-[#002060]"
-                                        checked={editingAralLearnerIds.includes(student.id)}
-                                        onChange={(e) => {
-                                          if (e.target.checked) {
-                                            const newIds = [...editingAralLearnerIds, student.id];
-                                            setEditingAralLearnerIds(newIds);
-                                            setEditingLearnerIdentified(newIds.length);
-                                          } else {
-                                            const newIds = editingAralLearnerIds.filter(id => id !== student.id);
-                                            setEditingAralLearnerIds(newIds);
-                                            setEditingLearnerIdentified(newIds.length);
-                                          }
-                                        }}
-                                      />
-                                      <span className="text-[10px] text-slate-700 truncate">{student.lastName}, {student.firstName}</span>
-                                    </label>
-                                  )) : (
-                                    <span className="text-[10px] text-slate-400 italic">No students found.</span>
-                                  )}
-                                </div>
-                                <div className="flex items-center gap-2 mt-1">
-                                  <span className="font-bold text-slate-700 bg-slate-100 px-2 py-1 rounded-md text-xs">{editingAralLearnerIds.length}</span>
-                                  <span className="text-[10px] text-slate-400">Selected</span>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-2">
-                                <span className="font-bold text-slate-700 bg-slate-100 px-2 py-1 rounded-md text-xs">{s.studentIds?.length || 0}</span>
-                                <span className="text-[10px] text-slate-400">Learners</span>
-                              </div>
-                            )}
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-slate-700 bg-slate-100 px-2 py-1 rounded-md text-xs">{s.studentIds?.length || 0}</span>
+                              <span className="text-[10px] text-slate-400">Learners</span>
+                            </div>
                           </td>
                         </tr>
                       );
                     })
                   ) : (
-                    <>
-                      {/* Fallback to default demo data if no dynamic sections are loaded */}
-                      <tr className="hover:bg-slate-50/50">
-                        <td className="p-3 font-bold text-slate-800">Sampaguita</td>
-                        <td className="p-3">Grade 7</td>
-                        <td className="p-3">Mathematics & Reading</td>
-                        <td className="p-3">Teacher Karen Villena</td>
-                        <td className="p-3"><span className="font-bold text-slate-700 bg-slate-100 px-2 py-1 rounded-md text-xs">5</span> <span className="text-[10px] text-slate-400">Learners</span></td>
-                      </tr>
-                      <tr className="hover:bg-slate-50/50">
-                        <td className="p-3 font-bold text-slate-800">Kamia</td>
-                        <td className="p-3">Grade 7</td>
-                        <td className="p-3">Mathematics</td>
-                        <td className="p-3">Teacher Karen Villena</td>
-                        <td className="p-3"><span className="font-bold text-slate-700 bg-slate-100 px-2 py-1 rounded-md text-xs">3</span> <span className="text-[10px] text-slate-400">Learners</span></td>
-                      </tr>
-                      <tr className="hover:bg-slate-50/50">
-                        <td className="p-3 font-bold text-slate-800">Ipil-Ipil</td>
-                        <td className="p-3">Grade 8</td>
-                        <td className="p-3">Science</td>
-                        <td className="p-3">Teacher Juan Dela Cruz</td>
-                        <td className="p-3"><span className="font-bold text-slate-700 bg-slate-100 px-2 py-1 rounded-md text-xs">4</span> <span className="text-[10px] text-slate-400">Learners</span></td>
-                      </tr>
-                    </>
+                    <tr>
+                      <td colSpan={5} className="p-8 text-center text-slate-400 italic">
+                        No ARAL classes have been defined or created yet. Click <strong className="text-[#002060]">"Add ARAL Class"</strong> above to set up a remediation tutoring class.
+                      </td>
+                    </tr>
                   )}
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+
+        {isAddClassModalOpen && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 font-sans animate-in fade-in duration-200">
+            <div className="bg-white rounded-3xl border border-slate-100 shadow-2xl overflow-hidden max-w-4xl w-full max-h-[90vh] flex flex-col animate-in fade-in zoom-in-95 duration-200">
+              {/* Modal Header */}
+              <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                <div>
+                  <h3 className="text-base font-black text-[#002060] uppercase tracking-tight flex items-center gap-2">
+                    <ListPlus size={18} />
+                    Define ARAL Class
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">Configure your remedial tutoring class room.</p>
+                </div>
+                <button 
+                  type="button" 
+                  onClick={() => setIsAddClassModalOpen(false)}
+                  className="text-slate-400 hover:text-slate-600 font-bold text-sm bg-slate-100 hover:bg-slate-200 p-1.5 rounded-full transition-colors w-8 h-8 flex items-center justify-center"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-6 overflow-y-auto flex-1">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                  {/* Left Column: Metadata & Tutor Details */}
+                  <div className="lg:col-span-5 space-y-5">
+                    {/* Class Name & Grade Level */}
+                    <div className="space-y-4">
+                      {/* Class Name */}
+                      <div>
+                        <label className="text-[10px] font-black text-slate-400 block uppercase mb-1">ARAL Class Name (e.g. Class 1)</label>
+                        <input
+                          type="text"
+                          required
+                          value={newClassName}
+                          onChange={e => setNewClassName(e.target.value)}
+                          placeholder="Enter Class Name"
+                          className="w-full text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 focus:border-[#002060] rounded-xl px-3 py-2.5 transition-all outline-none"
+                        />
+                      </div>
+
+                      {/* Grade Level Selection */}
+                      <div>
+                        <label className="text-[10px] font-black text-slate-400 block uppercase mb-1">Grade Level</label>
+                        <select
+                          value={newClassGradeLevel}
+                          onChange={e => {
+                            const val = parseInt(e.target.value, 10);
+                            setNewClassGradeLevel(val);
+                            // Update default class name based on grade level
+                            const currentGradeClasses = aralClasses.filter(c => {
+                              const classGradeNum = parseInt(String(c.gradeLevel).replace(/\D/g, ''), 10);
+                              return classGradeNum === val;
+                            });
+                            setNewClassName(`Class ${currentGradeClasses.length + 1}`);
+                            setNewClassStudentIds([]);
+                          }}
+                          className="w-full text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 focus:border-[#002060] rounded-xl px-3 py-2.5 outline-none transition-all"
+                        >
+                          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(lvl => (
+                            <option key={lvl} value={lvl}>Grade {lvl}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Target Subject (Manual Input) */}
+                      <div>
+                        <label className="text-[10px] font-black text-slate-400 block uppercase mb-1">Target Subject (e.g. Mathematics)</label>
+                        <input
+                          type="text"
+                          required
+                          value={newClassTargetSubject}
+                          onChange={e => setNewClassTargetSubject(e.target.value)}
+                          placeholder="Enter Target Subject"
+                          className="w-full text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 focus:border-[#002060] rounded-xl px-3 py-2.5 transition-all outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Active Tutor / Teacher */}
+                    <div className="space-y-3 border-t border-slate-100 pt-4">
+                      <span className="text-[10px] font-black text-[#002060] block uppercase tracking-wider">
+                        Assigned Remedial Tutor
+                      </span>
+                      
+                      {candidates.length > 0 ? (
+                        <div className="space-y-2.5">
+                          <div>
+                            <label className="text-[9px] font-bold text-slate-400 block uppercase mb-1">Registered Tutor Select</label>
+                            <select 
+                              value={newClassTutorEmail}
+                              onChange={e => {
+                                const val = e.target.value;
+                                const matched = candidates.find(c => c.email === val);
+                                setNewClassTutorEmail(val);
+                                setNewClassTutorName(matched ? (matched.displayName || matched.email) : val);
+                              }}
+                              className="w-full text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 focus:border-[#002060] rounded-xl px-3 py-2 outline-none transition-all"
+                            >
+                              <option value="">Select Registered Email...</option>
+                              {candidates.map(c => (
+                                <option key={c.uid} value={c.email}>
+                                  {c.displayName || c.email} ({c.email})
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">— OR ENTER MANUALLY —</div>
+                        </div>
+                      ) : null}
+
+                      <div className="space-y-3">
+                        <div>
+                          <label className="text-[9px] font-bold text-slate-400 block uppercase mb-1">Tutor Email</label>
+                          <input 
+                            type="email"
+                            value={newClassTutorEmail}
+                            onChange={e => {
+                              const val = e.target.value;
+                              setNewClassTutorEmail(val);
+                              const matched = candidates.find(c => (c.email || '').toLowerCase() === val.toLowerCase());
+                              if (matched) {
+                                setNewClassTutorName(matched.displayName || matched.email);
+                              }
+                            }}
+                            className="w-full text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 focus:border-[#002060] rounded-xl px-3 py-2.5 outline-none transition-all"
+                            placeholder="tutor@school.edu"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[9px] font-bold text-slate-400 block uppercase mb-1">Tutor Name</label>
+                          <input 
+                            type="text"
+                            value={newClassTutorName}
+                            onChange={e => setNewClassTutorName(e.target.value)}
+                            className="w-full text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 focus:border-[#002060] rounded-xl px-3 py-2.5 outline-none transition-all"
+                            placeholder="Tutor Name"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right Column: Learners Checklist */}
+                  <div className="lg:col-span-7 space-y-2 border-t lg:border-t-0 lg:border-l border-slate-100 pt-5 lg:pt-0 lg:pl-6 h-full flex flex-col justify-between">
+                    <div>
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-[10px] font-black text-[#002060] block uppercase tracking-wider">
+                          Identify Learners (Grade {newClassGradeLevel})
+                        </span>
+                        <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                          {newClassStudentIds.length} Selected
+                        </span>
+                      </div>
+
+                      <div className="border border-slate-200 rounded-2xl p-4 bg-slate-50/40 min-h-[300px]">
+                        {addClassModalStudents.length > 0 ? (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[360px] overflow-y-auto pr-1">
+                            {addClassModalStudents.map(student => (
+                              <label key={student.id} className="flex items-center gap-2.5 cursor-pointer py-1.5 px-2 hover:bg-white border border-transparent hover:border-slate-100 rounded-xl transition-all select-none shadow-xs">
+                                <input 
+                                  type="checkbox" 
+                                  className="rounded-md border-slate-300 text-[#002060] focus:ring-[#002060] w-4 h-4"
+                                  checked={newClassStudentIds.includes(student.id)}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setNewClassStudentIds(prev => [...prev, student.id]);
+                                    } else {
+                                      setNewClassStudentIds(prev => prev.filter(id => id !== student.id));
+                                    }
+                                  }}
+                                />
+                                <span className="text-[11px] text-slate-700 truncate font-semibold">
+                                  {student.lastName}, {student.firstName} <span className="text-[9px] text-slate-400 font-normal block sm:inline">({student.sectionName || 'N/A'})</span>
+                                </span>
+                              </label>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="p-12 text-center flex flex-col items-center justify-center min-h-[260px]">
+                            <span className="text-xs text-slate-400 italic block">No registered students found for Grade {newClassGradeLevel}.</span>
+                            <span className="text-[10px] text-slate-400 block mt-1">Please make sure you have added advisory sections and registered students for Grade {newClassGradeLevel} first.</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-4 border-t border-slate-100 bg-slate-50 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsAddClassModalOpen(false)}
+                  className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-800 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveNewClass}
+                  className="px-4 py-2 bg-[#002060] hover:bg-blue-800 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md flex items-center gap-1.5"
+                >
+                  <CheckCircle2 size={13} />
+                  Create Class
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {isEditClassModalOpen && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 font-sans animate-in fade-in duration-200">
+            <div className="bg-white rounded-3xl border border-slate-100 shadow-2xl overflow-hidden max-w-4xl w-full max-h-[90vh] flex flex-col animate-in fade-in zoom-in-95 duration-200">
+              {/* Modal Header */}
+              <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                <div>
+                  <h3 className="text-base font-black text-[#002060] uppercase tracking-tight flex items-center gap-2">
+                    <Edit size={18} />
+                    Edit ARAL Class
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">Modify your remedial tutoring class configuration.</p>
+                </div>
+                <button 
+                  type="button" 
+                  onClick={() => setIsEditClassModalOpen(false)}
+                  className="text-slate-400 hover:text-slate-600 font-bold text-sm bg-slate-100 hover:bg-slate-200 p-1.5 rounded-full transition-colors w-8 h-8 flex items-center justify-center"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-6 overflow-y-auto flex-1">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                  {/* Left Column: Metadata & Tutor Details */}
+                  <div className="lg:col-span-5 space-y-5">
+                    {/* Class Name & Grade Level */}
+                    <div className="space-y-4">
+                      {/* Class Name */}
+                      <div>
+                        <label className="text-[10px] font-black text-slate-400 block uppercase mb-1">ARAL Class Name (e.g. Class 1)</label>
+                        <input
+                          type="text"
+                          required
+                          value={editClassName}
+                          onChange={e => setEditClassName(e.target.value)}
+                          placeholder="Enter Class Name"
+                          className="w-full text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 focus:border-[#002060] rounded-xl px-3 py-2.5 transition-all outline-none"
+                        />
+                      </div>
+
+                      {/* Grade Level Selection */}
+                      <div>
+                        <label className="text-[10px] font-black text-slate-400 block uppercase mb-1">Grade Level</label>
+                        <select
+                          value={editClassGradeLevel}
+                          onChange={e => {
+                            const val = parseInt(e.target.value, 10);
+                            setEditClassGradeLevel(val);
+                            setEditClassStudentIds([]);
+                          }}
+                          className="w-full text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 focus:border-[#002060] rounded-xl px-3 py-2.5 outline-none transition-all"
+                        >
+                          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(lvl => (
+                            <option key={lvl} value={lvl}>Grade {lvl}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Target Subject (Manual Input) */}
+                      <div>
+                        <label className="text-[10px] font-black text-slate-400 block uppercase mb-1">Target Subject (e.g. Mathematics)</label>
+                        <input
+                          type="text"
+                          required
+                          value={editClassTargetSubject}
+                          onChange={e => setEditClassTargetSubject(e.target.value)}
+                          placeholder="Enter Target Subject"
+                          className="w-full text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 focus:border-[#002060] rounded-xl px-3 py-2.5 transition-all outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Active Tutor / Teacher */}
+                    <div className="space-y-3 border-t border-slate-100 pt-4">
+                      <span className="text-[10px] font-black text-[#002060] block uppercase tracking-wider">
+                        Assigned Remedial Tutor
+                      </span>
+                      
+                      {candidates.length > 0 ? (
+                        <div className="space-y-2.5">
+                          <div>
+                            <label className="text-[9px] font-bold text-slate-400 block uppercase mb-1">Registered Tutor Select</label>
+                            <select 
+                              value={editClassTutorEmail}
+                              onChange={e => {
+                                const val = e.target.value;
+                                const matched = candidates.find(c => c.email === val);
+                                setEditClassTutorEmail(val);
+                                setEditClassTutorName(matched ? (matched.displayName || matched.email) : val);
+                              }}
+                              className="w-full text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 focus:border-[#002060] rounded-xl px-3 py-2 outline-none transition-all"
+                            >
+                              <option value="">Select Registered Email...</option>
+                              {candidates.map(c => (
+                                <option key={c.uid} value={c.email}>
+                                  {c.displayName || c.email} ({c.email})
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">— OR ENTER MANUALLY —</div>
+                        </div>
+                      ) : null}
+
+                      <div className="space-y-3">
+                        <div>
+                          <label className="text-[9px] font-bold text-slate-400 block uppercase mb-1">Tutor Email</label>
+                          <input 
+                            type="email"
+                            value={editClassTutorEmail}
+                            onChange={e => {
+                              const val = e.target.value;
+                              setEditClassTutorEmail(val);
+                              const matched = candidates.find(c => (c.email || '').toLowerCase() === val.toLowerCase());
+                              if (matched) {
+                                setEditClassTutorName(matched.displayName || matched.email);
+                              }
+                            }}
+                            className="w-full text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 focus:border-[#002060] rounded-xl px-3 py-2.5 outline-none transition-all"
+                            placeholder="tutor@school.edu"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[9px] font-bold text-slate-400 block uppercase mb-1">Tutor Name</label>
+                          <input 
+                            type="text"
+                            value={editClassTutorName}
+                            onChange={e => setEditClassTutorName(e.target.value)}
+                            className="w-full text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 focus:border-[#002060] rounded-xl px-3 py-2.5 outline-none transition-all"
+                            placeholder="Tutor Name"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right Column: Learners Checklist */}
+                  <div className="lg:col-span-7 space-y-2 border-t lg:border-t-0 lg:border-l border-slate-100 pt-5 lg:pt-0 lg:pl-6 h-full flex flex-col justify-between">
+                    <div>
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-[10px] font-black text-[#002060] block uppercase tracking-wider">
+                          Identify Learners (Grade {editClassGradeLevel})
+                        </span>
+                        <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                          {editClassStudentIds.length} Selected
+                        </span>
+                      </div>
+
+                      <div className="border border-slate-200 rounded-2xl p-4 bg-slate-50/40 min-h-[300px]">
+                        {editClassModalStudents.length > 0 ? (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[360px] overflow-y-auto pr-1">
+                            {editClassModalStudents.map(student => (
+                              <label key={student.id} className="flex items-center gap-2.5 cursor-pointer py-1.5 px-2 hover:bg-white border border-transparent hover:border-slate-100 rounded-xl transition-all select-none shadow-xs">
+                                <input 
+                                  type="checkbox" 
+                                  className="rounded-md border-slate-300 text-[#002060] focus:ring-[#002060] w-4 h-4"
+                                  checked={editClassStudentIds.includes(student.id)}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setEditClassStudentIds(prev => [...prev, student.id]);
+                                    } else {
+                                      setEditClassStudentIds(prev => prev.filter(id => id !== student.id));
+                                    }
+                                  }}
+                                />
+                                <span className="text-[11px] text-slate-700 truncate font-semibold">
+                                  {student.lastName}, {student.firstName} <span className="text-[9px] text-slate-400 font-normal block sm:inline">({student.sectionName || 'N/A'})</span>
+                                </span>
+                              </label>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="p-12 text-center flex flex-col items-center justify-center min-h-[260px]">
+                            <span className="text-xs text-slate-400 italic block">No registered students found for Grade {editClassGradeLevel}.</span>
+                            <span className="text-[10px] text-slate-400 block mt-1">Please make sure you have added advisory sections and registered students for Grade {editClassGradeLevel} first.</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-4 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
+                <div>
+                  {onDeleteAralClass && (
+                    <button
+                      type="button"
+                      onClick={handleDeleteClass}
+                      className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md flex items-center gap-1.5"
+                    >
+                      Delete Class
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsEditClassModalOpen(false)}
+                    className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-800 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveEditClass}
+                    className="px-4 py-2 bg-[#002060] hover:bg-blue-800 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md flex items-center gap-1.5"
+                  >
+                    <CheckCircle2 size={13} />
+                    Save Changes
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}
