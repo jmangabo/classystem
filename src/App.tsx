@@ -3326,7 +3326,7 @@ export default function App() {
 
     return (
       <>
-        <SectionsView 
+        <SectionsView onCreateAralClass={handleCreateAralClass} onUpdateAralClass={handleUpdateAralClass} 
           onScanID={() => {
             setShowGlobalScanner(true);
             setGlobalRecentScan(null);
@@ -8384,8 +8384,8 @@ function SectionsView({
                       selectedSection={filters.gradeLevel ? { gradeLevel: filters.gradeLevel } : null}
                       sections={sections}
                       aralClasses={aralClasses}
-                      onCreateAralClass={handleCreateAralClass}
-                      onUpdateAralClass={handleUpdateAralClass}
+                      onCreateAralClass={onCreateAralClass}
+                      onUpdateAralClass={onUpdateAralClass}
                     />
                   </div>
                 </motion.div>
