@@ -162,6 +162,22 @@ export const AralForms: React.FC<AralFormsProps> = ({
     }
   }, [learners, selectedStudentId]);
 
+  // Automatically select first ARAL class when the session modal opens
+  useEffect(() => {
+    if (showAddSessionModal && aralClasses.length > 0) {
+      const firstClass = aralClasses[0];
+      setNewSessionInput(prev => ({
+        ...prev,
+        section: firstClass.name,
+        gradeLevel: `Grade ${firstClass.gradeLevel}`,
+        subject: firstClass.targetSubject && ["Mathematics", "Reading", "Science"].includes(firstClass.targetSubject)
+          ? firstClass.targetSubject
+          : (firstClass.targetSubject === "Reading / English" ? "Reading" : prev.subject),
+        presentCount: firstClass.studentIds?.length || prev.presentCount
+      }));
+    }
+  }, [showAddSessionModal, aralClasses]);
+
   const selectedLearnerObj = useMemo(() => {
     return learners.find(l => l.id === selectedStudentId);
   }, [learners, selectedStudentId]);
@@ -173,10 +189,10 @@ export const AralForms: React.FC<AralFormsProps> = ({
   }, [sections, newLearnerInput.section]);
 
   const isCustomSessionSec = useMemo(() => {
-    if (!sections || sections.length === 0) return true;
+    if (!aralClasses || aralClasses.length === 0) return true;
     if (!newSessionInput.section) return false;
-    return !sections.some(s => s.name === newSessionInput.section);
-  }, [sections, newSessionInput.section]);
+    return !aralClasses.some(c => c.name === newSessionInput.section);
+  }, [aralClasses, newSessionInput.section]);
 
   // Unique sections list
   const uniqueSections = useMemo(() => {
@@ -1893,8 +1909,8 @@ export const AralForms: React.FC<AralFormsProps> = ({
                   </select>
                 </div>
                 <div>
-                  <label className="text-[10px] font-bold text-slate-400 block uppercase mb-1">Section</label>
-                  {sections.length > 0 ? (
+                  <label className="text-[10px] font-bold text-slate-400 block uppercase mb-1">ARAL Class</label>
+                  {aralClasses.length > 0 ? (
                     <div className="space-y-1.5">
                       <select
                         value={isCustomSessionSec ? "custom_option_key" : newSessionInput.section}
@@ -1903,30 +1919,34 @@ export const AralForms: React.FC<AralFormsProps> = ({
                           if (val === "custom_option_key") {
                             setNewSessionInput(prev => ({ ...prev, section: "" }));
                           } else {
-                            const matchedSec = sections.find(s => s.name === val);
+                            const matchedClass = aralClasses.find(c => c.name === val);
                             setNewSessionInput(prev => ({
                               ...prev,
                               section: val,
-                              gradeLevel: matchedSec ? `Grade ${matchedSec.gradeLevel}` : prev.gradeLevel
+                              gradeLevel: matchedClass ? `Grade ${matchedClass.gradeLevel}` : prev.gradeLevel,
+                              subject: matchedClass?.targetSubject && ["Mathematics", "Reading", "Science"].includes(matchedClass.targetSubject)
+                                ? matchedClass.targetSubject
+                                : (matchedClass?.targetSubject === "Reading / English" ? "Reading" : prev.subject),
+                              presentCount: matchedClass ? (matchedClass.studentIds?.length || 1) : prev.presentCount
                             }));
                           }
                         }}
                         className="w-full text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 focus:border-[#002060] rounded-xl px-3 py-2 outline-none"
                       >
-                        <option value="" disabled>-- Select Advisory Section --</option>
-                        {sections.map(s => (
-                          <option key={s.id} value={s.name}>
-                            {s.name} (Grade {s.gradeLevel} - {s.adviserName || 'No Adviser'})
+                        <option value="" disabled>-- Select ARAL Class --</option>
+                        {aralClasses.map(c => (
+                          <option key={c.id} value={c.name}>
+                            {c.name} (Grade {c.gradeLevel} - {c.targetSubject || 'General'})
                           </option>
                         ))}
-                        <option value="custom_option_key">-- Type Custom Section --</option>
+                        <option value="custom_option_key">-- Type Custom Class Name --</option>
                       </select>
                       
                       {isCustomSessionSec && (
                         <input
                           type="text"
                           required
-                          placeholder="Type Custom Section Name..."
+                          placeholder="Type Custom Class Name..."
                           value={newSessionInput.section}
                           onChange={e => setNewSessionInput(prev => ({ ...prev, section: e.target.value }))}
                           className="w-full text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 focus:border-[#002060] rounded-xl px-3 py-2 outline-none animate-in slide-in-from-top-1 duration-200"
@@ -1937,6 +1957,7 @@ export const AralForms: React.FC<AralFormsProps> = ({
                     <input
                       type="text"
                       required
+                      placeholder="Type ARAL Class Name..."
                       value={newSessionInput.section}
                       onChange={e => setNewSessionInput(prev => ({ ...prev, section: e.target.value }))}
                       className="w-full text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 focus:border-[#002060] rounded-xl px-3 py-2 outline-none"
