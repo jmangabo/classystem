@@ -90,6 +90,7 @@ interface AralFormsProps {
   enrolledStudents?: any[];
   selectedSection?: any;
   sections?: any[];
+  aralClasses?: any[];
 }
 
 export const AralForms: React.FC<AralFormsProps> = ({
@@ -104,7 +105,8 @@ export const AralForms: React.FC<AralFormsProps> = ({
   activeRole,
   enrolledStudents = [],
   selectedSection = null,
-  sections = []
+  sections = [],
+  aralClasses = []
 }) => {
   const [activeFormTab, setActiveFormTab] = useState<number>(1);
   const [selectedStudentId, setSelectedStudentId] = useState<string>(learners[0]?.id || '');
@@ -320,7 +322,7 @@ export const AralForms: React.FC<AralFormsProps> = ({
     const newL: AralLearner = {
       id: `learner-${Date.now()}`,
       ...newLearnerInput,
-      status: 'Identified',
+      status: 'Enrolled',
       consentSigned: false,
       preTestScore: 0,
       postTestScore: 0,
@@ -493,7 +495,7 @@ export const AralForms: React.FC<AralFormsProps> = ({
                         const newL: AralLearner = {
                           id: `learner-${student.id || Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
                           ...mapped,
-                          status: 'Identified',
+                          status: 'Enrolled',
                           consentSigned: false,
                           preTestScore: 0,
                           postTestScore: 0,
@@ -781,7 +783,7 @@ export const AralForms: React.FC<AralFormsProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-600 font-medium">
-                  {filteredLearners.filter(l => l.status === 'Identified').map(l => {
+                  {filteredLearners.filter(l => l.status === 'Identified' || l.status === 'Enrolled' || l.status === 'Completed').map(l => {
                     // Calculate individual attendance percentage
                     const dates = ["2026-07-01", "2026-07-02", "2026-07-03", "2026-07-06", "2026-07-07"];
                     const presentCount = dates.filter(d => l.attendance[d] === 'Present').length;

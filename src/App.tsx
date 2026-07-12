@@ -3355,6 +3355,56 @@ export default function App() {
       );
     }
 
+    if (activeTab === 'aral') {
+      return (
+        <div className="flex flex-col h-screen overflow-hidden bg-slate-50">
+          <header className="h-20 bg-white border-b border-slate-200 flex items-center justify-between px-8 shrink-0 shadow-sm z-50">
+            <div className="flex items-center gap-4">
+              <button 
+                onClick={() => setActiveTab('dashboard')}
+                className="p-3 bg-slate-50 hover:bg-slate-100 text-[#002060] rounded-xl transition-all border border-transparent hover:border-slate-200 cursor-pointer"
+              >
+                <ArrowLeft size={20} />
+              </button>
+              <div>
+                <h2 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-3 uppercase">
+                  <GraduationCap className="text-indigo-600" size={24} />
+                  ARAL Program Module
+                </h2>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-0.5">Academic Remediation and Achievement Learning</p>
+              </div>
+            </div>
+            <button 
+              onClick={() => setActiveTab('dashboard')}
+              className="flex items-center gap-2 text-slate-500 hover:text-slate-800 font-semibold px-4 py-2 hover:bg-slate-50 rounded-xl transition-all border border-transparent hover:border-slate-200 cursor-pointer"
+            >
+              Back to Sections
+            </button>
+          </header>
+          <div className="flex-1 overflow-y-auto p-8 bg-slate-50">
+            <div className="max-w-[1600px] mx-auto">
+               <AralProgram 
+                 enrolledStudents={enrolledStudents}
+                 selectedSection={null}
+                 sections={sections}
+                 userProfile={userProfile}
+                 globalSettings={globalSettings}
+                 aralSchoolInfo={aralSchoolInfo}
+                 onUpdateAralSchool={handleUpdateAralSchool}
+                 aralCompetencies={aralCompetencies}
+                 onAddAralCompetency={handleAddAralCompetency}
+                 onDeleteAralCompetency={handleDeleteAralCompetency}
+                 aralClasses={aralClasses}
+                 onCreateAralClass={handleCreateAralClass}
+                 onUpdateAralClass={handleUpdateAralClass}
+                 onDeleteAralClass={handleDeleteAralClass}
+               />
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <>
         <SectionsView onCreateAralClass={handleCreateAralClass} onUpdateAralClass={handleUpdateAralClass} onDeleteAralClass={handleDeleteAralClass} aralClasses={aralClasses} 
@@ -3804,7 +3854,6 @@ export default function App() {
                 { id: 'anecdotes', label: 'Anecdotal Records', icon: <MessageSquare size={14} /> },
                 { id: 'sf8', label: 'School Form 8', icon: <Activity size={14} /> },
                 { id: 'sf4', label: 'School Form 4', icon: <FileText size={14} /> },
-                { id: 'aral', label: 'ARAL Program', icon: <GraduationCap size={14} /> },
                 { id: 'guide', label: 'Guide', icon: <HelpCircle size={14} /> },
                 { id: 'sys-docs', label: 'System Documentation', icon: <Terminal size={14} /> },
                 ...(currentUser?.email === 'jessiemangabo@gmail.com' ? [
@@ -3939,7 +3988,6 @@ export default function App() {
               return (
                 <>
                   {allowedTabs.find(t => t.id === 'dashboard') && renderButton(allowedTabs.find(t => t.id === 'dashboard'))}
-                  {allowedTabs.find(t => t.id === 'aral') && renderButton(allowedTabs.find(t => t.id === 'aral'))}
                   
                   {renderDropdown('student-mgmt', 'Student Management', <Users size={14} />, mgmtTabs)}
                   {renderDropdown('attendance', 'Attendance & Behavior', <Calendar size={14} />, attTabs)}
@@ -4480,6 +4528,15 @@ export default function App() {
                    sections={sections}
                    userProfile={userProfile}
                    globalSettings={globalSettings}
+                   aralSchoolInfo={aralSchoolInfo}
+                   onUpdateAralSchool={handleUpdateAralSchool}
+                   aralCompetencies={aralCompetencies}
+                   onAddAralCompetency={handleAddAralCompetency}
+                   onDeleteAralCompetency={handleDeleteAralCompetency}
+                   aralClasses={aralClasses}
+                   onCreateAralClass={handleCreateAralClass}
+                   onUpdateAralClass={handleUpdateAralClass}
+                   onDeleteAralClass={handleDeleteAralClass}
                  />
                </motion.div>
             )}
@@ -7264,7 +7321,10 @@ function SectionsView({
   });
 
   const renderItems = useMemo(() => {
-    type RenderItem = { type: 'section', section: Section } | { type: 'tle-group', key: string, tleName: string, gradeLevels: number[], sections: Section[], isExpired: boolean };
+    type RenderItem = 
+      | { type: 'section', section: Section } 
+      | { type: 'tle-group', key: string, tleName: string, gradeLevels: number[], sections: Section[], isExpired: boolean }
+      | { type: 'aral-class', aralClass: AralClass };
     const items: RenderItem[] = [];
     const tleGroups = new Map<string, { tleName: string, gradeLevels: Set<number>, sections: Section[], isExpired: boolean }>();
 
@@ -7336,9 +7396,44 @@ function SectionsView({
     tleGroups.forEach((group, key) => {
       items.unshift({ type: 'tle-group', key, tleName: group.tleName, gradeLevels: Array.from(group.gradeLevels).sort((a, b) => a - b), sections: group.sections, isExpired: group.isExpired });
     });
-    
+
+    // Populate and filter ARAL program classes
+    const effectiveYear = filters.schoolYear || globalSettings?.activeSchoolYear;
+    const filteredAral = (aralClasses || []).filter(cls => {
+      if (user?.role === 'teacher') {
+        const userEmail = (user?.email || "").trim().toLowerCase();
+        const adviserEmail = (cls.adviserEmail || "").trim().toLowerCase();
+        if (userEmail !== adviserEmail) return false;
+      }
+
+      if (effectiveYear && effectiveYear !== 'all') {
+        if (effectiveYear === 'No School Year') {
+          if (cls.schoolYear && cls.schoolYear.trim() !== '') return false;
+        } else {
+          if (cls.schoolYear !== effectiveYear) return false;
+        }
+      }
+
+      const isExpired = cls.schoolId ? expiredSchoolIds.includes(cls.schoolId) : false;
+      if (filters.visibility === 'active') {
+        if (isExpired) return false;
+      } else if (filters.visibility === 'expired') {
+        if (!isExpired) return false;
+      }
+
+      if (filters.gradeLevel !== '') {
+        if (String(cls.gradeLevel) !== String(filters.gradeLevel)) return false;
+      }
+
+      return true;
+    });
+
+    filteredAral.forEach(cls => {
+      items.push({ type: 'aral-class', aralClass: cls });
+    });
+
     return items;
-  }, [filteredSections, user, subjects, globalSubjects, expiredSchoolIds]);
+  }, [filteredSections, user, subjects, globalSubjects, expiredSchoolIds, aralClasses, filters, globalSettings]);
 
   const schoolYears = useMemo(() => {
     const list = Array.from(new Set(sections.map(s => s.schoolYear).filter(Boolean)));
@@ -7846,6 +7941,15 @@ function SectionsView({
                     >
                       <FileText size={16} className="text-amber-600" />
                       <span>School Form 4</span>
+                    </button>
+                  )}
+                  {onSetActiveTab && (user?.role === 'system_admin' || user?.role === 'school_head' || user?.role === 'admin') && (
+                    <button 
+                      onClick={() => onSetActiveTab('aral')}
+                      className="flex items-center justify-center gap-2 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-800 font-bold text-sm px-5 py-2.5 rounded-xl transition-all shadow-sm w-full sm:w-auto"
+                    >
+                      <GraduationCap size={16} className="text-indigo-600" />
+                      <span>ARAL Program</span>
                     </button>
                   )}
                   {(user?.role === 'admin' || user?.role === 'system_admin') && onManageStudentList && (
@@ -8376,63 +8480,6 @@ function SectionsView({
             )}
           </AnimatePresence>
 
-          {/* Master Data Registries Section */}
-          <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm transition-all mt-8">
-            <div
-              role="button"
-              tabIndex={0}
-              onClick={() => setIsMasterDataOpen(!isMasterDataOpen)}
-              onKeyDown={(e) => { if (e.key === "Enter") setIsMasterDataOpen(!isMasterDataOpen); }}
-              className="w-full px-6 py-4 flex items-center justify-between bg-slate-50 hover:bg-slate-100/70 border-b border-slate-100 transition-colors text-left font-sans cursor-pointer"
-            >
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
-                  <Layers size={16} />
-                </div>
-                <div>
-                  <h4 className="font-bold text-slate-800 text-sm uppercase tracking-wider leading-none">MASTER DATA REGISTRIES (ARAL Program)</h4>
-                  <p className="text-[10px] text-slate-500 font-medium uppercase tracking-widest mt-1">
-                    {filters.gradeLevel ? `Remediation benchmarks populated for Grade ${filters.gradeLevel}` : "Remediation benchmarks across grade levels"}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="text-slate-400 p-1 bg-white hover:bg-slate-200 rounded-lg border border-slate-200 transition-all">
-                  {isMasterDataOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                </div>
-              </div>
-            </div>
-
-            <AnimatePresence initial={false}>
-              {isMasterDataOpen && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: "auto", opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.2 }}
-                  className="overflow-hidden"
-                >
-                  <div className="p-6 border-t border-slate-100 bg-white">
-                    <AralMasterData
-                      schoolInfo={aralSchoolInfo}
-                      onUpdateSchool={onUpdateAralSchool}
-                      competencies={aralCompetencies}
-                      onAddCompetency={onAddAralCompetency}
-                      onDeleteCompetency={onDeleteAralCompetency}
-                      activeRole={mapUserRoleToAralRole(user?.role)}
-                      selectedSection={filters.gradeLevel ? { gradeLevel: filters.gradeLevel } : null}
-                      sections={sections}
-                      aralClasses={aralClasses}
-                      onCreateAralClass={onCreateAralClass}
-                      onUpdateAralClass={onUpdateAralClass}
-                      onDeleteAralClass={onDeleteAralClass}
-                    />
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-
           <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm transition-all mt-8">
             <div
               role="button"
@@ -8493,7 +8540,7 @@ function SectionsView({
                    <p className="text-slate-500 max-w-sm mx-auto mt-1.5 text-sm">Please use the filters above to browse and select academic sections.</p>
                  </div>
                </div>
-            ) : filteredSections.length === 0 ? (
+            ) : renderItems.length === 0 ? (
               <div className="col-span-full flex flex-col items-center justify-center p-16 bg-white rounded-2xl border border-dashed border-slate-300 text-center shadow-sm">
                 <div className="size-16 bg-slate-50 rounded-2xl flex items-center justify-center mx-auto mb-5 text-slate-400">
                   <Users size={28} />
@@ -8505,6 +8552,79 @@ function SectionsView({
               </div>
             ) : (
               renderItems.map((item) => {
+                if (item.type === 'aral-class') {
+                  const { aralClass } = item;
+                  const isExpired = aralClass.schoolId ? expiredSchoolIds.includes(aralClass.schoolId) : false;
+                  return (
+                    <motion.div 
+                      key={aralClass.id}
+                      whileHover={isExpired ? {} : { y: -4 }}
+                      onClick={() => {
+                        if (onSetActiveTab) {
+                          onSetActiveTab('aral');
+                        }
+                      }}
+                      className="flex flex-col bg-amber-50/20 p-6 rounded-2xl border border-amber-200 shadow-sm hover:shadow-md hover:border-amber-400 cursor-pointer transition-all duration-300 relative overflow-hidden group"
+                    >
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-amber-100/30 rounded-bl-full -z-10 group-hover:bg-amber-100/40 transition-colors"></div>
+                      
+                      <div className="flex justify-between items-start mb-5 relative z-10">
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center text-amber-700 group-hover:bg-amber-600 group-hover:text-white transition-colors border border-amber-200 shrink-0">
+                            <GraduationCap size={24} />
+                          </div>
+                          <div>
+                            <div className="flex items-center flex-wrap gap-2">
+                               <span className="text-[10px] font-black bg-amber-100 text-amber-800 px-2.5 py-0.5 rounded-md border border-amber-200">
+                                 ARAL PROGRAM CLASS
+                               </span>
+                               <span className="text-[10px] font-semibold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md border border-slate-200">
+                                 Grade {aralClass.gradeLevel}
+                               </span>
+                               {isExpired && (
+                                 <span className="text-[10px] font-semibold bg-red-50 text-red-600 px-2 py-0.5 rounded-md border border-red-200">Expired</span>
+                               )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <h3 className="text-xl font-bold text-slate-900 tracking-tight leading-tight mb-2 group-hover:text-amber-800 transition-colors">{aralClass.name}</h3>
+                      
+                      <div className="flex-1 space-y-3 mb-5">
+                        {aralClass.schoolYear && (
+                          <p className="text-[12px] text-slate-500 tracking-wide flex items-center gap-1.5">
+                            <Calendar size={12} className="text-slate-400" />
+                            SY {aralClass.schoolYear}
+                          </p>
+                        )}
+                        {aralClass.targetSubject && (
+                          <p className="text-[12px] text-slate-600 font-medium tracking-wide flex items-center gap-1.5">
+                            <BookOpen size={12} className="text-slate-400" />
+                            Subject: <span className="font-bold text-slate-800">{aralClass.targetSubject}</span>
+                          </p>
+                        )}
+                        {(aralClass.adviserName || aralClass.adviserEmail) && (
+                          <p className="text-[12px] text-slate-500 tracking-wide flex items-center gap-1.5">
+                            <User size={12} className="text-slate-400" />
+                            Tutor: {aralClass.adviserName || aralClass.adviserEmail}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="mt-auto pt-4 border-t border-dashed border-amber-200 flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 text-slate-500 text-xs">
+                          <Users size={14} className="text-amber-600" />
+                          <span className="font-semibold text-slate-700">{aralClass.studentIds?.length || 0} Learners Enrolled</span>
+                        </div>
+                        <span className="text-[10px] font-bold text-amber-700 group-hover:translate-x-1 transition-transform flex items-center gap-1">
+                          Manage Remediations <ArrowRight size={10} />
+                        </span>
+                      </div>
+                    </motion.div>
+                  );
+                }
+
                 if (item.type === 'tle-group') {
                   const { key, tleName, gradeLevels, sections, isExpired } = item;
                   return (

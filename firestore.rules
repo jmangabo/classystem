@@ -316,8 +316,11 @@ service cloud.firestore {
       }
 
       allow get, list: if isSignedIn();
-      allow create, update, delete: if (isAdmin() || isSystemAdmin() || isTeacher()) && isValidAralClass(incoming()) && (
+      allow create, update: if (isAdmin() || isSystemAdmin() || isTeacher()) && isValidAralClass(incoming()) && (
         !isSystemAdmin() || incoming().schoolId == getSchoolId()
+      );
+      allow delete: if (isAdmin() || isSystemAdmin() || isTeacher()) && (
+        !isSystemAdmin() || existing().schoolId == getSchoolId()
       );
     }
   }

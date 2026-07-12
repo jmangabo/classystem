@@ -84,6 +84,10 @@ export const AralMasterData: React.FC<AralMasterDataProps> = ({
   const [editClassTargetSubject, setEditClassTargetSubject] = useState('');
   const [editClassModalStudents, setEditClassModalStudents] = useState<any[]>([]);
 
+  // Delete ARAL Class Modal States
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [classToDelete, setClassToDelete] = useState<any | null>(null);
+
   // Fetch students belonging to the chosen grade level for the new class modal
   useEffect(() => {
     if (!isAddClassModalOpen || !newClassGradeLevel) {
@@ -92,7 +96,10 @@ export const AralMasterData: React.FC<AralMasterDataProps> = ({
     }
 
     const gradeLevelSections = sections.filter(s => {
-      if (s.gradeLevel === undefined || s.gradeLevel === null) return false;
+      // If gradeLevel is missing, we try to include it to be safe
+      if (s.gradeLevel === undefined || s.gradeLevel === null) {
+        return true;
+      }
       const secGradeNum = parseInt(String(s.gradeLevel).replace(/\D/g, ''), 10);
       return secGradeNum === newClassGradeLevel;
     });
@@ -133,7 +140,10 @@ export const AralMasterData: React.FC<AralMasterDataProps> = ({
     }
 
     const gradeLevelSections = sections.filter(s => {
-      if (s.gradeLevel === undefined || s.gradeLevel === null) return false;
+      // If gradeLevel is missing, we try to include it to be safe
+      if (s.gradeLevel === undefined || s.gradeLevel === null) {
+        return true;
+      }
       const secGradeNum = parseInt(String(s.gradeLevel).replace(/\D/g, ''), 10);
       return secGradeNum === editClassGradeLevel;
     });
@@ -843,6 +853,7 @@ export const AralMasterData: React.FC<AralMasterDataProps> = ({
                     <th className="p-3">Target Subject</th>
                     <th className="p-3">Active Tutor / Teacher</th>
                     <th className="p-3">Learners Identified</th>
+                    {isEditable && <th className="p-3 text-right">Actions</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-600 font-medium">
@@ -889,18 +900,77 @@ export const AralMasterData: React.FC<AralMasterDataProps> = ({
                               <span className="text-[10px] text-slate-400">Learners</span>
                             </div>
                           </td>
+                          {isEditable && (
+                            <td className="p-3 text-right">
+                              <div className="flex items-center justify-end gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEditModal(s)}
+                                  className="p-1.5 bg-slate-50 hover:bg-[#002060]/10 text-[#002060] border border-slate-200 hover:border-[#002060]/30 rounded-xl transition-all font-semibold flex items-center gap-1 text-[11px]"
+                                  title="Edit ARAL Class"
+                                >
+                                  <Edit size={13} />
+                                  <span>Edit</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setClassToDelete(s);
+                                    setIsDeleteModalOpen(true);
+                                  }}
+                                  className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 hover:border-rose-300 rounded-xl transition-all font-semibold flex items-center gap-1 text-[11px]"
+                                  title="Delete ARAL Class"
+                                >
+                                  <Trash2 size={13} />
+                                  <span>Delete</span>
+                                </button>
+                              </div>
+                            </td>
+                          )}
                         </tr>
                       );
                     })
                   ) : (
                     <tr>
-                      <td colSpan={5} className="p-8 text-center text-slate-400 italic">
+                      <td colSpan={isEditable ? 6 : 5} className="p-8 text-center text-slate-400 italic">
                         No ARAL classes have been defined or created yet. Click <strong className="text-[#002060]">"Add ARAL Class"</strong> above to set up a remediation tutoring class.
                       </td>
                     </tr>
                   )}
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+
+        {isDeleteModalOpen && classToDelete && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-[100] p-4 font-sans animate-in fade-in duration-200">
+            <div className="bg-white rounded-3xl border border-slate-100 shadow-2xl p-6 w-full max-w-sm animate-in fade-in zoom-in-95 duration-200">
+              <h3 className="text-base font-black text-slate-800 uppercase tracking-tight mb-2">Delete ARAL Class</h3>
+              <p className="text-sm text-slate-600 mb-6">
+                Are you sure you want to permanently delete the ARAL Class <strong>"{classToDelete.name}"</strong>? This action cannot be undone.
+              </p>
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => {
+                    setIsDeleteModalOpen(false);
+                    setClassToDelete(null);
+                  }}
+                  className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-xl transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    onDeleteAralClass?.(classToDelete.id);
+                    setIsDeleteModalOpen(false);
+                    setClassToDelete(null);
+                  }}
+                  className="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition-all"
+                >
+                  Delete Permanently
+                </button>
+              </div>
             </div>
           </div>
         )}
