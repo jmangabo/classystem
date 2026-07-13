@@ -744,6 +744,7 @@ export default function App() {
   }, []);
   const [expiredSchoolIds, setExpiredSchoolIds] = useState<string[]>([]);
   const [selectedSection, setSelectedSection] = useState<Section | null>(null);
+  const [selectedAralClassId, setSelectedAralClassId] = useState<string | null>(null);
   const [schoolCalendar, setSchoolCalendar] = useState<any[]>([]);
   const [globalSettings, setGlobalSettings] = useState<any>(null);
   const [isAuthorizedCashier, setIsAuthorizedCashier] = useState(false);
@@ -771,7 +772,10 @@ export default function App() {
 
   const [isMasterDataOpen, setIsMasterDataOpen] = useState(true);
 
-  const mapUserRoleToAralRole = (role?: string): AralRole => {
+  const mapUserRoleToAralRole = (role?: string, email?: string): AralRole => {
+    if (email && aralSchoolInfo?.coordinatorEmails?.some(e => e.trim().toLowerCase() === email.trim().toLowerCase())) {
+      return 'ARAL Coordinator';
+    }
     if (!role) return 'Teacher';
     switch (role) {
       case 'system_admin':
@@ -3398,6 +3402,8 @@ export default function App() {
                  onCreateAralClass={handleCreateAralClass}
                  onUpdateAralClass={handleUpdateAralClass}
                  onDeleteAralClass={handleDeleteAralClass}
+                 selectedAralClassId={selectedAralClassId}
+                 onSelectAralClassId={setSelectedAralClassId}
                />
             </div>
           </div>
@@ -3408,6 +3414,8 @@ export default function App() {
     return (
       <>
         <SectionsView onCreateAralClass={handleCreateAralClass} onUpdateAralClass={handleUpdateAralClass} onDeleteAralClass={handleDeleteAralClass} aralClasses={aralClasses} 
+          selectedAralClassId={selectedAralClassId}
+          onSelectAralClassId={setSelectedAralClassId}
           onScanID={() => {
             setShowGlobalScanner(true);
             setGlobalRecentScan(null);
@@ -4537,6 +4545,8 @@ export default function App() {
                    onCreateAralClass={handleCreateAralClass}
                    onUpdateAralClass={handleUpdateAralClass}
                    onDeleteAralClass={handleDeleteAralClass}
+                   selectedAralClassId={selectedAralClassId}
+                   onSelectAralClassId={setSelectedAralClassId}
                  />
                </motion.div>
             )}
@@ -6634,7 +6644,9 @@ function SectionsView({
   aralClasses = [],
   onCreateAralClass,
   onUpdateAralClass,
-  onDeleteAralClass
+  onDeleteAralClass,
+  selectedAralClassId,
+  onSelectAralClassId
 }: { 
   sections: Section[], 
   expiredSchoolIds?: string[],
@@ -6676,11 +6688,13 @@ function SectionsView({
   aralCompetencies: AralCompetency[],
   onAddAralCompetency: (comp: AralCompetency) => void,
   onDeleteAralCompetency: (id: string) => void,
-  mapUserRoleToAralRole: (role?: string) => AralRole,
+  mapUserRoleToAralRole: (role?: string, email?: string) => AralRole,
   aralClasses?: AralClass[],
   onCreateAralClass?: (gradeLevel: number, name: string, tutorName: string, tutorEmail: string, studentIds: string[], targetSubject?: string) => void,
   onUpdateAralClass?: (classId: string, tutorName: string, tutorEmail: string, studentIds: string[], targetSubject?: string, name?: string, gradeLevel?: number) => void,
-  onDeleteAralClass?: (classId: string) => void
+  onDeleteAralClass?: (classId: string) => void,
+  selectedAralClassId?: string | null,
+  onSelectAralClassId?: (classId: string | null) => void
 }) {
   const [showAdd, setShowAdd] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
@@ -7943,7 +7957,7 @@ function SectionsView({
                       <span>School Form 4</span>
                     </button>
                   )}
-                  {onSetActiveTab && (user?.role === 'system_admin' || user?.role === 'school_head' || user?.role === 'admin') && (
+                  {onSetActiveTab && (user?.role === 'system_admin' || user?.role === 'school_head' || user?.role === 'admin' || (mapUserRoleToAralRole && mapUserRoleToAralRole(user?.role, user?.email) === 'ARAL Coordinator')) && (
                     <button 
                       onClick={() => onSetActiveTab('aral')}
                       className="flex items-center justify-center gap-2 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-800 font-bold text-sm px-5 py-2.5 rounded-xl transition-all shadow-sm w-full sm:w-auto"
@@ -8560,6 +8574,9 @@ function SectionsView({
                       key={aralClass.id}
                       whileHover={isExpired ? {} : { y: -4 }}
                       onClick={() => {
+                        if (onSelectAralClassId) {
+                          onSelectAralClassId(aralClass.id);
+                        }
                         if (onSetActiveTab) {
                           onSetActiveTab('aral');
                         }

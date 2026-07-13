@@ -32,6 +32,7 @@ interface AralMasterDataProps {
   onCreateAralClass?: (gradeLevel: number, name: string, tutorName: string, tutorEmail: string, studentIds: string[], targetSubject?: string) => void;
   onUpdateAralClass?: (classId: string, tutorName: string, tutorEmail: string, studentIds: string[], targetSubject?: string, name?: string, gradeLevel?: number) => void;
   onDeleteAralClass?: (classId: string) => void;
+  userProfile?: any;
 }
 
 export const AralMasterData: React.FC<AralMasterDataProps> = ({
@@ -46,13 +47,49 @@ export const AralMasterData: React.FC<AralMasterDataProps> = ({
   aralClasses = [],
   onCreateAralClass,
   onUpdateAralClass,
-  onDeleteAralClass
+  onDeleteAralClass,
+  userProfile
 }) => {
   const [subTab, setSubTab] = useState<'school' | 'competencies' | 'subjects' | 'sections'>('competencies');
 
   // Edit School Info States
   const [editSchool, setEditSchool] = useState<AralSchoolInfo>({ ...schoolInfo });
   const [isSaved, setIsSaved] = useState(false);
+  const [newCoordinatorEmail, setNewCoordinatorEmail] = useState('');
+
+  // Sync editSchool with schoolInfo prop changes
+  useEffect(() => {
+    if (schoolInfo) {
+      setEditSchool({ ...schoolInfo });
+    }
+  }, [schoolInfo]);
+
+  const handleAddCoordinatorEmail = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCoordinatorEmail.trim()) return;
+    
+    const email = newCoordinatorEmail.trim().toLowerCase();
+    const currentEmails = editSchool.coordinatorEmails || [];
+    
+    if (currentEmails.includes(email)) {
+      alert("This email is already assigned as an ARAL Coordinator.");
+      return;
+    }
+    
+    const updatedEmails = [...currentEmails, email];
+    const updatedSchool = { ...editSchool, coordinatorEmails: updatedEmails };
+    setEditSchool(updatedSchool);
+    onUpdateSchool(updatedSchool);
+    setNewCoordinatorEmail('');
+  };
+
+  const handleRemoveCoordinatorEmail = (emailToRemove: string) => {
+    const currentEmails = editSchool.coordinatorEmails || [];
+    const updatedEmails = currentEmails.filter(e => e !== emailToRemove);
+    const updatedSchool = { ...editSchool, coordinatorEmails: updatedEmails };
+    setEditSchool(updatedSchool);
+    onUpdateSchool(updatedSchool);
+  };
 
   // Editing tutor states
   const [editingSectionId, setEditingSectionId] = useState<string | null>(null);
@@ -324,7 +361,9 @@ export const AralMasterData: React.FC<AralMasterDataProps> = ({
     subject: 'Reading',
     gradeLevel: activeGradeText,
     code: '',
-    description: ''
+    description: '',
+    week: 'Week 1',
+    lesson: ''
   });
 
   // Sync newComp grade level when active grade level changes
@@ -348,7 +387,7 @@ export const AralMasterData: React.FC<AralMasterDataProps> = ({
       id: `comp-${Date.now()}`,
       ...newComp
     });
-    setNewComp(prev => ({ ...prev, code: '', description: '' }));
+    setNewComp(prev => ({ ...prev, code: '', description: '', lesson: '' }));
   };
 
   // Filter competencies based on active grade level
@@ -526,6 +565,74 @@ export const AralMasterData: React.FC<AralMasterDataProps> = ({
                 </div>
               )}
             </form>
+
+            {/* Designated ARAL Coordinators Section */}
+            <div className="mt-8 pt-8 border-t border-slate-100">
+              <h3 className="text-base font-black text-slate-800 uppercase tracking-tight mb-2 flex items-center gap-2 text-[#002060]">
+                <User size={18} className="text-[#002060]" />
+                Designated ARAL Coordinators
+              </h3>
+              <p className="text-xs text-slate-500 leading-relaxed mb-4">
+                Assign educators who can accomplish reports, edit Master Data Registries, and manipulate the ARAL Program Module as coordinators, even if they have a standard Teacher profile role.
+              </p>
+
+              {/* List of current coordinators */}
+              <div className="space-y-2 mb-4">
+                {(!editSchool.coordinatorEmails || editSchool.coordinatorEmails.length === 0) ? (
+                  <div className="text-xs italic text-slate-400 p-4 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                    No designated ARAL Coordinators assigned yet.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {editSchool.coordinatorEmails.map((email) => (
+                      <div key={email} className="flex items-center justify-between p-3 bg-white border border-slate-100 rounded-2xl shadow-xs">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></div>
+                          <span className="text-xs font-semibold text-slate-700 truncate">{email}</span>
+                        </div>
+                        {(userProfile?.role === 'system_admin' || userProfile?.role === 'admin') && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveCoordinatorEmail(email)}
+                            className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-lg transition-all"
+                            title="Remove assignment"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Add form (Only for System Admin or Admin) */}
+              {(userProfile?.role === 'system_admin' || userProfile?.role === 'admin') ? (
+                <form onSubmit={handleAddCoordinatorEmail} className="flex items-center gap-2 max-w-md">
+                  <div className="relative flex-1">
+                    <input
+                      type="email"
+                      required
+                      placeholder="Enter teacher's email address..."
+                      value={newCoordinatorEmail}
+                      onChange={e => setNewCoordinatorEmail(e.target.value)}
+                      className="w-full text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 focus:border-[#002060] focus:ring-1 focus:ring-[#002060] rounded-xl px-3 py-2.5 transition-all outline-none"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    className="flex items-center gap-1.5 px-4 py-2.5 bg-[#002060] hover:bg-blue-800 text-white rounded-xl text-xs font-bold transition-all shadow shrink-0"
+                  >
+                    <Plus size={14} />
+                    Assign Coordinator
+                  </button>
+                </form>
+              ) : (
+                <div className="p-3 bg-blue-50/50 border border-blue-100 text-[#002060] rounded-2xl text-[11px] font-semibold">
+                  Only System Administrators or School Heads can assign or modify ARAL Coordinators.
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -547,7 +654,7 @@ export const AralMasterData: React.FC<AralMasterDataProps> = ({
                 <span className="text-xs font-black text-slate-700 block uppercase tracking-wide">
                   Add New Competency Code
                 </span>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                   <div>
                     <label className="text-[10px] font-black text-slate-400 block uppercase mb-1">Subject</label>
                     <select
@@ -580,6 +687,27 @@ export const AralMasterData: React.FC<AralMasterDataProps> = ({
                     </select>
                   </div>
                   <div>
+                    <label className="text-[10px] font-black text-slate-400 block uppercase mb-1">Remedial Week</label>
+                    <select
+                      value={newComp.week || 'Week 1'}
+                      onChange={e => setNewComp(prev => ({ ...prev, week: e.target.value }))}
+                      className="w-full text-xs font-semibold text-slate-700 bg-white border border-slate-200 focus:border-[#002060] rounded-xl px-3 py-2"
+                    >
+                      <option value="Week 1">Week 1</option>
+                      <option value="Week 2">Week 2</option>
+                      <option value="Week 3">Week 3</option>
+                      <option value="Week 4">Week 4</option>
+                      <option value="Week 5">Week 5</option>
+                      <option value="Week 6">Week 6</option>
+                      <option value="Week 7">Week 7</option>
+                      <option value="Week 8">Week 8</option>
+                      <option value="Week 9">Week 9</option>
+                      <option value="Week 10">Week 10</option>
+                      <option value="Week 11">Week 11</option>
+                      <option value="Week 12">Week 12</option>
+                    </select>
+                  </div>
+                  <div>
                     <label className="text-[10px] font-black text-slate-400 block uppercase mb-1">Competency Code (e.g. M7NS-I-b-1)</label>
                     <input
                       type="text"
@@ -587,6 +715,16 @@ export const AralMasterData: React.FC<AralMasterDataProps> = ({
                       placeholder="Code identifier"
                       value={newComp.code}
                       onChange={e => setNewComp(prev => ({ ...prev, code: e.target.value }))}
+                      className="w-full text-xs font-semibold text-slate-700 bg-white border border-slate-200 focus:border-[#002060] rounded-xl px-3 py-2 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black text-slate-400 block uppercase mb-1">Lesson / Topic Name</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Addition of Decimals"
+                      value={newComp.lesson || ''}
+                      onChange={e => setNewComp(prev => ({ ...prev, lesson: e.target.value }))}
                       className="w-full text-xs font-semibold text-slate-700 bg-white border border-slate-200 focus:border-[#002060] rounded-xl px-3 py-2 outline-none"
                     />
                   </div>
@@ -644,7 +782,9 @@ export const AralMasterData: React.FC<AralMasterDataProps> = ({
                   <tr className="bg-slate-50 text-slate-400 font-bold uppercase tracking-wider border-b border-slate-100">
                     <th className="p-3">Subject</th>
                     <th className="p-3">Grade</th>
+                    <th className="p-3">Week</th>
                     <th className="p-3">Code</th>
+                    <th className="p-3">Lesson Topic</th>
                     <th className="p-3">Description</th>
                     {isEditable && <th className="p-3 text-center">Actions</th>}
                   </tr>
@@ -665,7 +805,13 @@ export const AralMasterData: React.FC<AralMasterDataProps> = ({
                           </span>
                         </td>
                         <td className="p-3 text-slate-500">{comp.gradeLevel}</td>
+                        <td className="p-3">
+                          <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+                            {comp.week || "Week 1"}
+                          </span>
+                        </td>
                         <td className="p-3 font-mono font-bold text-slate-700">{comp.code}</td>
+                        <td className="p-3 font-bold text-slate-800">{comp.lesson || "—"}</td>
                         <td className="p-3 max-w-sm font-normal text-slate-500 leading-relaxed">{comp.description}</td>
                         {isEditable && (
                           <td className="p-3 text-center">
@@ -682,7 +828,7 @@ export const AralMasterData: React.FC<AralMasterDataProps> = ({
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={isEditable ? 5 : 4} className="p-8 text-center text-slate-400">
+                      <td colSpan={isEditable ? 7 : 6} className="p-8 text-center text-slate-400">
                         <div className="flex flex-col items-center justify-center gap-2">
                           <ListPlus size={24} className="text-slate-300" />
                           <p className="font-bold">No benchmarks registered for {activeGradeText} yet.</p>

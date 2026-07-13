@@ -52,6 +52,8 @@ export interface AralProgramProps {
   onCreateAralClass?: (gradeLevel: number, name: string, tutorName: string, tutorEmail: string, studentIds: string[], targetSubject?: string) => void;
   onUpdateAralClass?: (classId: string, tutorName: string, tutorEmail: string, studentIds: string[], targetSubject?: string, name?: string, gradeLevel?: number) => void;
   onDeleteAralClass?: (classId: string) => void;
+  selectedAralClassId?: string | null;
+  onSelectAralClassId?: (classId: string | null) => void;
 }
 
 export const AralProgram: React.FC<AralProgramProps> = ({
@@ -68,7 +70,9 @@ export const AralProgram: React.FC<AralProgramProps> = ({
   aralClasses = [],
   onCreateAralClass,
   onUpdateAralClass,
-  onDeleteAralClass
+  onDeleteAralClass,
+  selectedAralClassId = null,
+  onSelectAralClassId
 }) => {
   // 1. Local Storage Sync States
   const [schoolInfo, setSchoolInfo] = useState<AralSchoolInfo>(DEFAULT_SCHOOL_INFO);
@@ -81,7 +85,11 @@ export const AralProgram: React.FC<AralProgramProps> = ({
   // Navigation & Simulation states
   const [activeTab, setActiveTab] = useState<'dashboard' | 'forms' | 'master' | 'notifications'>('dashboard');
 
-  const mapUserRoleToAralRole = (role?: string): AralRole => {
+  const mapUserRoleToAralRole = (role?: string, email?: string): AralRole => {
+    const currentSchoolInfo = aralSchoolInfo || schoolInfo;
+    if (email && currentSchoolInfo?.coordinatorEmails?.some(e => e.trim().toLowerCase() === email.trim().toLowerCase())) {
+      return 'ARAL Coordinator';
+    }
     if (!role) return 'Teacher';
     switch (role) {
       case 'system_admin':
@@ -95,17 +103,28 @@ export const AralProgram: React.FC<AralProgramProps> = ({
     }
   };
 
-  const [activeRole, setActiveRole] = useState<AralRole>(() => mapUserRoleToAralRole(userProfile?.role));
+  const [activeRole, setActiveRole] = useState<AralRole>(() => mapUserRoleToAralRole(userProfile?.role, userProfile?.email));
 
   const finalSchoolInfo = aralSchoolInfo || schoolInfo;
   const finalCompetencies = aralCompetencies || competencies;
+  const baseAralRole = mapUserRoleToAralRole(userProfile?.role, userProfile?.email);
 
-  // Sync activeRole if userProfile role changes
+  // Sync activeRole if userProfile role or coordinator emails change
   useEffect(() => {
-    if (userProfile?.role) {
-      setActiveRole(mapUserRoleToAralRole(userProfile.role));
+    const computedRole = mapUserRoleToAralRole(userProfile?.role, userProfile?.email);
+    if (computedRole === 'Teacher') {
+      setActiveRole('Teacher');
+    } else {
+      setActiveRole(computedRole);
     }
-  }, [userProfile?.role]);
+  }, [userProfile?.role, userProfile?.email, finalSchoolInfo?.coordinatorEmails]);
+
+  // Prevent accessing Master Data if not authorized
+  useEffect(() => {
+    if (activeTab === 'master' && baseAralRole !== 'Admin' && baseAralRole !== 'ARAL Coordinator') {
+      setActiveTab('dashboard');
+    }
+  }, [baseAralRole, activeTab]);
 
   // Load state on mount
   useEffect(() => {
@@ -364,8 +383,26 @@ export const AralProgram: React.FC<AralProgramProps> = ({
       }
     });
 
-    return derived;
-  }, [aralClasses, dbStudents, learnersProgress]);
+    // Filter by selectedAralClassId and user profile email
+    let finalFiltered = derived;
+
+    if (selectedAralClassId) {
+      finalFiltered = finalFiltered.filter(l => {
+        const studentClass = studentClassMap.get(l.id);
+        return studentClass && studentClass.id === selectedAralClassId;
+      });
+    }
+
+    if (userProfile?.email) {
+      const uEmail = userProfile.email.trim().toLowerCase();
+      finalFiltered = finalFiltered.filter(l => {
+        const studentClass = studentClassMap.get(l.id);
+        return studentClass && (studentClass.adviserEmail || "").trim().toLowerCase() === uEmail;
+      });
+    }
+
+    return finalFiltered;
+  }, [aralClasses, dbStudents, learnersProgress, selectedAralClassId, userProfile]);
 
   const handleAddLearner = (learner: AralLearner) => {
     const updated = [learner, ...learnersProgress];
@@ -467,13 +504,13 @@ export const AralProgram: React.FC<AralProgramProps> = ({
           {/* Role selector dropdown */}
           <div className="flex items-center gap-2 bg-slate-50 border border-slate-100 rounded-2xl px-3.5 py-1.5">
             <UserSquare size={16} className="text-[#002060]" />
-            <span className="text-[10px] font-black text-slate-400 block uppercase tracking-wide">Simulate Role:</span>
+            <span className="text-[10px] font-black text-slate-400 block uppercase tracking-wide">ARAL ROLES:</span>
             <select
               value={activeRole}
               onChange={e => setActiveRole(e.target.value as AralRole)}
               className="text-xs font-black text-[#002060] bg-transparent outline-none cursor-pointer"
             >
-              <option value="ARAL Coordinator">ARAL Coordinator</option>
+              <option value="ARAL Coordinator" disabled={baseAralRole === 'Teacher'}>ARAL Coordinator</option>
               <option value="Teacher">Teacher</option>
             </select>
           </div>
@@ -506,18 +543,51 @@ export const AralProgram: React.FC<AralProgramProps> = ({
           ARAL Forms Workspace
         </button>
 
-        <button
-          onClick={() => setActiveTab('master')}
-          className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-xs font-black uppercase tracking-wider transition-all ${
-            activeTab === 'master'
-              ? 'bg-[#002060] text-white shadow-sm'
-              : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
-          }`}
-        >
-          <Layers size={16} />
-          Master Data Registries
-        </button>
+        {(baseAralRole === 'Admin' || baseAralRole === 'ARAL Coordinator') && (
+          <button
+            onClick={() => setActiveTab('master')}
+            className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-xs font-black uppercase tracking-wider transition-all ${
+              activeTab === 'master'
+                ? 'bg-[#002060] text-white shadow-sm'
+                : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+            }`}
+          >
+            <Layers size={16} />
+            Master Data Registries
+          </button>
+        )}
       </div>
+
+      {/* Active Filter Banner */}
+      {(selectedAralClassId || userProfile?.email) && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 px-5 py-3.5 rounded-3xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-semibold shadow-xs animate-in fade-in duration-200">
+          <div className="flex items-center gap-2.5">
+            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0"></span>
+            <span>
+              {selectedAralClassId ? (
+                <>
+                  Showing assigned learners for <strong className="font-extrabold text-amber-900">"{aralClasses.find(c => c.id === selectedAralClassId)?.name || 'Selected Class'}"</strong>
+                </>
+              ) : (
+                <>Showing all active ARAL learners</>
+              )}
+              {userProfile?.email && (
+                <>
+                  {" "}filtered by your tutor account: <strong className="font-extrabold text-amber-900">{userProfile.email}</strong>
+                </>
+              )}
+            </span>
+          </div>
+          {selectedAralClassId && onSelectAralClassId && (
+            <button
+              onClick={() => onSelectAralClassId(null)}
+              className="self-start sm:self-auto px-3 py-1 bg-white hover:bg-amber-100 text-amber-800 font-black rounded-xl border border-amber-300 transition-all uppercase text-[9px] tracking-wider cursor-pointer"
+            >
+              Clear Class Filter
+            </button>
+          )}
+        </div>
+      )}
 
       {/* 3. DYNAMIC VIEWS */}
       <div className="space-y-6">
@@ -559,7 +629,7 @@ export const AralProgram: React.FC<AralProgramProps> = ({
           />
         )}
 
-        {activeTab === 'master' && (
+        {activeTab === 'master' && (baseAralRole === 'Admin' || baseAralRole === 'ARAL Coordinator') && (
           <AralMasterData
             schoolInfo={finalSchoolInfo}
             onUpdateSchool={finalUpdateSchool}
@@ -573,6 +643,7 @@ export const AralProgram: React.FC<AralProgramProps> = ({
             onCreateAralClass={onCreateAralClass}
             onUpdateAralClass={onUpdateAralClass}
             onDeleteAralClass={onDeleteAralClass}
+            userProfile={userProfile}
           />
         )}
       </div>

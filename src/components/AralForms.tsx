@@ -915,6 +915,8 @@ export const AralForms: React.FC<AralFormsProps> = ({
                         <span className="text-slate-400 text-[10px] block font-bold uppercase">Competency Covered</span>
                         <p className="font-semibold text-slate-800 leading-relaxed">
                           <span className="font-mono text-xs bg-slate-200 px-1.5 py-0.5 rounded text-slate-700 mr-2">{comp?.code}</span>
+                          {comp?.week && <span className="text-blue-700 font-bold bg-blue-50 px-1.5 py-0.5 rounded text-[10px] mr-2">{comp.week}</span>}
+                          {comp?.lesson && <span className="font-bold text-slate-800 mr-2">Lesson: {comp.lesson} —</span>}
                           {comp?.description}
                         </p>
                       </div>
@@ -1089,7 +1091,11 @@ export const AralForms: React.FC<AralFormsProps> = ({
                       <div className="md:col-span-2">
                         <label className="text-[10px] font-black text-slate-400 block uppercase mb-1">Mapped Competency</label>
                         <select name="competencyId" className="w-full text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl px-3 py-2">
-                          {competencies.map(c => <option key={c.id} value={c.id}>{c.code} - {c.description.slice(0, 40)}...</option>)}
+                          {competencies.map(c => (
+                            <option key={c.id} value={c.id}>
+                              {c.week ? `[${c.week}] ` : ""}{c.lesson ? `${c.lesson} (${c.code})` : c.code} - {c.description.slice(0, 40)}...
+                            </option>
+                          ))}
                         </select>
                       </div>
                       <div>
@@ -1139,6 +1145,8 @@ export const AralForms: React.FC<AralFormsProps> = ({
                             <td className="p-3 font-bold text-slate-800">Week {weekNum}</td>
                             <td className="p-3">
                               <span className="font-mono font-bold bg-slate-100 px-1.5 py-0.5 rounded text-slate-600 mr-2">{comp?.code}</span>
+                              {comp?.week && <span className="text-blue-700 font-bold bg-blue-50 px-1.5 py-0.5 rounded text-[10px] mr-2">{comp.week}</span>}
+                              {comp?.lesson && <span className="font-bold text-slate-800 mr-2">Lesson: {comp.lesson} —</span>}
                               <span className="text-slate-500 font-normal">{comp?.description}</span>
                             </td>
                             <td className="p-3 text-slate-500">{value.intervention}</td>
@@ -1303,7 +1311,10 @@ export const AralForms: React.FC<AralFormsProps> = ({
                 <ul className="list-disc pl-5 space-y-1 text-slate-700">
                   {competencies.slice(0, 3).map(c => (
                     <li key={c.id}>
-                      <strong className="font-mono text-[11px] mr-1 text-slate-500">[{c.code}]</strong> {c.description}
+                      <strong className="font-mono text-[11px] mr-1 text-slate-500">[{c.code}]</strong>
+                      {c.week && <span className="text-blue-700 font-bold mr-1">({c.week})</span>}
+                      {c.lesson && <span className="font-bold text-slate-800 mr-1">{c.lesson} —</span>}
+                      {c.description}
                     </li>
                   ))}
                 </ul>
@@ -1986,7 +1997,7 @@ export const AralForms: React.FC<AralFormsProps> = ({
                 >
                   {competencies.map(c => (
                     <option key={c.id} value={c.id}>
-                      [{c.code}] {c.description.slice(0, 50)}...
+                      {c.week ? `[${c.week}] ` : ""}{c.lesson ? `${c.lesson} (${c.code})` : c.code} - {c.description.slice(0, 50)}...
                     </option>
                   ))}
                 </select>

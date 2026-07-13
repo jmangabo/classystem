@@ -12,6 +12,7 @@ export interface AralSchoolInfo {
   division: string;
   district: string;
   schoolYear: string;
+  coordinatorEmails?: string[];
 }
 
 export interface AralLearner {
@@ -69,6 +70,8 @@ export interface AralCompetency {
   gradeLevel: string;
   code: string;
   description: string;
+  week?: string;
+  lesson?: string;
 }
 
 // -------------------------------------------------------------
@@ -81,7 +84,8 @@ export const DEFAULT_SCHOOL_INFO: AralSchoolInfo = {
   region: "",
   division: "",
   district: "",
-  schoolYear: "2026-2027"
+  schoolYear: "2026-2027",
+  coordinatorEmails: []
 };
 
 export const DEFAULT_COMPETENCIES: AralCompetency[] = [];
