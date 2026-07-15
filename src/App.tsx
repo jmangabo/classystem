@@ -12724,18 +12724,18 @@ function IDPrintingCenterModal({
     
     #print-payload-wrapper {
       padding: 20px;
-      max-width: 210mm;
+      max-width: ${orientation === 'landscape' ? '297mm' : '210mm'};
       margin: 20px auto;
       background: white;
       box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1);
       border-radius: 16px;
-      min-height: 297mm;
+      min-height: ${orientation === 'landscape' ? '210mm' : '297mm'};
       box-sizing: border-box;
     }
 
     .id-print-grid {
       display: grid !important;
-      grid-template-columns: repeat(3, 53.98mm) !important;
+      grid-template-columns: repeat(${orientation === 'landscape' ? 4 : 3}, 53.98mm) !important;
       justify-content: center !important;
       gap: 12mm 8mm !important;
       width: 100% !important;
@@ -12873,8 +12873,8 @@ function IDPrintingCenterModal({
         background: white !important;
       }
       @page {
-        size: A4 portrait;
-        margin: 5mm 5mm !important;
+        size: A4 ${orientation};
+        margin: ${orientation === 'landscape' ? '5mm 10mm' : '5mm 5mm'} !important;
       }
       * {
         -webkit-print-color-adjust: exact !important;
@@ -12935,6 +12935,8 @@ function IDPrintingCenterModal({
     printHTMLContent(pageHTML);
   };
 
+  const cardsPerRow = orientation === 'landscape' ? 4 : 3;
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -12964,12 +12966,12 @@ function IDPrintingCenterModal({
             display: block !important;
           }
           @page {
-            size: A4 portrait;
-            margin: 8mm 6mm;
+            size: A4 ${orientation};
+            margin: ${orientation === 'landscape' ? '8mm 10mm' : '8mm 6mm'};
           }
           .id-print-grid {
             display: grid !important;
-            grid-template-columns: repeat(3, 53.98mm) !important;
+            grid-template-columns: repeat(${orientation === 'landscape' ? 4 : 3}, 53.98mm) !important;
             justify-content: center !important;
             gap: 12mm 8mm !important;
             width: 100% !important;
@@ -13083,11 +13085,11 @@ function IDPrintingCenterModal({
       {/* Actual Hidden print document payload portaled to document.body to not affect normal flow */}
       {createPortal(
       <div id="id-print-payload-area" className="hidden print:block">
-        {Array.from({ length: Math.ceil(selectedStudentsToPrint.length / 3) }).map((_, pageIndex) => {
+        {Array.from({ length: Math.ceil(selectedStudentsToPrint.length / cardsPerRow) }).map((_, pageIndex) => {
           return (
           <div key={pageIndex} style={{ pageBreakAfter: 'always' }}>
             <div className="id-print-grid">
-            {selectedStudentsToPrint.slice(pageIndex * 3, pageIndex * 3 + 3).map((s) => {
+            {selectedStudentsToPrint.slice(pageIndex * cardsPerRow, pageIndex * cardsPerRow + cardsPerRow).map((s) => {
               const displayLrn = s.lrn || "---";
               const displayName = formatStudentName(s) || "N/A";
               const displayYear = section?.schoolYear || "SY 2025-2026";
@@ -13556,6 +13558,21 @@ function IDPrintingCenterModal({
                   <option value="front-back">📄 Front & Back Separate Pages</option>
                   <option value="front-only">🖼️ Front Side Only</option>
                   <option value="back-only">📝 Back Side Only</option>
+                </select>
+              </div>
+
+              {/* Print Page Orientation */}
+              <div className="space-y-2">
+                <label htmlFor="orientation-select" className="text-[10px] font-black uppercase text-slate-540 tracking-wider">Print Page Orientation</label>
+                <select
+                  id="orientation-select"
+                  value={orientation}
+                  disabled={!isAdmin}
+                  onChange={(e) => setOrientation(e.target.value as 'portrait' | 'landscape')}
+                  className={`w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-500 transition-colors shadow-sm cursor-pointer ${!isAdmin ? 'opacity-60 cursor-not-allowed' : ''}`}
+                >
+                  <option value="portrait">📐 Portrait (A4 Portrait - 3 cards per row)</option>
+                  <option value="landscape">📐 Landscape (A4 Landscape - 4 cards per row)</option>
                 </select>
               </div>
 
