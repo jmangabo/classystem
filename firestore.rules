@@ -323,5 +323,12 @@ service cloud.firestore {
         !isSystemAdmin() || existing().schoolId == getSchoolId()
       );
     }
+
+    // 11. SF7 Records Rules
+    match /sf7_records/{recordId} {
+      allow read, get, list: if isSignedIn();
+      allow create, update: if isTeacher();
+      allow delete: if isAdmin() || isSystemAdmin() || isTeacher();
+    }
   }
 }

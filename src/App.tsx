@@ -530,6 +530,7 @@ import { SF2ReportView } from "./components/SF2ReportView";
 import { ObservedValuesTracker } from "./components/ObservedValuesTracker";
 import { SF10View } from "./components/SF10View";
 import { SF4ReportView } from "./components/SF4ReportView";
+import { SF7ReportView } from "./components/SF7ReportView";
 import { AdminSchoolCalendarView } from "./AdminSchoolCalendarView";
 import { AdminSchoolYearView } from "./components/AdminSchoolYearView";
 import { FeedbackModal } from "./components/FeedbackModal";
@@ -1002,7 +1003,7 @@ export default function App() {
   const [activeSchool, setActiveSchool] = useState<School | null>(null);
   const [teacherCount, setTeacherCount] = useState<number>(0);
   
-  const [activeTab, setActiveTab ] = useState<"dashboard" | "gradebook" | "enroll" | "subjects" | "summary" | "guide" | "sys-docs" | "attendance" | "sf2" | "observed-values" | "sf10" | "transfers" | "sf8" | "sf4" | "anecdotes" | "pta" | "tle-dashboard">("dashboard");
+  const [activeTab, setActiveTab ] = useState<"dashboard" | "gradebook" | "enroll" | "subjects" | "summary" | "guide" | "sys-docs" | "attendance" | "sf2" | "observed-values" | "sf10" | "transfers" | "sf8" | "sf4" | "sf7" | "anecdotes" | "pta" | "tle-dashboard">("dashboard");
   const [ptaInitialTab, setPtaInitialTab] = useState<'collection' | 'setup' | 'reports' | 'audit'>('collection');
   const [preselectedStudentForAnecdotal, setPreselectedStudentForAnecdotal] = useState<Student | null>(null);
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
@@ -1016,6 +1017,7 @@ export default function App() {
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [showAdminPTA, setShowAdminPTA] = useState(false);
   const [showAdminSF4, setShowAdminSF4] = useState(false);
+  const [showAdminSF7, setShowAdminSF7] = useState(false);
   const [pendingUsersCount, setPendingUsersCount] = useState(0);
   const [isCompletingProfile, setIsCompletingProfile] = useState(false);
   const [studentViewMatched, setStudentViewMatched] = useState<{ student: Student, section: Section } | null>(null);
@@ -3110,6 +3112,37 @@ export default function App() {
     );
   }
 
+  if (showAdminSF7 && (userProfile?.role === 'system_admin' || userProfile?.role === 'school_head' || userProfile?.role === 'admin')) {
+    return (
+      <div className="flex flex-col h-screen overflow-hidden bg-slate-50">
+        <header className="h-20 bg-white border-b border-slate-200 flex items-center justify-between px-8 shrink-0 shadow-sm z-50">
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => setShowAdminSF7(false)}
+              className="p-3 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-xl transition-all"
+            >
+              <ArrowLeft size={20} />
+            </button>
+            <div>
+              <h2 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-3 uppercase">
+                <FileText className="text-indigo-600" size={24} />
+                School Form 7 (SF7)
+              </h2>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-0.5">School Staff Assignment and List of Personnel</p>
+            </div>
+          </div>
+        </header>
+        <div className="flex-1 overflow-y-auto animate-fade-in">
+          <SF7ReportView 
+             schoolId={userProfile?.schoolId || ""}
+             activeSchoolYear={globalSettings?.activeSchoolYear || "2026-2027"}
+             userProfile={userProfile}
+          />
+        </div>
+      </div>
+    );
+  }
+
   if (showAdminPTA && (userProfile?.role === 'system_admin' || userProfile?.role === 'school_head' || isAuthorizedCashier)) {
     return (
       <div className="flex flex-col h-screen bg-slate-50">
@@ -3453,6 +3486,7 @@ export default function App() {
             setShowAdminPTA(true);
           }}
           onShowSF4={() => setShowAdminSF4(true)}
+          onShowSF7={() => setShowAdminSF7(true)}
           pendingUsersCount={pendingUsersCount}
           isAnySectionAdviser={isAnySectionAdviser}
           onManageSchools={() => setShowAdminSchools(true)}
@@ -3862,6 +3896,7 @@ export default function App() {
                 { id: 'anecdotes', label: 'Anecdotal Records', icon: <MessageSquare size={14} /> },
                 { id: 'sf8', label: 'School Form 8', icon: <Activity size={14} /> },
                 { id: 'sf4', label: 'School Form 4', icon: <FileText size={14} /> },
+                { id: 'sf7', label: 'School Form 7', icon: <FileText size={14} /> },
                 { id: 'guide', label: 'Guide', icon: <HelpCircle size={14} /> },
                 { id: 'sys-docs', label: 'System Documentation', icon: <Terminal size={14} /> },
                 ...(currentUser?.email === 'jessiemangabo@gmail.com' ? [
@@ -3883,9 +3918,12 @@ export default function App() {
                 // SF4 is accessible to system_admin, school_head, and authorized cashier
                 if (tab.id === 'sf4' && userProfile?.role !== 'system_admin' && userProfile?.role !== 'school_head' && !isAuthorizedCashier) return false;
 
+                // SF7 is accessible to system_admin, admin, school_head, and teachers
+                if (tab.id === 'sf7' && userProfile?.role !== 'system_admin' && userProfile?.role !== 'admin' && userProfile?.role !== 'school_head' && userProfile?.role !== 'teacher') return false;
+
                 if (userProfile?.role === 'system_admin' || userProfile?.role === 'admin' || isAuthorizedCashier) {
                   const allowedTabsList = [
-                    'dashboard', 'enroll', 'subjects', 'pta', 'sf8', 'guide', 'sys-docs', 'gradebook', 'summary', 'attendance', 'observed-values', 'sf2', 'transfers', 'sf10', 'sf4', 'anecdotes', 'logs', 'logs-clear', 'aral'
+                    'dashboard', 'enroll', 'subjects', 'pta', 'sf8', 'guide', 'sys-docs', 'gradebook', 'summary', 'attendance', 'observed-values', 'sf2', 'transfers', 'sf10', 'sf4', 'sf7', 'anecdotes', 'logs', 'logs-clear', 'aral'
                   ];
                   if (userProfile?.role === 'system_admin') {
                     return allowedTabsList.filter(id => {
@@ -3898,7 +3936,7 @@ export default function App() {
                   return allowedTabsList.filter(id => id !== 'sf4').includes(tab.id);
                 }
                 if (userProfile?.role === 'school_head') {
-                   return ['sf8', 'sf4', 'sf10', 'anecdotes', 'aral'].includes(tab.id);
+                   return ['sf8', 'sf4', 'sf7', 'sf10', 'anecdotes', 'aral'].includes(tab.id);
                 }
                 if (userProfile?.role === 'guidance_designate') {
                    return ['anecdotes', 'aral'].includes(tab.id);
@@ -3906,9 +3944,9 @@ export default function App() {
                 if (userProfile?.role === 'teacher') {
                   if (isSectionAdviser) {
                     // Advisers see most things except restricted ones like SF4
-                    return ['dashboard', 'enroll', 'subjects', 'pta', 'sf8', 'sf10', 'attendance', 'observed-values', 'sf2', 'transfers', 'anecdotes', 'guide', 'gradebook', 'summary', 'aral'].includes(tab.id);
+                    return ['dashboard', 'enroll', 'subjects', 'pta', 'sf8', 'sf10', 'attendance', 'observed-values', 'sf2', 'transfers', 'anecdotes', 'guide', 'gradebook', 'summary', 'sf7', 'aral'].includes(tab.id);
                   }
-                  return tab.id === 'gradebook' || tab.id === 'dashboard' || tab.id === 'anecdotes' || tab.id === 'pta' || tab.id === 'aral';
+                  return tab.id === 'gradebook' || tab.id === 'dashboard' || tab.id === 'anecdotes' || tab.id === 'pta' || tab.id === 'sf7' || tab.id === 'aral';
                 }
                 return true;
               });
@@ -3935,7 +3973,7 @@ export default function App() {
 
               const mgmtTabs = allowedTabs.filter(t => ['enroll', 'transfers', 'sf8', 'pta'].includes(t.id));
               const attTabs = allowedTabs.filter(t => ['attendance', 'sf2', 'observed-values', 'anecdotes'].includes(t.id));
-              const academicTabs = allowedTabs.filter(t => ['subjects', 'gradebook', 'summary', 'sf10'].includes(t.id));
+              const academicTabs = allowedTabs.filter(t => ['subjects', 'gradebook', 'summary', 'sf10', 'sf4', 'sf7'].includes(t.id));
               const supportTabsGroup = allowedTabs.filter(t => ['guide', 'sys-docs'].includes(t.id));
 
               const renderDropdown = (id: string, label: string, icon: React.ReactNode, tabs: any[]) => {
@@ -4518,6 +4556,22 @@ export default function App() {
                     schoolId={userProfile.schoolId}
                     calendar={schoolCalendar}
                     globalSettings={globalSettings}
+                 />
+               </motion.div>
+            )}
+
+            {activeTab === 'sf7' && userProfile?.schoolId && (
+               <motion.div 
+                 key="sf7"
+                 initial={{ opacity: 0, y: 10 }}
+                 animate={{ opacity: 1, y: 0 }}
+                 exit={{ opacity: 0, y: -10 }}
+                 transition={{ duration: 0.2 }}
+               >
+                 <SF7ReportView 
+                    schoolId={userProfile.schoolId}
+                    activeSchoolYear={selectedSection?.schoolYear || globalSettings?.activeSchoolYear || "2026-2027"}
+                    userProfile={userProfile}
                  />
                </motion.div>
             )}
@@ -6622,6 +6676,7 @@ function SectionsView({
   onManageStudentList,
   onShowFinancialStatement,
   onShowSF4,
+  onShowSF7,
   isAuthorizedCashier,
   onShowFeedback,
   isFeedbackOpen,
@@ -6670,6 +6725,7 @@ function SectionsView({
   onManageStudentList?: () => void,
   onShowFinancialStatement?: () => void,
   onShowSF4?: () => void,
+  onShowSF7?: () => void,
   isAuthorizedCashier?: boolean,
   onShowFeedback: () => void,
   isFeedbackOpen: boolean,
@@ -7955,6 +8011,15 @@ function SectionsView({
                     >
                       <FileText size={16} className="text-amber-600" />
                       <span>School Form 4</span>
+                    </button>
+                  )}
+                  {onShowSF7 && (user?.role === 'system_admin' || user?.role === 'school_head' || user?.role === 'admin') && (
+                    <button 
+                      onClick={onShowSF7}
+                      className="flex items-center justify-center gap-2 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-800 font-bold text-sm px-5 py-2.5 rounded-xl transition-all shadow-sm w-full sm:w-auto"
+                    >
+                      <FileText size={16} className="text-indigo-600" />
+                      <span>School Form 7</span>
                     </button>
                   )}
                   {onSetActiveTab && (user?.role === 'system_admin' || user?.role === 'school_head' || user?.role === 'admin' || (mapUserRoleToAralRole && mapUserRoleToAralRole(user?.role, user?.email) === 'ARAL Coordinator')) && (
@@ -12173,9 +12238,19 @@ function IDPrintingCenterModal({
         const schoolsRef = collection(db, "schools");
         const q = query(schoolsRef, where("schoolId", "==", section.schoolId));
         const querySnapshot = await getDocs(q);
+        let schoolData: any = null;
         if (!querySnapshot.empty) {
           const docSnap = querySnapshot.docs[0];
-          const schoolData = docSnap.data();
+          schoolData = docSnap.data();
+        } else {
+          const directDocRef = doc(db, "schools", section.schoolId);
+          const directDocSnap = await getDoc(directDocRef);
+          if (directDocSnap.exists()) {
+            schoolData = directDocSnap.data();
+          }
+        }
+
+        if (schoolData) {
           if (schoolData.headOfSchool) setSchoolHead(schoolData.headOfSchool);
           if (schoolData.schoolLogo) setSchoolLogo(schoolData.schoolLogo);
           
@@ -12211,29 +12286,52 @@ function IDPrintingCenterModal({
       const schoolsRef = collection(db, "schools");
       const q = query(schoolsRef, where("schoolId", "==", section.schoolId));
       const querySnapshot = await getDocs(q);
+      
+      const templateData = {
+        idTemplate: {
+          cardTheme,
+          customBackground,
+          customBackgroundOpacity,
+          orientation,
+          layoutType,
+          includePhotoBox,
+          includeBarcode,
+          watermarkLogo,
+          emergencyNotes,
+          contactNumber,
+          fontFamily,
+          elementOffsets
+        }
+      };
+
       if (!querySnapshot.empty) {
         const docRef = querySnapshot.docs[0].ref;
-        await updateDoc(docRef, {
-          idTemplate: {
-            cardTheme,
-            customBackground,
-            customBackgroundOpacity,
-            orientation,
-            layoutType,
-            includePhotoBox,
-            includeBarcode,
-            watermarkLogo,
-            emergencyNotes,
-            contactNumber,
-            fontFamily,
-            elementOffsets
-          }
-        });
+        await updateDoc(docRef, templateData);
         alert("ID Template saved to school successfully!");
+      } else {
+        const directDocRef = doc(db, "schools", section.schoolId);
+        const directDocSnap = await getDoc(directDocRef);
+        if (directDocSnap.exists()) {
+          await updateDoc(directDocRef, templateData);
+          alert("ID Template saved to school successfully!");
+        } else {
+          // Attempt to create a new school record (only succeeds if user has admin permissions)
+          try {
+            await setDoc(directDocRef, {
+              schoolId: section.schoolId,
+              name: section.schoolName || section.schoolId,
+              ...templateData
+            });
+            alert("ID Template saved to new school successfully!");
+          } catch (createErr: any) {
+            console.error("Failed to create new school document", createErr);
+            alert(`Unable to save template: The school with ID "${section.schoolId}" does not exist in the database, and you do not have permission to create a new school record. Please make sure the school is created in the Manage Schools tab first.`);
+          }
+        }
       }
     } catch (e) {
       console.error("Error saving template", e);
-      alert("Failed to save template");
+      alert("Failed to save template: " + (e instanceof Error ? e.message : String(e)));
     }
   };
 
@@ -12551,7 +12649,7 @@ function IDPrintingCenterModal({
 
     .id-print-grid {
       display: grid !important;
-      grid-template-columns: repeat(3, 54mm) !important;
+      grid-template-columns: repeat(3, 53.98mm) !important;
       justify-content: center !important;
       gap: 12mm 8mm !important;
       width: 100% !important;
@@ -12559,11 +12657,15 @@ function IDPrintingCenterModal({
       margin: 0 auto !important;
     }
 
-    .id-print-card-box {
+    .id-print-card-cell {
       display: flex !important;
       flex-direction: column !important;
-      width: 54mm !important;
-      height: 86mm !important;
+      width: 53.98mm !important;
+      height: 85.6mm !important;
+      min-width: 53.98mm !important;
+      max-width: 53.98mm !important;
+      min-height: 85.6mm !important;
+      max-height: 85.6mm !important;
       border: 1px solid #cbd5e1 !important;
       border-radius: 4.5mm !important;
       overflow: hidden !important;
@@ -12577,11 +12679,15 @@ function IDPrintingCenterModal({
       print-color-adjust: exact !important;
     }
 
-    .id-print-card-box-vertical {
+    .id-print-card-cell-vertical {
       display: flex !important;
       flex-direction: column !important;
-      width: 54mm !important;
-      height: 172mm !important;
+      width: 53.98mm !important;
+      height: 171.2mm !important;
+      min-width: 53.98mm !important;
+      max-width: 53.98mm !important;
+      min-height: 171.2mm !important;
+      max-height: 171.2mm !important;
       border: 1px solid #cbd5e1 !important;
       border-radius: 4.5mm !important;
       overflow: hidden !important;
@@ -12591,13 +12697,49 @@ function IDPrintingCenterModal({
       position: relative !important;
       box-sizing: border-box !important;
       margin-bottom: 5px !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+
+    .id-print-card-scalable {
+      width: 240px !important;
+      height: 382px !important;
+      min-width: 240px !important;
+      max-width: 240px !important;
+      min-height: 382px !important;
+      max-height: 382px !important;
+      transform: scale(0.85) !important;
+      transform-origin: top left !important;
+      position: absolute !important;
+      top: 0 !important;
+      left: 0 !important;
+      background: white !important;
+      box-sizing: border-box !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+
+    .id-print-card-scalable-vertical {
+      width: 240px !important;
+      height: 764px !important;
+      min-width: 240px !important;
+      max-width: 240px !important;
+      min-height: 764px !important;
+      max-height: 764px !important;
+      transform: scale(0.85) !important;
+      transform-origin: top left !important;
+      position: absolute !important;
+      top: 0 !important;
+      left: 0 !important;
+      background: white !important;
+      box-sizing: border-box !important;
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
     }
 
     .id-print-card-landscape {
-      width: 86mm !important;
-      height: 54mm !important;
+      width: 85.6mm !important;
+      height: 53.98mm !important;
     }
 
     .id-print-watermark {
@@ -12741,7 +12883,7 @@ function IDPrintingCenterModal({
           }
           .id-print-grid {
             display: grid !important;
-            grid-template-columns: repeat(3, 54mm) !important;
+            grid-template-columns: repeat(3, 53.98mm) !important;
             justify-content: center !important;
             gap: 12mm 8mm !important;
             width: 100% !important;
@@ -12749,8 +12891,12 @@ function IDPrintingCenterModal({
             margin: 0 auto !important;
           }
           .id-print-card-cell {
-            width: 54mm !important;
-            height: 86mm !important;
+            width: 53.98mm !important;
+            height: 85.6mm !important;
+            min-width: 53.98mm !important;
+            max-width: 53.98mm !important;
+            min-height: 85.6mm !important;
+            max-height: 85.6mm !important;
             position: relative !important;
             overflow: hidden !important;
             page-break-inside: avoid !important;
@@ -12764,8 +12910,12 @@ function IDPrintingCenterModal({
             print-color-adjust: exact !important;
           }
           .id-print-card-cell-vertical {
-            width: 54mm !important;
-            height: 172mm !important;
+            width: 53.98mm !important;
+            height: 171.2mm !important;
+            min-width: 53.98mm !important;
+            max-width: 53.98mm !important;
+            min-height: 171.2mm !important;
+            max-height: 171.2mm !important;
             position: relative !important;
             overflow: hidden !important;
             page-break-inside: avoid !important;
@@ -12781,6 +12931,10 @@ function IDPrintingCenterModal({
           .id-print-card-scalable {
             width: 240px !important;
             height: 382px !important;
+            min-width: 240px !important;
+            max-width: 240px !important;
+            min-height: 382px !important;
+            max-height: 382px !important;
             transform: scale(0.85) !important;
             transform-origin: top left !important;
             position: absolute !important;
@@ -12794,6 +12948,10 @@ function IDPrintingCenterModal({
           .id-print-card-scalable-vertical {
             width: 240px !important;
             height: 764px !important;
+            min-width: 240px !important;
+            max-width: 240px !important;
+            min-height: 764px !important;
+            max-height: 764px !important;
             transform: scale(0.85) !important;
             transform-origin: top left !important;
             position: absolute !important;
@@ -12805,8 +12963,8 @@ function IDPrintingCenterModal({
             print-color-adjust: exact !important;
           }
           .id-print-card-landscape {
-            width: 86mm !important;
-            height: 54mm !important;
+            width: 85.6mm !important;
+            height: 53.98mm !important;
           }
 
           .id-print-watermark {
@@ -13168,6 +13326,23 @@ function IDPrintingCenterModal({
                   </div>
                 </div>
               )}
+
+              {/* Card Standard Selection */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase text-slate-540 tracking-wider">Card Size Standard</label>
+                <div className="bg-white border border-slate-200 p-3.5 rounded-2xl flex items-center justify-between shadow-sm">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-indigo-50 text-indigo-700 rounded-xl">
+                      <CreditCard size={18} />
+                    </div>
+                    <div>
+                      <p className="text-xs font-black text-slate-800 leading-tight">CR80 (Standard ID-1)</p>
+                      <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wide mt-0.5">3.375" × 2.125" &bull; 85.6 × 53.98 mm</p>
+                    </div>
+                  </div>
+                  <span className="text-[9px] font-extrabold uppercase px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-250 rounded-full shadow-sm select-none leading-none">Active</span>
+                </div>
+              </div>
               
               {/* Theme selection */}
               <div className="space-y-2">
