@@ -12112,6 +12112,7 @@ function AddLearnerView({
           preselectedStudent={idPrintPreselectedStudent}
           section={section}
           globalSettings={globalSettings}
+          schoolCalendar={schoolCalendar}
           isAdmin={isSystemAdmin}
           onClose={() => {
             setShowIDPrintModal(false);
@@ -12179,6 +12180,7 @@ interface IDPrintingCenterModalProps {
   preselectedStudent: Student | null;
   section: Section | null | undefined;
   globalSettings?: any;
+  schoolCalendar?: any[];
   onClose: () => void;
   isAdmin?: boolean;
 }
@@ -12188,6 +12190,7 @@ function IDPrintingCenterModal({
   preselectedStudent,
   section,
   globalSettings,
+  schoolCalendar = [],
   onClose,
   isAdmin = false
 }: IDPrintingCenterModalProps) {
@@ -12199,6 +12202,83 @@ function IDPrintingCenterModal({
       return new Set(students.map(s => s.id));
     }
   });
+
+  // Expiration / Validity Date computation based on Grade and School Year
+  const getExpirationDate = (gradeLevel: number, schoolYear: string) => {
+    const defaultLabel = (gradeLevel >= 11 && gradeLevel <= 12) ? "Valid: Grade 11 - 12" : "Valid: Grade 7 - 10";
+    if (!schoolYear) {
+      return { dateStr: "June 30, 2027", label: defaultLabel };
+    }
+
+    const parts = schoolYear.split('-');
+    const startYear = parseInt(parts[0]) || 2025;
+    const endYear = parseInt(parts[1]) || (startYear + 1);
+
+    let targetGrade = 10; // Default for JHS
+    let label = "Valid: Grade 7 - 10";
+    if (gradeLevel >= 11 && gradeLevel <= 12) {
+      targetGrade = 12; // For SHS
+      label = "Valid: Grade 11 - 12";
+    } else if (gradeLevel >= 7 && gradeLevel <= 10) {
+      targetGrade = 10; // For JHS
+      label = "Valid: Grade 7 - 10";
+    } else {
+      // Fallback for Elementary or other grades
+      targetGrade = gradeLevel;
+      label = `Valid: Grade ${gradeLevel}`;
+    }
+
+    const yearsRemaining = Math.max(0, targetGrade - gradeLevel);
+    const targetStartYear = startYear + yearsRemaining;
+    const targetEndYear = endYear + yearsRemaining;
+
+    // Determine the end month and day of the school year based on calendar entries of current/any school year
+    let lastMonth = "June";
+    let lastDay = 30;
+
+    // Check if we have calendar entries
+    if (schoolCalendar && schoolCalendar.length > 0) {
+      // Try current school year first, then fallback to any available entries
+      let entries = schoolCalendar.filter(c => c.schoolYear === schoolYear);
+      if (entries.length === 0) {
+        entries = schoolCalendar;
+      }
+      
+      if (entries.length > 0) {
+        const monthOrder = ["June", "July", "August", "September", "October", "November", "December", "January", "February", "March", "April", "May"];
+        const sortedEntries = [...entries].sort((a, b) => {
+          const termA = parseInt(a.term) || 0;
+          const termB = parseInt(b.term) || 0;
+          if (termA !== termB) return termB - termA;
+          return monthOrder.indexOf(b.month) - monthOrder.indexOf(a.month);
+        });
+
+        const lastEntry = sortedEntries[0];
+        if (lastEntry) {
+          lastMonth = lastEntry.month || "June";
+          const closingDateVal = parseInt(lastEntry.closingDate);
+          if (closingDateVal && closingDateVal > 0) {
+            lastDay = closingDateVal;
+          } else {
+            // Find total days in month
+            const yearNum = parseInt(lastEntry.year) || targetEndYear;
+            const monthIdx = MONTH_INDICES[lastMonth] ?? 5;
+            lastDay = new Date(yearNum, monthIdx + 1, 0).getDate();
+          }
+        }
+      }
+    }
+
+    // Determine the target year for the end month of the school year
+    // If the end month index in our order is Jan-May (>= 7), it falls in targetEndYear
+    const monthOrder = ["June", "July", "August", "September", "October", "November", "December", "January", "February", "March", "April", "May"];
+    const monthIdx = monthOrder.indexOf(lastMonth);
+    const targetYear = (monthIdx >= 7 || monthIdx === -1) ? targetEndYear : targetStartYear;
+
+    // Format final date string, e.g. "May 31, 2029"
+    const dateStr = `${lastMonth} ${lastDay}, ${targetYear}`;
+    return { dateStr, label };
+  };
 
   const [cardTheme, setCardTheme] = useState<'presidential' | 'metro' | 'forest' | 'amethyst' | 'crimson' | 'noir' | 'gold' | 'ocean' | 'sunset' | 'cyber' | 'vintage' | 'sky' | 'sakura' | 'monochrome'>('presidential');
   const [customBackground, setCustomBackground] = useState<string | null>(null);
@@ -12218,6 +12298,7 @@ function IDPrintingCenterModal({
 
   const [schoolHead, setSchoolHead] = useState<string>("School Principal");
   const [schoolLogo, setSchoolLogo] = useState<string | null>(null);
+  const [schoolSignature, setSchoolSignature] = useState<string | null>(null);
 
   // New customizable fields for drag-and-drop template
   const [fontFamily, setFontFamily] = useState<string>('Inter');
@@ -12253,6 +12334,7 @@ function IDPrintingCenterModal({
         if (schoolData) {
           if (schoolData.headOfSchool) setSchoolHead(schoolData.headOfSchool);
           if (schoolData.schoolLogo) setSchoolLogo(schoolData.schoolLogo);
+          if (schoolData.schoolSignature) setSchoolSignature(schoolData.schoolSignature);
           
           if (schoolData.idTemplate) {
             const template = schoolData.idTemplate;
@@ -12268,6 +12350,7 @@ function IDPrintingCenterModal({
             if (template.contactNumber) setContactNumber(template.contactNumber);
             if (template.fontFamily) setFontFamily(template.fontFamily);
             if (template.elementOffsets) setElementOffsets(template.elementOffsets);
+            if (template.schoolSignature) setSchoolSignature(template.schoolSignature);
           }
         }
       } catch (err) {
@@ -12300,8 +12383,11 @@ function IDPrintingCenterModal({
           emergencyNotes,
           contactNumber,
           fontFamily,
-          elementOffsets
-        }
+          elementOffsets,
+          schoolSignature
+        },
+        headOfSchool: schoolHead,
+        schoolSignature
       };
 
       if (!querySnapshot.empty) {
@@ -13036,12 +13122,16 @@ function IDPrintingCenterModal({
                           {/* Top accent */}
                           <div className="h-1.5 w-full bg-amber-500" />
                           
-                          {/* Header Block */}
-                          <DraggableField id="school-header" className={`py-3 px-3 flex flex-col items-center justify-center gap-1.5 transition-all ${theme.bannerBg}`} offsets={elementOffsets} setOffsets={() => {}} isEditMode={false}>
-                            {schoolLogo && <img src={schoolLogo} className="w-[38px] h-[38px] object-contain shrink-0 rounded-full bg-white border border-white/20 shadow-sm" referrerPolicy="no-referrer" />}
+                          {/* Header Block with Lanyard Hole space */}
+                          <DraggableField id="school-header" className={`pt-6 pb-2.5 px-3 flex flex-col items-center justify-center gap-1 transition-all relative ${theme.bannerBg}`} offsets={elementOffsets} setOffsets={() => {}} isEditMode={false}>
+                            {/* Lanyard Hole Slot Guide */}
+                            <div className="absolute top-1.5 left-1/2 -translate-x-1/2 w-8 h-2 rounded-full border border-dashed border-black/20 bg-white/10 flex items-center justify-center z-30 pointer-events-none">
+                              <div className="w-1.5 h-1.5 rounded-full bg-black/10" />
+                            </div>
+                            {schoolLogo && <img src={schoolLogo} className="w-[38px] h-[38px] object-contain shrink-0 rounded-full bg-white border border-white/20 shadow-sm mt-0.5" referrerPolicy="no-referrer" />}
                             <div className="text-center w-full">
-                              <p className="text-[6.5px] uppercase tracking-widest leading-none font-bold opacity-80 mt-0.5">Republic of the Philippines</p>
-                              <p className="text-[6.5px] uppercase tracking-widest leading-none font-black mt-0.5 opacity-90">Department of Education</p>
+                              <p className="text-[6.5px] uppercase tracking-widest leading-none font-black mt-0.5">Republic of the Philippines</p>
+                              <p className="text-[6.5px] uppercase tracking-widest leading-none font-black mt-0.5">Department of Education</p>
                               <p className="text-[10px] uppercase tracking-tight font-black leading-tight mt-1 truncate max-w-full">
                                 {section?.schoolName || "Matatag High School"}
                               </p>
@@ -13062,16 +13152,16 @@ function IDPrintingCenterModal({
                                 </div>
                               ) : includePhotoBox ? (
                                 <div className="border border-dashed rounded-xl flex flex-col items-center justify-center bg-slate-50/85 mx-auto" style={{ width: '90px', height: '115px', borderColor: theme.colorScheme.primaryHex + "44" }}>
-                                  <User size={24} className="text-slate-350 pointer-events-none opacity-40" />
-                                  <span className="text-[7px] uppercase tracking-wider text-slate-400 font-extrabold mt-1">35mm x 45mm Photo</span>
-                                  <span className="text-[5.5px] uppercase tracking-wider text-slate-350 font-bold leading-none">SF10 Source</span>
+                                  <User size={24} className="text-slate-500 pointer-events-none opacity-60" />
+                                  <span className="text-[7px] uppercase tracking-wider text-slate-700 font-extrabold mt-1">35mm x 45mm Photo</span>
+                                  <span className="text-[5.5px] uppercase tracking-wider text-slate-600 font-bold leading-none">SF10 Source</span>
                                 </div>
                               ) : (
                                 <div className="w-14 h-14 rounded-full flex items-center justify-center bg-indigo-50 border border-slate-100 uppercase font-black text-xl mx-auto" style={{ color: theme.colorScheme.primaryHex, background: `${theme.colorScheme.primaryHex}10` }}>
                                   {displayName?.charAt(0) || "-"}
                                 </div>
                               )}
-                              <span className="text-[8px] font-black tracking-[0.1em] uppercase mt-2 px-2 py-0.5 rounded-full select-none inline-block mx-auto" style={{ background: `${theme.colorScheme.primaryHex}10`, color: theme.colorScheme.primaryHex }}>LRN: {displayLrn}</span>
+                              <span className="text-[8px] font-black tracking-[0.1em] uppercase mt-2 px-2 py-0.5 rounded-full select-none inline-block mx-auto" style={{ background: `${theme.colorScheme.primaryHex}15`, color: theme.colorScheme.primaryHex }}>LRN: {displayLrn}</span>
                             </DraggableField>
 
                             {/* Name details */}
@@ -13088,6 +13178,10 @@ function IDPrintingCenterModal({
 
                         {/* Interactive combined back card component (bottom half) */}
                         <div className="w-[240px] h-[382px] flex flex-col relative overflow-hidden" style={bgStyle}>
+                          {/* Lanyard Hole Slot Guide */}
+                          <div className="absolute top-2 left-1/2 -translate-x-1/2 w-8 h-2 rounded-full border border-dashed border-slate-400 bg-slate-100/40 flex items-center justify-center z-30 pointer-events-none">
+                            <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+                          </div>
                           {/* Accent header */}
                           <div className="h-1.5 w-full" style={{ background: theme.colorScheme.primaryHex }} />
 
@@ -13106,36 +13200,48 @@ function IDPrintingCenterModal({
                               )}
 
                               <div className="w-full">
-                                <h5 className="text-[8px] font-black uppercase text-slate-400 tracking-widest leading-none mt-1">Return Policy & Directions</h5>
-                                <p className="text-[8px] text-slate-550 leading-relaxed font-semibold mt-1 px-2">
+                                <h5 className="text-[8px] font-black uppercase text-slate-800 tracking-widest leading-none mt-1">Return Policy & Directions</h5>
+                                <p className="text-[8px] text-slate-900 leading-relaxed font-bold mt-1 px-2">
                                   {emergencyNotes || "If found, please return to the school administration office immediately."}
                                 </p>
                               </div>
                             </DraggableField>
 
                             {/* Emergency Contacts Block */}
-                            <DraggableField id="emergency-contact" className="w-full z-10 border-t border-dashed border-slate-200 pt-3 my-1" offsets={elementOffsets} setOffsets={() => {}} isEditMode={false}>
-                              <h5 className="text-[9px] font-black uppercase tracking-wider text-rose-600 leading-none">IN CASE OF EMERGENCY</h5>
-                              <p className="text-[11px] font-bold text-slate-800 mt-1 uppercase max-w-full truncate">
+                            <DraggableField id="emergency-contact" className="w-full z-10 border-t border-dashed border-slate-350 pt-3 my-1" offsets={elementOffsets} setOffsets={() => {}} isEditMode={false}>
+                              <h5 className="text-[9px] font-black uppercase tracking-wider text-rose-850 leading-none">IN CASE OF EMERGENCY</h5>
+                              <p className="text-[11px] font-black text-slate-950 mt-1 uppercase max-w-full truncate">
                                 {displayGuardian}
                               </p>
-                              <p className="text-[8px] text-slate-550 uppercase font-black tracking-tight leading-none mt-0.5">
+                              <p className="text-[8px] text-slate-850 uppercase font-black tracking-tight leading-none mt-0.5">
                                 Relationship: {displayRelationship}
                               </p>
-                              <p className="text-[10px] font-mono font-bold text-slate-700 bg-slate-50 border border-slate-150 py-1 px-3 mt-1.5 rounded-full inline-block tracking-wider">
+                              <p className="text-[10px] font-mono font-black text-slate-950 bg-slate-100 border border-slate-300 py-1 px-3 mt-1.5 rounded-full inline-block tracking-wider">
                                 {studentContactNum}
                               </p>
                             </DraggableField>
 
                             {/* Signature line space */}
-                            <DraggableField id="signature" className="w-full z-10 mt-auto flex flex-col items-center pt-2" offsets={elementOffsets} setOffsets={() => {}} isEditMode={false}>
-                              <div className="w-28 border-b border-slate-300 mt-1.5" />
-                              <p className="text-[10px] font-bold text-slate-800 mt-1 uppercase max-w-full truncate">{schoolHead}</p>
-                              <p className="text-[7px] text-slate-450 uppercase font-black tracking-wider leading-none font-bold">School Principal</p>
+                            <DraggableField id="signature" className="w-full z-10 mt-auto flex flex-col items-center pt-1.5 relative" offsets={elementOffsets} setOffsets={() => {}} isEditMode={false}>
+                              {schoolSignature ? (
+                                <img src={schoolSignature} className="h-9 max-w-[120px] object-contain -mb-2 select-none pointer-events-none z-20" alt="" referrerPolicy="no-referrer" />
+                              ) : (
+                                <span className="font-signature text-xl text-blue-700 tracking-wide rotate-[-3deg] inline-block -mb-2 z-20 select-none transform hover:scale-105 transition-transform">
+                                  {schoolHead}
+                                </span>
+                              )}
+                              <div className="w-28 border-b border-slate-400 z-10" />
+                              <p className="text-[10px] font-black text-slate-950 mt-1 uppercase max-w-full truncate">{schoolHead}</p>
+                              <p className="text-[7px] text-slate-800 uppercase font-black tracking-wider leading-none font-bold">School Principal</p>
                             </DraggableField>
 
+                            {/* Validity and Expiration Dates */}
+                            <div className="w-full z-10 border-t border-dashed border-slate-300 pt-1.5 flex items-center justify-center text-[7.5px] text-indigo-950 font-black uppercase tracking-tight leading-none">
+                              <span className="text-rose-700">Valid Until: {getExpirationDate(section?.gradeLevel || s?.gradeLevel || 7, section?.schoolYear || "2025-2026").dateStr}</span>
+                            </div>
+
                             {/* Fine-print school identifiers */}
-                            <div className="w-full z-10 border-t border-slate-100 pt-3 flex items-center justify-between text-[7px] text-slate-450 uppercase font-bold tracking-wider leading-none">
+                            <div className="w-full z-10 border-t border-slate-300 pt-1.5 flex items-center justify-between text-[7px] text-slate-850 uppercase font-black tracking-wider leading-none">
                               <span>School ID: {section?.schoolId || "DEPED-10902"}</span>
                               <span>OFFICIAL ACCESS</span>
                             </div>
@@ -13150,14 +13256,16 @@ function IDPrintingCenterModal({
                     <div className="id-print-card-cell">
                       <div className={`id-print-card-scalable rounded-3xl overflow-hidden border ${theme.cardBorder} flex flex-col relative`} style={{ fontFamily, ...bgStyle }}>
                         {/* Top Accent Strip */}
-                        <div className="h-1.5 w-full bg-amber-500" />
-                        
-                        {/* Header Panel */}
-                        <DraggableField id="school-header" className={`py-3 px-3 flex flex-col items-center justify-center gap-1.5 transition-all id-font-family-container ${theme.bannerBg}`} style={{ fontFamily }} offsets={elementOffsets} setOffsets={() => {}} isEditMode={false}>
-                          {schoolLogo && <img src={schoolLogo} className="w-[38px] h-[38px] object-contain shrink-0 rounded-full bg-white border border-white/20 shadow-sm" referrerPolicy="no-referrer" />}
+                                {/* Header Panel with Lanyard Hole space */}
+                        <DraggableField id="school-header" className={`pt-6 pb-2.5 px-3 flex flex-col items-center justify-center gap-1 transition-all relative id-font-family-container ${theme.bannerBg}`} style={{ fontFamily }} offsets={elementOffsets} setOffsets={() => {}} isEditMode={false}>
+                          {/* Lanyard Hole Slot Guide */}
+                          <div className="absolute top-1.5 left-1/2 -translate-x-1/2 w-8 h-2 rounded-full border border-dashed border-black/20 bg-white/10 flex items-center justify-center z-30 pointer-events-none">
+                            <div className="w-1.5 h-1.5 rounded-full bg-black/10" />
+                          </div>
+                          {schoolLogo && <img src={schoolLogo} className="w-[38px] h-[38px] object-contain shrink-0 rounded-full bg-white border border-white/20 shadow-sm mt-0.5" referrerPolicy="no-referrer" />}
                           <div className="text-center w-full">
-                            <p className="text-[6.5px] uppercase tracking-widest leading-none font-bold opacity-80 mt-0.5">Republic of the Philippines</p>
-                            <p className="text-[6.5px] uppercase tracking-widest leading-none font-black mt-0.5 opacity-90">Department of Education</p>
+                            <p className="text-[6.5px] uppercase tracking-widest leading-none font-black mt-0.5">Republic of the Philippines</p>
+                            <p className="text-[6.5px] uppercase tracking-widest leading-none font-black mt-0.5">Department of Education</p>
                             <p className="text-[10px] uppercase tracking-tight font-black leading-tight mt-1 truncate max-w-full">
                               {section?.schoolName || "Matatag High School"}
                             </p>
@@ -13179,16 +13287,16 @@ function IDPrintingCenterModal({
                               </div>
                             ) : includePhotoBox ? (
                               <div className="border-2 border-dashed rounded-xl flex flex-col items-center justify-center bg-slate-50/80 transition-transform hover:scale-105 mx-auto" style={{ width: '105px', height: '135px', borderColor: theme.colorScheme.primaryHex + "44" }}>
-                                <User size={24} className="text-slate-350 pointer-events-none" />
-                                <span className="text-[7.5px] uppercase tracking-wider text-slate-400 font-extrabold mt-1">35mm x 45mm Photo</span>
-                                <span className="text-[6.5px] uppercase tracking-wider text-slate-350 font-bold leading-none">SF10 Image</span>
+                                <User size={24} className="text-slate-500 pointer-events-none" />
+                                <span className="text-[7.5px] uppercase tracking-wider text-slate-700 font-extrabold mt-1">35mm x 45mm Photo</span>
+                                <span className="text-[6.5px] uppercase tracking-wider text-slate-600 font-bold leading-none">SF10 Image</span>
                               </div>
                             ) : (
                               <div className="w-14 h-14 rounded-full flex items-center justify-center bg-indigo-50 border border-slate-100 uppercase font-black text-xl mx-auto" style={{ color: theme.colorScheme.primaryHex, background: `${theme.colorScheme.primaryHex}10` }}>
                                 {displayName?.charAt(0) || "-"}
                               </div>
                             )}
-                            <span className="text-[8px] font-black tracking-[0.1em] uppercase mt-2 px-2 py-0.5 rounded-full select-none inline-block mx-auto" style={{ background: `${theme.colorScheme.primaryHex}10`, color: theme.colorScheme.primaryHex }}>LRN: {displayLrn}</span>
+                            <span className="text-[8px] font-black tracking-[0.1em] uppercase mt-2 px-2 py-0.5 rounded-full select-none inline-block mx-auto" style={{ background: `${theme.colorScheme.primaryHex}15`, color: theme.colorScheme.primaryHex }}>LRN: {displayLrn}</span>
                           </DraggableField>
 
                           {/* Name Block */}
@@ -13209,6 +13317,10 @@ function IDPrintingCenterModal({
                   {(layoutType === 'front-back' || layoutType === 'back-only') && (
                     <div className="id-print-card-cell">
                       <div className={`id-print-card-scalable rounded-3xl overflow-hidden border ${theme.cardBorder} flex flex-col relative`} style={{ fontFamily, ...bgStyle }}>
+                        {/* Lanyard Hole Slot Guide */}
+                        <div className="absolute top-2 left-1/2 -translate-x-1/2 w-8 h-2 rounded-full border border-dashed border-slate-400 bg-slate-100/40 flex items-center justify-center z-30 pointer-events-none">
+                          <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+                        </div>
                         {/* Solid Header Accent Color */}
                         <div className="h-1.5 w-full" style={{ background: theme.colorScheme.primaryHex }} />
                         
@@ -13228,36 +13340,48 @@ function IDPrintingCenterModal({
                             )}
 
                             <div className="w-full">
-                              <h5 className="text-[8px] font-black uppercase text-slate-400 tracking-widest leading-none mt-1">Return Policy & Directions</h5>
-                              <p className="text-[8px] text-slate-550 leading-relaxed font-semibold mt-1 px-2">
+                              <h5 className="text-[8px] font-black uppercase text-slate-800 tracking-widest leading-none mt-1">Return Policy & Directions</h5>
+                              <p className="text-[8px] text-slate-900 leading-relaxed font-bold mt-1 px-2">
                                 {emergencyNotes || "If found, please return to the school administration office immediately."}
                               </p>
                             </div>
                           </DraggableField>
 
                           {/* Emergency Contacts Block */}
-                          <DraggableField id="emergency-contact" className="w-full z-10 border-t border-dashed border-slate-200 pt-3 my-1" offsets={elementOffsets} setOffsets={() => {}} isEditMode={false}>
-                            <h5 className="text-[9px] font-black uppercase tracking-wider text-rose-600">IN CASE OF EMERGENCY</h5>
-                            <p className="text-[11px] font-bold text-slate-800 mt-1 uppercase max-w-full truncate">
+                          <DraggableField id="emergency-contact" className="w-full z-10 border-t border-dashed border-slate-350 pt-2 my-0.5" offsets={elementOffsets} setOffsets={() => {}} isEditMode={false}>
+                            <h5 className="text-[9px] font-black uppercase tracking-wider text-rose-850">IN CASE OF EMERGENCY</h5>
+                            <p className="text-[11px] font-black text-slate-950 mt-1 uppercase max-w-full truncate">
                               {displayGuardian}
                             </p>
-                            <p className="text-[8px] text-slate-550 uppercase font-black tracking-tight leading-none mt-0.5">
+                            <p className="text-[8px] text-slate-850 uppercase font-black tracking-tight leading-none mt-0.5">
                               Relationship: {displayRelationship}
                             </p>
-                            <p className="text-[10px] font-mono font-bold text-slate-700 bg-slate-50 border border-slate-150 py-1 px-3 mt-1.5 rounded-full inline-block tracking-wider font-bold">
+                            <p className="text-[10px] font-mono font-black text-slate-950 bg-slate-100 border border-slate-300 py-1 px-3 mt-1.5 rounded-full inline-block tracking-wider font-bold">
                               {studentContactNum}
                             </p>
                           </DraggableField>
 
                           {/* Signature line space */}
-                          <DraggableField id="signature" className="w-full z-10 mt-auto flex flex-col items-center pt-2" offsets={elementOffsets} setOffsets={() => {}} isEditMode={false}>
-                            <div className="w-28 border-b border-slate-300 mt-1.5" />
-                            <p className="text-[10px] font-bold text-slate-800 mt-1 uppercase max-w-full truncate">{schoolHead}</p>
-                            <p className="text-[7px] text-slate-450 uppercase font-black tracking-wider leading-none font-bold">School Principal</p>
+                          <DraggableField id="signature" className="w-full z-10 mt-auto flex flex-col items-center pt-1.5 relative" offsets={elementOffsets} setOffsets={() => {}} isEditMode={false}>
+                            {schoolSignature ? (
+                              <img src={schoolSignature} className="h-9 max-w-[120px] object-contain -mb-2 select-none pointer-events-none z-20" alt="" referrerPolicy="no-referrer" />
+                            ) : (
+                              <span className="font-signature text-xl text-blue-700 tracking-wide rotate-[-3deg] inline-block -mb-2 z-20 select-none transform hover:scale-105 transition-transform">
+                                {schoolHead}
+                              </span>
+                            )}
+                            <div className="w-28 border-b border-slate-400 z-10" />
+                            <p className="text-[10px] font-black text-slate-950 mt-1 uppercase max-w-full truncate">{schoolHead}</p>
+                            <p className="text-[7px] text-slate-800 uppercase font-black tracking-wider leading-none font-bold">School Principal</p>
                           </DraggableField>
 
+                          {/* Validity and Expiration Dates */}
+                          <div className="w-full z-10 border-t border-dashed border-slate-300 pt-1.5 flex items-center justify-center text-[7.5px] text-indigo-950 font-black uppercase tracking-tight leading-none mt-1">
+                            <span className="text-rose-700">Valid Until: {getExpirationDate(section?.gradeLevel || s?.gradeLevel || 7, section?.schoolYear || "2025-2026").dateStr}</span>
+                          </div>
+
                           {/* Fine-print school identifiers */}
-                          <div className="w-full z-10 border-t border-slate-100 pt-3 flex items-center justify-between text-[7px] text-slate-450 uppercase font-bold tracking-wider leading-none">
+                          <div className="w-full z-10 border-t border-slate-300 pt-1.5 flex items-center justify-between text-[7px] text-slate-850 uppercase font-black tracking-wider leading-none">
                             <span>School ID: {section?.schoolId || "DEPED-10902"}</span>
                             <span>OFFICIAL ACCESS</span>
                           </div>
@@ -13547,6 +13671,58 @@ function IDPrintingCenterModal({
                 </div>
               )}
 
+              {/* School Head & Digital Signature settings */}
+              {isAdmin && (
+                <div className="space-y-3 pt-4 border-t border-slate-200">
+                  <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2">
+                    <span>School Head & Signature</span>
+                  </h3>
+                  
+                  <div className="space-y-2">
+                    <label htmlFor="schoolhead-name" className="text-[10px] font-black uppercase text-slate-540 tracking-wider">School Head / Principal Name</label>
+                    <input
+                      type="text"
+                      id="schoolhead-name"
+                      value={schoolHead}
+                      onChange={(e) => setSchoolHead(e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-500 transition-colors shadow-sm"
+                      placeholder="e.g. Maria Clara, EdD"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase text-slate-540 tracking-wider block mb-1">School Head Digital Signature</label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            setSchoolSignature(reader.result as string);
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                      className="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer"
+                    />
+                    {schoolSignature && (
+                      <div className="mt-3 bg-slate-50 border border-slate-200 p-3 rounded-xl flex flex-col items-center gap-2">
+                        <img src={schoolSignature} className="h-10 object-contain bg-white rounded border border-slate-200 p-1 shadow-sm" alt="Signature preview" referrerPolicy="no-referrer" />
+                        <button 
+                          type="button"
+                          onClick={() => setSchoolSignature(null)}
+                          className="text-xs text-rose-500 font-bold hover:text-rose-600 w-full text-center mt-1"
+                        >
+                          Remove Signature
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Advanced Canvas Settings */}
               <div className="space-y-3 pt-4 border-t border-slate-200">
                 <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2">
@@ -13741,12 +13917,16 @@ function IDPrintingCenterModal({
                           {/* Top accent */}
                           <div className="h-1.5 w-full bg-amber-500" />
                           
-                          {/* Header Block */}
-                          <DraggableField id="school-header" className={`py-3 px-3 flex flex-col items-center justify-center gap-1.5 transition-all ${theme.bannerBg}`} offsets={elementOffsets} setOffsets={setElementOffsets} isEditMode={isDragMode}>
-                            {schoolLogo && <img src={schoolLogo} className="w-[38px] h-[38px] object-contain shrink-0 rounded-full bg-white border border-white/20 shadow-sm" referrerPolicy="no-referrer" />}
+                          {/* Header Block with Lanyard Hole space */}
+                          <DraggableField id="school-header" className={`pt-6 pb-2.5 px-3 flex flex-col items-center justify-center gap-1 transition-all relative ${theme.bannerBg}`} offsets={elementOffsets} setOffsets={setElementOffsets} isEditMode={isDragMode}>
+                            {/* Lanyard Hole Slot Guide */}
+                            <div className="absolute top-1.5 left-1/2 -translate-x-1/2 w-8 h-2 rounded-full border border-dashed border-black/20 bg-white/10 flex items-center justify-center z-30 pointer-events-none">
+                              <div className="w-1.5 h-1.5 rounded-full bg-black/10" />
+                            </div>
+                            {schoolLogo && <img src={schoolLogo} className="w-[38px] h-[38px] object-contain shrink-0 rounded-full bg-white border border-white/20 shadow-sm mt-0.5" referrerPolicy="no-referrer" />}
                             <div className="text-center w-full">
-                              <p className="text-[6.5px] uppercase tracking-widest leading-none font-bold opacity-80 mt-0.5">Republic of the Philippines</p>
-                              <p className="text-[6.5px] uppercase tracking-widest leading-none font-black mt-0.5 opacity-90">Department of Education</p>
+                              <p className="text-[6.5px] uppercase tracking-widest leading-none font-black mt-0.5">Republic of the Philippines</p>
+                              <p className="text-[6.5px] uppercase tracking-widest leading-none font-black mt-0.5">Department of Education</p>
                               <p className="text-[10px] uppercase tracking-tight font-black leading-tight mt-1 truncate max-w-full">
                                 {section?.schoolName || "Matatag High School"}
                               </p>
@@ -13767,16 +13947,16 @@ function IDPrintingCenterModal({
                                 </div>
                               ) : includePhotoBox ? (
                                 <div className="border border-dashed rounded-xl flex flex-col items-center justify-center bg-slate-50/85 mx-auto" style={{ width: '90px', height: '115px', borderColor: theme.colorScheme.primaryHex + "44" }}>
-                                  <User size={24} className="text-slate-350 pointer-events-none opacity-40" />
-                                  <span className="text-[7px] uppercase tracking-wider text-slate-400 font-extrabold mt-1">35mm x 45mm Photo</span>
-                                  <span className="text-[5.5px] uppercase tracking-wider text-slate-350 font-bold leading-none">SF10 Source</span>
+                                  <User size={24} className="text-slate-500 pointer-events-none opacity-60" />
+                                  <span className="text-[7px] uppercase tracking-wider text-slate-700 font-extrabold mt-1">35mm x 45mm Photo</span>
+                                  <span className="text-[5.5px] uppercase tracking-wider text-slate-600 font-bold leading-none">SF10 Source</span>
                                 </div>
                               ) : (
                                 <div className="w-14 h-14 rounded-full flex items-center justify-center bg-indigo-50 border border-slate-100 uppercase font-black text-xl mx-auto" style={{ color: theme.colorScheme.primaryHex, background: `${theme.colorScheme.primaryHex}10` }}>
                                   {(formatStudentName(activePreviewStudent) || activePreviewStudent.name)?.charAt(0) || "-"}
                                 </div>
                               )}
-                              <span className="text-[8px] font-black tracking-[0.1em] uppercase mt-2 px-2 py-0.5 rounded-full select-none inline-block mx-auto" style={{ background: `${theme.colorScheme.primaryHex}10`, color: theme.colorScheme.primaryHex }}>LRN: {activePreviewStudent.lrn || "---"}</span>
+                              <span className="text-[8px] font-black tracking-[0.1em] uppercase mt-2 px-2 py-0.5 rounded-full select-none inline-block mx-auto" style={{ background: `${theme.colorScheme.primaryHex}15`, color: theme.colorScheme.primaryHex }}>LRN: {activePreviewStudent.lrn || "---"}</span>
                             </DraggableField>
 
                             {/* Name details */}
@@ -13793,9 +13973,10 @@ function IDPrintingCenterModal({
 
                         {/* Interactive combined back card component (bottom half) */}
                         <div className="w-[240px] h-[382px] flex flex-col relative overflow-hidden" style={bgStyle}>
-                          {/* Accent header */}
-                          <div className="h-1.5 w-full" style={{ background: theme.colorScheme.primaryHex }} />
-
+                          {/* Lanyard Hole Slot Guide */}
+                          <div className="absolute top-2 left-1/2 -translate-x-1/2 w-8 h-2 rounded-full border border-dashed border-slate-400 bg-slate-100/40 flex items-center justify-center z-30 pointer-events-none">
+                            <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+                          </div>
                           {/* Render interior backing card contents */}
                           <div className={`flex-grow flex flex-col items-center justify-between p-5 relative overflow-hidden text-center ${innerBgClass}`} style={{ fontFamily }}>
                             <div className="id-print-watermark absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none select-none z-0 overflow-hidden grayscale">
@@ -13811,36 +13992,48 @@ function IDPrintingCenterModal({
                               )}
 
                               <div className="w-full">
-                                <h5 className="text-[8px] font-black uppercase text-slate-400 tracking-widest leading-none mt-1">Return Policy & Directions</h5>
-                                <p className="text-[8px] text-slate-550 leading-relaxed font-semibold mt-1 px-2">
+                                <h5 className="text-[8px] font-black uppercase text-slate-800 tracking-widest leading-none mt-1">Return Policy & Directions</h5>
+                                <p className="text-[8px] text-slate-900 leading-relaxed font-bold mt-1 px-2">
                                   {emergencyNotes || "If found, please return to the school administration office immediately."}
                                 </p>
                               </div>
                             </DraggableField>
 
                             {/* Emergency Contacts Block */}
-                            <DraggableField id="emergency-contact" className="w-full z-10 border-t border-dashed border-slate-200 pt-3 my-1" offsets={elementOffsets} setOffsets={setElementOffsets} isEditMode={isDragMode}>
-                              <h5 className="text-[9px] font-black uppercase tracking-wider text-rose-600 leading-none">IN CASE OF EMERGENCY</h5>
-                              <p className="text-[11px] font-bold text-slate-800 mt-1 uppercase max-w-full truncate">
+                            <DraggableField id="emergency-contact" className="w-full z-10 border-t border-dashed border-slate-350 pt-2 my-0.5" offsets={elementOffsets} setOffsets={setElementOffsets} isEditMode={isDragMode}>
+                              <h5 className="text-[9px] font-black uppercase tracking-wider text-rose-850 leading-none">IN CASE OF EMERGENCY</h5>
+                              <p className="text-[11px] font-black text-slate-950 mt-1 uppercase max-w-full truncate">
                                 {previewGuardian}
                               </p>
-                              <p className="text-[8px] text-slate-500 uppercase font-black tracking-tight leading-none mt-0.5">
+                              <p className="text-[8px] text-slate-850 uppercase font-black tracking-tight leading-none mt-0.5">
                                 Relationship: {previewRelationship}
                               </p>
-                              <p className="text-[10px] font-mono font-bold text-slate-700 bg-slate-50 border border-slate-150 py-1 px-3 mt-1.5 rounded-full inline-block tracking-wider">
+                              <p className="text-[10px] font-mono font-black text-slate-950 bg-slate-100 border border-slate-300 py-1 px-3 mt-1.5 rounded-full inline-block tracking-wider">
                                 {previewContactNumber}
                               </p>
                             </DraggableField>
 
                             {/* Signature line space */}
-                            <DraggableField id="signature" className="w-full z-10 mt-auto flex flex-col items-center pt-2" offsets={elementOffsets} setOffsets={setElementOffsets} isEditMode={isDragMode}>
-                              <div className="w-28 border-b border-slate-300 mt-1.5" />
-                              <p className="text-[10px] font-bold text-slate-800 mt-1 uppercase max-w-full truncate">{schoolHead}</p>
-                              <p className="text-[7px] text-slate-400 uppercase font-black tracking-wider leading-none font-bold">School Principal</p>
+                            <DraggableField id="signature" className="w-full z-10 mt-auto flex flex-col items-center pt-1.5 relative" offsets={elementOffsets} setOffsets={setElementOffsets} isEditMode={isDragMode}>
+                              {schoolSignature ? (
+                                <img src={schoolSignature} className="h-9 max-w-[120px] object-contain -mb-2 select-none pointer-events-none z-20" alt="" referrerPolicy="no-referrer" />
+                              ) : (
+                                <span className="font-signature text-xl text-blue-700 tracking-wide rotate-[-3deg] inline-block -mb-2 z-20 select-none transform hover:scale-105 transition-transform">
+                                  {schoolHead}
+                                </span>
+                              )}
+                              <div className="w-28 border-b border-slate-400 z-10" />
+                              <p className="text-[10px] font-black text-slate-950 mt-1 uppercase max-w-full truncate">{schoolHead}</p>
+                              <p className="text-[7px] text-slate-800 uppercase font-black tracking-wider leading-none font-bold">School Principal</p>
                             </DraggableField>
 
+                            {/* Validity and Expiration Dates */}
+                            <div className="w-full z-10 border-t border-dashed border-slate-300 pt-1.5 flex items-center justify-center text-[7.5px] text-indigo-950 font-black uppercase tracking-tight leading-none mt-1">
+                              <span className="text-rose-700">Valid Until: {getExpirationDate(section?.gradeLevel || activePreviewStudent?.gradeLevel || 7, section?.schoolYear || "2025-2026").dateStr}</span>
+                            </div>
+
                             {/* Fine-print school identifiers */}
-                            <div className="w-full z-10 border-t border-slate-100 pt-3 flex items-center justify-between text-[7px] text-slate-450 uppercase font-bold tracking-wider leading-none">
+                            <div className="w-full z-10 border-t border-slate-300 pt-1.5 flex items-center justify-between text-[7px] text-slate-850 uppercase font-black tracking-wider leading-none">
                               <span>School ID: {section?.schoolId || "DEPED-10902"}</span>
                               <span>OFFICIAL ACCESS</span>
                             </div>
@@ -13851,16 +14044,17 @@ function IDPrintingCenterModal({
 
                     {/* Simulated Front Preview (Separate layouts) */}
                     {(layoutType === 'front-back' || layoutType === 'front-only') && (
-                      <div className={`w-[240px] h-[382px] bg-white rounded-3xl overflow-hidden shadow-2xl border ${theme.cardBorder} flex flex-col relative transition-all`} style={bgStyle}>
-                        {/* Top Accent Strip */}
-                        <div className="h-1.5 w-full bg-amber-500" />
-                        
-                        {/* Header Panel */}
-                        <DraggableField id="school-header" className={`py-3 px-3 flex flex-col items-center justify-center gap-1.5 transition-all id-font-family-container ${theme.bannerBg}`} style={{ fontFamily }} offsets={elementOffsets} setOffsets={setElementOffsets} isEditMode={isDragMode}>
-                          {schoolLogo && <img src={schoolLogo} className="w-[38px] h-[38px] object-contain shrink-0 rounded-full bg-white border border-white/20 shadow-sm" referrerPolicy="no-referrer" />}
+                      <div className={`w-[240px] h-[382px] bg-white rounded-3xl overflow-hidden shadow-2xl border ${theme.cardBorder} flex flex-col relative transition-all`} style={{ fontFamily, ...bgStyle }}>
+                        {/* Header Panel with Lanyard Hole space */}
+                        <DraggableField id="school-header" className={`pt-6 pb-2.5 px-3 flex flex-col items-center justify-center gap-1 transition-all relative id-font-family-container ${theme.bannerBg}`} style={{ fontFamily }} offsets={elementOffsets} setOffsets={setElementOffsets} isEditMode={isDragMode}>
+                          {/* Lanyard Hole Slot Guide */}
+                          <div className="absolute top-1.5 left-1/2 -translate-x-1/2 w-8 h-2 rounded-full border border-dashed border-black/20 bg-white/10 flex items-center justify-center z-30 pointer-events-none">
+                            <div className="w-1.5 h-1.5 rounded-full bg-black/10" />
+                          </div>
+                          {schoolLogo && <img src={schoolLogo} className="w-[38px] h-[38px] object-contain shrink-0 rounded-full bg-white border border-white/20 shadow-sm mt-0.5" referrerPolicy="no-referrer" />}
                           <div className="text-center w-full">
-                            <p className="text-[6.5px] uppercase tracking-widest leading-none font-bold opacity-80 mt-0.5">Republic of the Philippines</p>
-                            <p className="text-[6.5px] uppercase tracking-widest leading-none font-black mt-0.5 opacity-90">Department of Education</p>
+                            <p className="text-[6.5px] uppercase tracking-widest leading-none font-black mt-0.5">Republic of the Philippines</p>
+                            <p className="text-[6.5px] uppercase tracking-widest leading-none font-black mt-0.5">Department of Education</p>
                             <p className="text-[10px] uppercase tracking-tight font-black leading-tight mt-1 truncate max-w-full">
                               {section?.schoolName || "Matatag High School"}
                             </p>
@@ -13882,16 +14076,16 @@ function IDPrintingCenterModal({
                               </div>
                             ) : includePhotoBox ? (
                               <div className="border-2 border-dashed rounded-xl flex flex-col items-center justify-center bg-slate-50/80 transition-transform hover:scale-105 mx-auto" style={{ width: '105px', height: '135px', borderColor: theme.colorScheme.primaryHex + "44" }}>
-                                <User size={24} className="text-slate-350 pointer-events-none" />
-                                <span className="text-[7.5px] uppercase tracking-wider text-slate-400 font-extrabold mt-1">35mm x 45mm Photo</span>
-                                <span className="text-[6.5px] uppercase tracking-wider text-slate-350 font-bold leading-none">SF10 Image</span>
+                                <User size={24} className="text-slate-500 pointer-events-none" />
+                                <span className="text-[7.5px] uppercase tracking-wider text-slate-700 font-extrabold mt-1">35mm x 45mm Photo</span>
+                                <span className="text-[6.5px] uppercase tracking-wider text-slate-600 font-bold leading-none">SF10 Image</span>
                               </div>
                             ) : (
                               <div className="w-14 h-14 rounded-full flex items-center justify-center bg-indigo-50 border border-slate-100 uppercase font-black text-xl mx-auto" style={{ color: theme.colorScheme.primaryHex, background: `${theme.colorScheme.primaryHex}10` }}>
                                 {formatStudentName(activePreviewStudent).charAt(0) || activePreviewStudent.name?.charAt(0) || "-"}
                               </div>
                             )}
-                            <span className="text-[8px] font-black tracking-[0.1em] uppercase mt-2 px-2 py-0.5 rounded-full select-none inline-block mx-auto" style={{ background: `${theme.colorScheme.primaryHex}10`, color: theme.colorScheme.primaryHex }}>LRN: {activePreviewStudent.lrn || "---"}</span>
+                            <span className="text-[8px] font-black tracking-[0.1em] uppercase mt-2 px-2 py-0.5 rounded-full select-none inline-block mx-auto" style={{ background: `${theme.colorScheme.primaryHex}15`, color: theme.colorScheme.primaryHex }}>LRN: {activePreviewStudent.lrn || "---"}</span>
                           </DraggableField>
 
                           {/* Name Block */}
@@ -13910,6 +14104,10 @@ function IDPrintingCenterModal({
                     {/* Simulated Back Preview (Separate layouts) */}
                     {(layoutType === 'front-back' || layoutType === 'back-only') && (
                       <div className={`w-[240px] h-[382px] bg-white rounded-3xl overflow-hidden shadow-2xl border ${theme.cardBorder} flex flex-col relative transition-all`} style={bgStyle}>
+                        {/* Lanyard Hole Slot Guide */}
+                        <div className="absolute top-2 left-1/2 -translate-x-1/2 w-8 h-2 rounded-full border border-dashed border-slate-400 bg-slate-100/40 flex items-center justify-center z-30 pointer-events-none">
+                          <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+                        </div>
                         {/* Solid Header Accent Color */}
                         <div className="h-1.5 w-full" style={{ background: theme.colorScheme.primaryHex }} />
                         
@@ -13929,36 +14127,48 @@ function IDPrintingCenterModal({
                             )}
 
                             <div className="w-full">
-                              <h5 className="text-[8px] font-black uppercase text-slate-400 tracking-widest leading-none mt-1">Return Policy & Directions</h5>
-                              <p className="text-[8px] text-slate-550 leading-relaxed font-semibold mt-1 px-2">
+                              <h5 className="text-[8px] font-black uppercase text-slate-800 tracking-widest leading-none mt-1">Return Policy & Directions</h5>
+                              <p className="text-[8px] text-slate-900 leading-relaxed font-bold mt-1 px-2">
                                 {emergencyNotes || "If found, please return to the school administration office immediately."}
                               </p>
                             </div>
                           </DraggableField>
 
                           {/* Emergency Contacts Block */}
-                          <DraggableField id="emergency-contact" className="w-full z-10 border-t border-dashed border-slate-200 pt-3 my-1" offsets={elementOffsets} setOffsets={setElementOffsets} isEditMode={isDragMode}>
-                            <h5 className="text-[9px] font-black uppercase tracking-wider text-rose-600">IN CASE OF EMERGENCY</h5>
-                            <p className="text-[11px] font-bold text-slate-800 mt-1 uppercase max-w-full truncate">
+                          <DraggableField id="emergency-contact" className="w-full z-10 border-t border-dashed border-slate-350 pt-2 my-0.5" offsets={elementOffsets} setOffsets={setElementOffsets} isEditMode={isDragMode}>
+                            <h5 className="text-[9px] font-black uppercase tracking-wider text-rose-850">IN CASE OF EMERGENCY</h5>
+                            <p className="text-[11px] font-black text-slate-950 mt-1 uppercase max-w-full truncate">
                               {previewGuardian}
                             </p>
-                            <p className="text-[8px] text-slate-500 uppercase font-black tracking-tight leading-none mt-0.5">
+                            <p className="text-[8px] text-slate-850 uppercase font-black tracking-tight leading-none mt-0.5">
                               Relationship: {previewRelationship}
                             </p>
-                            <p className="text-[10px] font-mono font-bold text-slate-700 bg-slate-50 border border-slate-150 py-1 px-3 mt-1.5 rounded-full inline-block tracking-wider font-bold">
+                            <p className="text-[10px] font-mono font-black text-slate-950 bg-slate-100 border border-slate-300 py-1 px-3 mt-1.5 rounded-full inline-block tracking-wider font-bold">
                               {previewContactNumber}
                             </p>
                           </DraggableField>
 
                           {/* Signature line space */}
-                          <DraggableField id="signature" className="w-full z-10 mt-auto flex flex-col items-center pt-2" offsets={elementOffsets} setOffsets={setElementOffsets} isEditMode={isDragMode}>
-                            <div className="w-28 border-b border-slate-300 mt-1.5" />
-                            <p className="text-[10px] font-bold text-slate-800 mt-1 uppercase max-w-full truncate">{schoolHead}</p>
-                            <p className="text-[7px] text-slate-400 uppercase font-black tracking-wider leading-none font-bold">School Principal</p>
+                          <DraggableField id="signature" className="w-full z-10 mt-auto flex flex-col items-center pt-1.5 relative" offsets={elementOffsets} setOffsets={setElementOffsets} isEditMode={isDragMode}>
+                            {schoolSignature ? (
+                              <img src={schoolSignature} className="h-9 max-w-[120px] object-contain -mb-2 select-none pointer-events-none z-20" alt="" referrerPolicy="no-referrer" />
+                            ) : (
+                              <span className="font-signature text-xl text-blue-700 tracking-wide rotate-[-3deg] inline-block -mb-2 z-20 select-none transform hover:scale-105 transition-transform">
+                                {schoolHead}
+                              </span>
+                            )}
+                            <div className="w-28 border-b border-slate-400 z-10" />
+                            <p className="text-[10px] font-black text-slate-950 mt-1 uppercase max-w-full truncate">{schoolHead}</p>
+                            <p className="text-[7px] text-slate-800 uppercase font-black tracking-wider leading-none font-bold">School Principal</p>
                           </DraggableField>
 
+                          {/* Validity and Expiration Dates */}
+                          <div className="w-full z-10 border-t border-dashed border-slate-300 pt-1.5 flex items-center justify-center text-[7.5px] text-indigo-950 font-black uppercase tracking-tight leading-none mt-1">
+                            <span className="text-rose-700">Valid Until: {getExpirationDate(section?.gradeLevel || activePreviewStudent?.gradeLevel || 7, section?.schoolYear || "2025-2026").dateStr}</span>
+                          </div>
+
                           {/* Fine-print school identifiers */}
-                          <div className="w-full z-10 border-t border-slate-100 pt-3 flex items-center justify-between text-[7px] text-slate-450 uppercase font-bold tracking-wider leading-none">
+                          <div className="w-full z-10 border-t border-slate-300 pt-1.5 flex items-center justify-between text-[7px] text-slate-850 uppercase font-black tracking-wider leading-none">
                             <span>School ID: {section?.schoolId || "DEPED-10902"}</span>
                             <span>OFFICIAL ACCESS</span>
                           </div>
@@ -27685,7 +27895,7 @@ function AdminSchoolsView({
   const [isAdding, setIsAdding] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
-  const [newSchool, setNewSchool] = useState({ name: '', schoolId: '', headOfSchool: '', region: '', division: '', district: '', schoolLogo: '', depEdLogo: '', createdAt: '' });
+  const [newSchool, setNewSchool] = useState({ name: '', schoolId: '', headOfSchool: '', region: '', division: '', district: '', schoolLogo: '', depEdLogo: '', schoolSignature: '', createdAt: '' });
   const [schoolToDelete, setSchoolToDelete] = useState<any | null>(null);
   const [teacherCounts, setTeacherCounts] = useState<Record<string, number>>({});
 
@@ -27908,7 +28118,7 @@ function AdminSchoolsView({
          await addDoc(collection(db, "schools"), dataToSave);
       }
       setIsAdding(false);
-      setNewSchool({ name: '', schoolId: '', headOfSchool: '', region: '', division: '', district: '', schoolLogo: '', depEdLogo: '', createdAt: '' });
+      setNewSchool({ name: '', schoolId: '', headOfSchool: '', region: '', division: '', district: '', schoolLogo: '', depEdLogo: '', schoolSignature: '', createdAt: '' });
     } catch (err) {
       handleFirestoreError(err, 'write', 'schools');
     }
@@ -27924,7 +28134,7 @@ function AdminSchoolsView({
     }
   };
 
-  const handleAdminLogoUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'deped' | 'school') => {
+  const handleAdminLogoUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'deped' | 'school' | 'signature') => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new window.FileReader();
@@ -27950,6 +28160,8 @@ function AdminSchoolsView({
 
           if (type === 'deped') {
             setNewSchool(prev => ({...prev, depEdLogo: dataUrl}));
+          } else if (type === 'signature') {
+            setNewSchool(prev => ({...prev, schoolSignature: dataUrl}));
           } else {
             setNewSchool(prev => ({...prev, schoolLogo: dataUrl}));
           }
@@ -28104,7 +28316,7 @@ function AdminSchoolsView({
           <div className="bg-white rounded-xl p-8 w-full max-w-md shadow-xl">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-xl font-bold text-slate-900">{(newSchool as any).id ? 'Edit School' : 'Add School'}</h3>
-              <button onClick={() => { setIsAdding(false); setNewSchool({ name: '', schoolId: '', headOfSchool: '', region: '', division: '', district: '', schoolLogo: '', depEdLogo: '', createdAt: '' }); }} className="text-slate-400 hover:text-slate-600 transition-colors">
+              <button onClick={() => { setIsAdding(false); setNewSchool({ name: '', schoolId: '', headOfSchool: '', region: '', division: '', district: '', schoolLogo: '', depEdLogo: '', schoolSignature: '', createdAt: '' }); }} className="text-slate-400 hover:text-slate-600 transition-colors">
                 <X size={20} />
               </button>
             </div>
@@ -28123,6 +28335,13 @@ function AdminSchoolsView({
                     <div className="w-14 h-14 bg-slate-50 rounded-lg border border-dashed border-slate-200 flex items-center justify-center text-slate-400 relative overflow-hidden group cursor-pointer hover:border-indigo-400 transition-colors">
                       {newSchool.schoolLogo ? <img src={newSchool.schoolLogo} className="w-full h-full object-contain p-1" alt="School Logo" referrerPolicy="no-referrer" /> : <div className="text-[10px] text-center px-1">Upload</div>}
                       <input type="file" accept="image/*" onChange={(e) => handleAdminLogoUpload(e, 'school')} className="absolute inset-0 opacity-0 cursor-pointer" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-500 mb-2">Head Signature</label>
+                    <div className="w-14 h-14 bg-slate-50 rounded-lg border border-dashed border-slate-200 flex items-center justify-center text-slate-400 relative overflow-hidden group cursor-pointer hover:border-indigo-400 transition-colors">
+                      {newSchool.schoolSignature ? <img src={newSchool.schoolSignature} className="w-full h-full object-contain p-1" alt="School Signature" referrerPolicy="no-referrer" /> : <div className="text-[10px] text-center px-1">Upload</div>}
+                      <input type="file" accept="image/*" onChange={(e) => handleAdminLogoUpload(e, 'signature')} className="absolute inset-0 opacity-0 cursor-pointer" />
                     </div>
                   </div>
               </div>
