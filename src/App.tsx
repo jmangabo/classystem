@@ -719,6 +719,60 @@ export async function fetchSubjectsForSection(
   }
 }
 
+const compressImage = (dataUrl: string, maxWidth: number, maxHeight: number, quality: number = 0.75): Promise<string> => {
+  return new Promise((resolve) => {
+    if (!dataUrl || !dataUrl.startsWith('data:')) {
+      resolve(dataUrl);
+      return;
+    }
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      let width = img.width;
+      let height = img.height;
+      
+      if (width > height) {
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+      } else {
+        if (height > maxHeight) {
+          width = Math.round((width * maxHeight) / height);
+          height = maxHeight;
+        }
+      }
+      
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        // Detect original MIME type from data URL to check for transparent formats (PNG, WebP, GIF)
+        const match = dataUrl.match(/^data:([^;]+);/);
+        const originalMime = match ? match[1] : '';
+        const isTransparentFormat = originalMime === 'image/png' || originalMime === 'image/webp' || originalMime === 'image/gif';
+        
+        if (isTransparentFormat) {
+          // Keep transparent background by exporting to PNG
+          resolve(canvas.toDataURL('image/png'));
+        } else {
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        }
+      } else {
+        resolve(dataUrl);
+      }
+    };
+    img.onerror = () => {
+      resolve(dataUrl);
+    };
+    img.src = dataUrl;
+  });
+};
+
 export default function App() {
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
@@ -12285,6 +12339,7 @@ function IDPrintingCenterModal({
   const [customBackgroundOpacity, setCustomBackgroundOpacity] = useState<number>(100);
   const [orientation, setOrientation] = useState<'portrait' | 'landscape'>('portrait');
   const [layoutType, setLayoutType] = useState<'front-back-vertical' | 'front-back' | 'front-only' | 'back-only'>('front-back-vertical');
+  const [flipBackPreview, setFlipBackPreview] = useState(true);
   const [includePhotoBox, setIncludePhotoBox] = useState(true);
   const [includeBarcode, setIncludeBarcode] = useState(true);
   const [watermarkLogo, setWatermarkLogo] = useState<'shield' | 'star' | 'book' | 'school'>('school');
@@ -12366,6 +12421,17 @@ function IDPrintingCenterModal({
       return;
     }
     try {
+      // Compress customBackground and schoolSignature if they are set, ensuring they fit well below 1MB limit.
+      let finalBackground = customBackground;
+      if (customBackground && customBackground.length > 50 * 1024) {
+        finalBackground = await compressImage(customBackground, 800, 800, 0.7);
+      }
+      
+      let finalSignature = schoolSignature;
+      if (schoolSignature && schoolSignature.length > 30 * 1024) {
+        finalSignature = await compressImage(schoolSignature, 400, 400, 0.7);
+      }
+
       const schoolsRef = collection(db, "schools");
       const q = query(schoolsRef, where("schoolId", "==", section.schoolId));
       const querySnapshot = await getDocs(q);
@@ -12373,7 +12439,7 @@ function IDPrintingCenterModal({
       const templateData = {
         idTemplate: {
           cardTheme,
-          customBackground,
+          customBackground: finalBackground,
           customBackgroundOpacity,
           orientation,
           layoutType,
@@ -12384,10 +12450,10 @@ function IDPrintingCenterModal({
           contactNumber,
           fontFamily,
           elementOffsets,
-          schoolSignature
+          schoolSignature: finalSignature
         },
         headOfSchool: schoolHead,
-        schoolSignature
+        schoolSignature: finalSignature
       };
 
       if (!querySnapshot.empty) {
@@ -12662,6 +12728,345 @@ function IDPrintingCenterModal({
     : {};
   const innerBgClass = customBackground ? 'bg-transparent' : 'bg-white';
 
+  const renderStudentCard = (s: Student, isFront: boolean, isBack: boolean) => {
+    const displayLrn = s.lrn || "---";
+    const displayName = formatStudentName(s) || "N/A";
+    const displayYear = section?.schoolYear || "SY 2025-2026";
+    const displayPrincipal = schoolHead || "School Principal";
+    let displayGuardian = s.guardianName || s.fatherName || s.motherName || "Guardian Signature";
+    let displayRelationship = s.guardianRelationship || (s.fatherName ? "Father" : s.motherName ? "Mother" : "Guardian");
+    if (s.primaryContact === 'father' && s.fatherName) {
+      displayGuardian = s.fatherName;
+      displayRelationship = "Father";
+    } else if (s.primaryContact === 'mother' && s.motherName) {
+      displayGuardian = s.motherName;
+      displayRelationship = "Mother";
+    } else if (s.primaryContact === 'guardian' && s.guardianName) {
+      displayGuardian = s.guardianName;
+      displayRelationship = s.guardianRelationship || "Guardian";
+    }
+    const studentContactNum = s.contactNumber || "09XX XXXX XXX";
+
+    if (isFront) {
+      return (
+        <div className="id-print-card-cell" key={`front-${s.id}`}>
+          <div className={`id-print-card-scalable rounded-3xl overflow-hidden border ${theme.cardBorder} flex flex-col relative`} style={{ fontFamily, ...bgStyle }}>
+            {customBackground && (
+              <img 
+                src={customBackground} 
+                alt="" 
+                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'fill', opacity: customBackgroundOpacity / 100, pointerEvents: 'none', userSelect: 'none', zIndex: 0 }}
+                referrerPolicy="no-referrer"
+              />
+            )}
+            {/* Top Accent Strip */}
+            {/* Header Panel with Lanyard Hole space */}
+            <DraggableField id="school-header" className={`pt-6 pb-2.5 px-3 flex flex-col items-center justify-center gap-1 transition-all relative z-10 id-font-family-container ${theme.bannerBg}`} style={{ fontFamily }} offsets={elementOffsets} setOffsets={() => {}} isEditMode={false}>
+              {/* Lanyard Hole Slot Guide */}
+              <div className="absolute top-1.5 left-1/2 -translate-x-1/2 w-8 h-2 rounded-full border border-dashed border-black/20 bg-white/10 flex items-center justify-center z-30 pointer-events-none">
+                <div className="w-1.5 h-1.5 rounded-full bg-black/10" />
+              </div>
+              {schoolLogo && <img src={schoolLogo} className="w-[38px] h-[38px] object-contain shrink-0 rounded-full bg-white border border-white/20 shadow-sm mt-0.5" referrerPolicy="no-referrer" />}
+              <div className="text-center w-full">
+                <p className="text-[6.5px] uppercase tracking-widest leading-none font-black mt-0.5">Republic of the Philippines</p>
+                <p className="text-[6.5px] uppercase tracking-widest leading-none font-black mt-0.5">Department of Education</p>
+                <p className="text-[13px] uppercase tracking-tight font-black leading-tight mt-1 truncate max-w-full">
+                  {section?.schoolName || "Matatag High School"}
+                </p>
+              </div>
+            </DraggableField>
+
+            {/* Card Interior */}
+            <div className={`flex-1 flex flex-col items-center justify-between p-4 relative z-10 overflow-hidden id-font-family-container ${innerBgClass}`} style={{ fontFamily }}>
+              {/* Faint Watermark placement */}
+              <div className="id-print-watermark absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none select-none z-0 overflow-hidden grayscale">
+                {getWatermarkIcon()}
+              </div>
+
+              {/* Avatar Segment */}
+              <DraggableField id="student-photo" className="mt-1 flex flex-col items-center text-center z-10 w-full animate-fade-in" offsets={elementOffsets} setOffsets={() => {}} isEditMode={false}>
+                {s.photo ? (
+                  <div className="overflow-hidden bg-slate-100 rounded-xl border border-slate-200 shadow-sm flex items-center justify-center mx-auto transition-transform hover:scale-105" style={{ width: '105px', height: '135px' }}>
+                    <img src={s.photo} alt={displayName} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  </div>
+                ) : includePhotoBox ? (
+                  <div className="border-2 border-dashed rounded-xl flex flex-col items-center justify-center bg-slate-50/80 transition-transform hover:scale-105 mx-auto" style={{ width: '105px', height: '135px', borderColor: theme.colorScheme.primaryHex + "44" }}>
+                    <User size={24} className="text-slate-500 pointer-events-none" />
+                    <span className="text-[7.5px] uppercase tracking-wider text-slate-700 font-extrabold mt-1">35mm x 45mm Photo</span>
+                    <span className="text-[6.5px] uppercase tracking-wider text-slate-600 font-bold leading-none">SF10 Image</span>
+                  </div>
+                ) : (
+                  <div className="w-14 h-14 rounded-full flex items-center justify-center bg-indigo-50 border border-slate-100 uppercase font-black text-xl mx-auto" style={{ color: theme.colorScheme.primaryHex, background: `${theme.colorScheme.primaryHex}10` }}>
+                    {displayName?.charAt(0) || "-"}
+                  </div>
+                )}
+                <span className="text-[11px] font-extrabold tracking-[0.12em] font-mono mt-2 px-2.5 py-0.5 rounded-full select-none inline-block mx-auto" style={{ background: `${theme.colorScheme.primaryHex}15`, color: theme.colorScheme.primaryHex }}>{displayLrn}</span>
+              </DraggableField>
+
+              {/* Name Block */}
+              <DraggableField id="student-name" className="w-full text-center z-10 flex-grow flex flex-col justify-center min-h-[44px]" offsets={elementOffsets} setOffsets={() => {}} isEditMode={false}>
+                <h4 className="text-[14px] font-black text-slate-900 leading-tight uppercase tracking-tight line-clamp-2 px-1">
+                  {displayName}
+                </h4>
+              </DraggableField>
+            </div>
+
+            {/* Bottom Accent */}
+            <div className="h-1.5 w-full z-10" style={{ background: theme.colorScheme.primaryHex }} />
+          </div>
+        </div>
+      );
+    }
+
+    if (isBack) {
+      return (
+        <div className="id-print-card-cell" key={`back-${s.id}`}>
+          <div className={`id-print-card-scalable rounded-3xl overflow-hidden border ${theme.cardBorder} flex flex-col relative`} style={{ fontFamily, ...bgStyle }}>
+            {customBackground && (
+              <img 
+                src={customBackground} 
+                alt="" 
+                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'fill', opacity: customBackgroundOpacity / 100, pointerEvents: 'none', userSelect: 'none', zIndex: 0 }}
+                referrerPolicy="no-referrer"
+              />
+            )}
+            {/* Lanyard Hole Slot Guide */}
+            <div className="absolute top-2 left-1/2 -translate-x-1/2 w-8 h-2 rounded-full border border-dashed border-slate-400 bg-slate-100/40 flex items-center justify-center z-30 pointer-events-none">
+              <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+            </div>
+            {/* Solid Header Accent Color */}
+            <div className="h-1.5 w-full z-10" style={{ background: theme.colorScheme.primaryHex }} />
+            
+            {/* ID Back Card Interior */}
+            <div className={`flex-1 flex flex-col items-center justify-between p-5 relative z-10 overflow-hidden text-center id-font-family-container ${innerBgClass}`} style={{ fontFamily }}>
+              {/* Faint Watermark backdrop */}
+              <div className="id-print-watermark absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none select-none z-0 overflow-hidden grayscale">
+                {getWatermarkIcon()}
+              </div>
+
+              {/* Group QR Code and Return Policy together */}
+              <DraggableField id="qr-return" className="w-full flex flex-col items-center gap-1.5 z-10 shrink-0" offsets={elementOffsets} setOffsets={() => {}} isEditMode={false}>
+                {includeBarcode && (
+                  <div className="p-0.5 bg-white shadow-sm border border-slate-200 shrink-0">
+                    <QRCode value={displayLrn} size={52} level="M" />
+                  </div>
+                )}
+
+                <div className="w-full">
+                  <h5 className="text-[8px] font-black uppercase text-slate-800 tracking-widest leading-none mt-1">Return Policy & Directions</h5>
+                  <p className="text-[8px] text-slate-900 leading-relaxed font-bold mt-1 px-2">
+                    {emergencyNotes || "If found, please return to the school administration office immediately."}
+                  </p>
+                </div>
+              </DraggableField>
+
+              {/* Emergency Contacts Block */}
+              <DraggableField id="emergency-contact" className="w-full z-10 border-t border-dashed border-slate-350 pt-2 my-0.5" offsets={elementOffsets} setOffsets={() => {}} isEditMode={false}>
+                <h5 className="text-[9px] font-black uppercase tracking-wider text-rose-850">IN CASE OF EMERGENCY</h5>
+                <p className="text-[11px] font-black text-slate-950 mt-1 uppercase max-w-full truncate">
+                  {displayGuardian}
+                </p>
+                <p className="text-[8px] text-slate-850 uppercase font-black tracking-tight leading-none mt-0.5">
+                  Relationship: {displayRelationship}
+                </p>
+                <p className="text-[10px] font-mono font-black text-slate-950 bg-slate-100 border border-slate-300 py-1 px-3 mt-1.5 rounded-full inline-block tracking-wider font-bold">
+                  {studentContactNum}
+                </p>
+              </DraggableField>
+
+              {/* Signature line space */}
+              <DraggableField id="signature" className="w-full z-10 mt-auto flex flex-col items-center pt-1.5 relative" offsets={elementOffsets} setOffsets={() => {}} isEditMode={false}>
+                {schoolSignature ? (
+                  <img src={schoolSignature} className="h-9 max-w-[120px] object-contain -mb-2 select-none pointer-events-none z-20" alt="" referrerPolicy="no-referrer" />
+                ) : (
+                  <span className="font-signature text-xl text-blue-700 tracking-wide rotate-[-3deg] inline-block -mb-2 z-20 select-none transform hover:scale-105 transition-transform">
+                    {schoolHead}
+                  </span>
+                )}
+                <div className="w-28 border-b border-slate-400 z-10" />
+                <p className="text-[10px] font-black text-slate-950 mt-1 uppercase max-w-full truncate">{schoolHead}</p>
+                <p className="text-[7px] text-slate-800 uppercase font-black tracking-wider leading-none font-bold">School Principal</p>
+              </DraggableField>
+
+              {/* Validity and Expiration Dates */}
+              <div className="w-full z-10 border-t border-dashed border-slate-300 pt-1.5 flex items-center justify-center text-[7.5px] text-indigo-950 font-black uppercase tracking-tight leading-none mt-1">
+                <span className="text-rose-700">Valid Until: {getExpirationDate(section?.gradeLevel || s?.gradeLevel || 7, section?.schoolYear || "2025-2026").dateStr}</span>
+              </div>
+
+              {/* Fine-print school identifiers */}
+              <div className="w-full z-10 border-t border-slate-300 pt-1.5 flex items-center justify-between text-[7px] text-slate-850 uppercase font-black tracking-wider leading-none">
+                <span>School ID: {section?.schoolId || "DEPED-10902"}</span>
+                <span>OFFICIAL ACCESS</span>
+              </div>
+            </div>
+
+            {/* Bottom yellow stripe accent */}
+            <div className="h-1.5 bg-amber-500 w-full" />
+          </div>
+        </div>
+      );
+    }
+
+    // Default: Vertical combined layout
+    return (
+      <div className="id-print-card-cell-vertical" key={`vertical-${s.id}`}>
+        <div className={`id-print-card-scalable-vertical rounded-3xl overflow-hidden border ${theme.cardBorder} flex flex-col relative`} style={{ fontFamily, ...bgStyle }}>
+          {/* Interactive combined front card component (top half) */}
+          <div className="w-[240px] h-[382px] flex flex-col relative overflow-hidden" style={bgStyle}>
+            {customBackground && (
+              <img 
+                src={customBackground} 
+                alt="" 
+                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'fill', opacity: customBackgroundOpacity / 100, pointerEvents: 'none', userSelect: 'none', zIndex: 0 }}
+                referrerPolicy="no-referrer"
+              />
+            )}
+            {/* Top accent */}
+            <div className="h-1.5 w-full bg-amber-500 z-10" />
+            
+            {/* Header Block with Lanyard Hole space */}
+            <DraggableField id="school-header" className={`pt-6 pb-2.5 px-3 flex flex-col items-center justify-center gap-1 transition-all relative z-10 ${theme.bannerBg}`} offsets={elementOffsets} setOffsets={() => {}} isEditMode={false}>
+              {/* Lanyard Hole Slot Guide */}
+              <div className="absolute top-1.5 left-1/2 -translate-x-1/2 w-8 h-2 rounded-full border border-dashed border-black/20 bg-white/10 flex items-center justify-center z-30 pointer-events-none">
+                <div className="w-1.5 h-1.5 rounded-full bg-black/10" />
+              </div>
+              {schoolLogo && <img src={schoolLogo} className="w-[38px] h-[38px] object-contain shrink-0 rounded-full bg-white border border-white/20 shadow-sm mt-0.5" referrerPolicy="no-referrer" />}
+              <div className="text-center w-full">
+                <p className="text-[6.5px] uppercase tracking-widest leading-none font-black mt-0.5">Republic of the Philippines</p>
+                <p className="text-[6.5px] uppercase tracking-widest leading-none font-black mt-0.5">Department of Education</p>
+                <p className="text-[13px] uppercase tracking-tight font-black leading-tight mt-1 truncate max-w-full">
+                  {section?.schoolName || "Matatag High School"}
+                </p>
+              </div>
+            </DraggableField>
+
+            {/* Body elements with watermark */}
+            <div className={`flex-1 flex flex-col items-center justify-between p-4 relative z-10 overflow-hidden ${innerBgClass}`} style={{ fontFamily }}>
+              <div className="id-print-watermark absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none select-none z-0 overflow-hidden grayscale">
+                {getWatermarkIcon()}
+              </div>
+
+              {/* Photo (Proportionally scaled to match layout preview) */}
+              <DraggableField id="student-photo" className="mt-1 flex flex-col items-center text-center z-10 w-full animate-fade-in" offsets={elementOffsets} setOffsets={() => {}} isEditMode={false}>
+                {s.photo ? (
+                  <div className="overflow-hidden bg-slate-100 rounded-xl border border-slate-200 shadow-sm flex items-center justify-center mx-auto" style={{ width: '90px', height: '115px' }}>
+                    <img src={s.photo} alt={displayName} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  </div>
+                ) : includePhotoBox ? (
+                  <div className="border border-dashed rounded-xl flex flex-col items-center justify-center bg-slate-50/85 mx-auto" style={{ width: '90px', height: '115px', borderColor: theme.colorScheme.primaryHex + "44" }}>
+                    <User size={24} className="text-slate-500 pointer-events-none opacity-60" />
+                    <span className="text-[7px] uppercase tracking-wider text-slate-700 font-extrabold mt-1">35mm x 45mm Photo</span>
+                    <span className="text-[5.5px] uppercase tracking-wider text-slate-600 font-bold leading-none">SF10 Source</span>
+                  </div>
+                ) : (
+                  <div className="w-14 h-14 rounded-full flex items-center justify-center bg-indigo-50 border border-slate-100 uppercase font-black text-xl mx-auto" style={{ color: theme.colorScheme.primaryHex, background: `${theme.colorScheme.primaryHex}10` }}>
+                    {displayName?.charAt(0) || "-"}
+                  </div>
+                )}
+                <span className="text-[11px] font-extrabold tracking-[0.12em] font-mono mt-2 px-2.5 py-0.5 rounded-full select-none inline-block mx-auto" style={{ background: `${theme.colorScheme.primaryHex}15`, color: theme.colorScheme.primaryHex }}>{displayLrn}</span>
+              </DraggableField>
+
+              {/* Name details */}
+              <DraggableField id="student-name" className="w-full text-center z-10 flex-grow flex flex-col justify-center min-h-[44px]" offsets={elementOffsets} setOffsets={() => {}} isEditMode={false}>
+                <h4 className="text-[13px] font-black text-slate-900 leading-tight uppercase tracking-tight line-clamp-2 px-1">
+                  {displayName}
+                </h4>
+              </DraggableField>
+            </div>
+
+            {/* Base accent */}
+            <div className="h-1.5 w-full z-10" style={{ background: theme.colorScheme.primaryHex }} />
+          </div>
+
+          {/* Fold line spacer gap with subtle folding line */}
+          <div className="h-4 w-full flex items-center justify-center relative shrink-0 z-50 pointer-events-none">
+            <div className="w-full border-t border-dashed border-slate-350/70" />
+          </div>
+
+          {/* Interactive combined back card component (bottom half) - Flipped/Rotated 180° for folding down */}
+          <div className="w-[240px] h-[382px] flex flex-col relative overflow-hidden rotate-180" style={bgStyle}>
+            {customBackground && (
+              <img 
+                src={customBackground} 
+                alt="" 
+                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'fill', opacity: customBackgroundOpacity / 100, pointerEvents: 'none', userSelect: 'none', zIndex: 0 }}
+                referrerPolicy="no-referrer"
+              />
+            )}
+            {/* Lanyard Hole Slot Guide */}
+            <div className="absolute top-2 left-1/2 -translate-x-1/2 w-8 h-2 rounded-full border border-dashed border-slate-400 bg-slate-100/40 flex items-center justify-center z-30 pointer-events-none">
+              <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+            </div>
+            {/* Accent header */}
+            <div className="h-1.5 w-full z-10" style={{ background: theme.colorScheme.primaryHex }} />
+
+            {/* Render interior backing card contents */}
+            <div className={`flex-grow flex flex-col items-center justify-between p-5 relative z-10 overflow-hidden text-center ${innerBgClass}`} style={{ fontFamily }}>
+              <div className="id-print-watermark absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none select-none z-0 overflow-hidden grayscale">
+                {getWatermarkIcon()}
+              </div>
+
+              {/* Group QR Code and Return Policy together */}
+              <DraggableField id="qr-return" className="w-full flex flex-col items-center gap-1.5 z-10 shrink-0" offsets={elementOffsets} setOffsets={() => {}} isEditMode={false}>
+                {includeBarcode && (
+                  <div className="p-0.5 bg-white shadow-sm border border-slate-200 shrink-0">
+                    <QRCode value={displayLrn} size={48} level="M" />
+                  </div>
+                )}
+
+                <div className="w-full">
+                  <h5 className="text-[8px] font-black uppercase text-slate-800 tracking-widest leading-none mt-1">Return Policy & Directions</h5>
+                  <p className="text-[8px] text-slate-900 leading-relaxed font-bold mt-1 px-2">
+                    {emergencyNotes || "If found, please return to the school administration office immediately."}
+                  </p>
+                </div>
+              </DraggableField>
+
+              {/* Emergency Contacts Block */}
+              <DraggableField id="emergency-contact" className="w-full z-10 border-t border-dashed border-slate-350 pt-3 my-1" offsets={elementOffsets} setOffsets={() => {}} isEditMode={false}>
+                <h5 className="text-[9px] font-black uppercase tracking-wider text-rose-850 leading-none">IN CASE OF EMERGENCY</h5>
+                <p className="text-[11px] font-black text-slate-950 mt-1 uppercase max-w-full truncate">
+                  {displayGuardian}
+                </p>
+                <p className="text-[8px] text-slate-850 uppercase font-black tracking-tight leading-none mt-0.5">
+                  Relationship: {displayRelationship}
+                </p>
+                <p className="text-[10px] font-mono font-black text-slate-950 bg-slate-100 border border-slate-300 py-1 px-3 mt-1.5 rounded-full inline-block tracking-wider">
+                  {studentContactNum}
+                </p>
+              </DraggableField>
+
+              {/* Signature line space */}
+              <DraggableField id="signature" className="w-full z-10 mt-auto flex flex-col items-center pt-1.5 relative" offsets={elementOffsets} setOffsets={() => {}} isEditMode={false}>
+                {schoolSignature ? (
+                  <img src={schoolSignature} className="h-9 max-w-[120px] object-contain -mb-2 select-none pointer-events-none z-20" alt="" referrerPolicy="no-referrer" />
+                ) : (
+                  <span className="font-signature text-xl text-blue-700 tracking-wide rotate-[-3deg] inline-block -mb-2 z-20 select-none transform hover:scale-105 transition-transform">
+                    {schoolHead}
+                  </span>
+                )}
+                <div className="w-28 border-b border-slate-400 z-10" />
+                <p className="text-[10px] font-black text-slate-950 mt-1 uppercase max-w-full truncate">{schoolHead}</p>
+                <p className="text-[7px] text-slate-800 uppercase font-black tracking-wider leading-none font-bold">School Principal</p>
+              </DraggableField>
+
+              {/* Validity and Expiration Dates */}
+              <div className="w-full z-10 border-t border-dashed border-slate-300 pt-1.5 flex items-center justify-center text-[7.5px] text-indigo-950 font-black uppercase tracking-tight leading-none">
+                <span className="text-rose-700">Valid Until: {getExpirationDate(section?.gradeLevel || s?.gradeLevel || 7, section?.schoolYear || "2025-2026").dateStr}</span>
+              </div>
+
+              {/* Fine-print school identifiers */}
+              <div className="w-full z-10 border-t border-slate-300 pt-1.5 flex items-center justify-between text-[7px] text-slate-850 uppercase font-black tracking-wider leading-none">
+                <span>School ID: {section?.schoolId || "DEPED-10902"}</span>
+                <span>OFFICIAL ACCESS</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // Print execution handler
   const handlePrint = (e: React.FormEvent) => {
     e.preventDefault();
@@ -12769,15 +13174,15 @@ function IDPrintingCenterModal({
       display: flex !important;
       flex-direction: column !important;
       width: 53.98mm !important;
-      height: 171.2mm !important;
+      height: 175.2mm !important;
       min-width: 53.98mm !important;
       max-width: 53.98mm !important;
-      min-height: 171.2mm !important;
-      max-height: 171.2mm !important;
+      min-height: 175.2mm !important;
+      max-height: 175.2mm !important;
       border: 1px solid #cbd5e1 !important;
       border-radius: 4.5mm !important;
       overflow: hidden !important;
-      background-color: white !important;
+      background-color: white;
       page-break-inside: avoid !important;
       break-inside: avoid !important;
       position: relative !important;
@@ -12799,7 +13204,7 @@ function IDPrintingCenterModal({
       position: absolute !important;
       top: 0 !important;
       left: 0 !important;
-      background-color: white !important;
+      background-color: white;
       box-sizing: border-box !important;
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
@@ -12807,17 +13212,17 @@ function IDPrintingCenterModal({
 
     .id-print-card-scalable-vertical {
       width: 240px !important;
-      height: 764px !important;
+      height: 780px !important;
       min-width: 240px !important;
       max-width: 240px !important;
-      min-height: 764px !important;
-      max-height: 764px !important;
+      min-height: 780px !important;
+      max-height: 780px !important;
       transform: scale(0.85) !important;
       transform-origin: top left !important;
       position: absolute !important;
       top: 0 !important;
       left: 0 !important;
-      background-color: white !important;
+      background-color: white;
       box-sizing: border-box !important;
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
@@ -12999,11 +13404,11 @@ function IDPrintingCenterModal({
           }
           .id-print-card-cell-vertical {
             width: 53.98mm !important;
-            height: 171.2mm !important;
+            height: 175.2mm !important;
             min-width: 53.98mm !important;
             max-width: 53.98mm !important;
-            min-height: 171.2mm !important;
-            max-height: 171.2mm !important;
+            min-height: 175.2mm !important;
+            max-height: 175.2mm !important;
             position: relative !important;
             overflow: hidden !important;
             page-break-inside: avoid !important;
@@ -13011,7 +13416,7 @@ function IDPrintingCenterModal({
             box-sizing: border-box !important;
             border: 1px solid #cbd5e1 !important;
             border-radius: 4.5mm !important;
-            background-color: white !important;
+            background-color: white;
             margin-bottom: 5px !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
@@ -13028,24 +13433,24 @@ function IDPrintingCenterModal({
             position: absolute !important;
             top: 0 !important;
             left: 0 !important;
-            background-color: white !important;
+            background-color: white;
             box-sizing: border-box !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
           .id-print-card-scalable-vertical {
             width: 240px !important;
-            height: 764px !important;
+            height: 780px !important;
             min-width: 240px !important;
             max-width: 240px !important;
-            min-height: 764px !important;
-            max-height: 764px !important;
+            min-height: 780px !important;
+            max-height: 780px !important;
             transform: scale(0.85) !important;
             transform-origin: top left !important;
             position: absolute !important;
             top: 0 !important;
             left: 0 !important;
-            background-color: white !important;
+            background-color: white;
             box-sizing: border-box !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
@@ -13092,317 +13497,22 @@ function IDPrintingCenterModal({
       {createPortal(
       <div id="id-print-payload-area" className="hidden print:block">
         {Array.from({ length: Math.ceil(selectedStudentsToPrint.length / cardsPerRow) }).map((_, pageIndex) => {
+          const currentBatch = selectedStudentsToPrint.slice(pageIndex * cardsPerRow, pageIndex * cardsPerRow + cardsPerRow);
           return (
           <div key={pageIndex} style={{ pageBreakAfter: 'always' }}>
             <div className="id-print-grid">
-            {selectedStudentsToPrint.slice(pageIndex * cardsPerRow, pageIndex * cardsPerRow + cardsPerRow).map((s) => {
-              const displayLrn = s.lrn || "---";
-              const displayName = formatStudentName(s) || "N/A";
-              const displayYear = section?.schoolYear || "SY 2025-2026";
-              const displayPrincipal = schoolHead || "School Principal";
-              let displayGuardian = s.guardianName || s.fatherName || s.motherName || "Guardian Signature";
-              let displayRelationship = s.guardianRelationship || (s.fatherName ? "Father" : s.motherName ? "Mother" : "Guardian");
-              if (s.primaryContact === 'father' && s.fatherName) {
-                displayGuardian = s.fatherName;
-                displayRelationship = "Father";
-              } else if (s.primaryContact === 'mother' && s.motherName) {
-                displayGuardian = s.motherName;
-                displayRelationship = "Mother";
-              } else if (s.primaryContact === 'guardian' && s.guardianName) {
-                displayGuardian = s.guardianName;
-                displayRelationship = s.guardianRelationship || "Guardian";
-              }
-              const studentContactNum = s.contactNumber || "09XX XXXX XXX";
-              
-              return (
-                <React.Fragment key={s.id}>
-                  {/* Brand-new Foldable ID layout (A4 top Front - bottom Back combined vertical container) */}
-                  {layoutType === 'front-back-vertical' && (
-                    <div className="id-print-card-cell-vertical">
-                      <div className={`id-print-card-scalable-vertical rounded-3xl overflow-hidden border ${theme.cardBorder} flex flex-col relative`} style={{ fontFamily }}>
-                        {/* Fold separator marker line with tooltip */}
-                        <div className="absolute top-[382px] left-0 right-0 border-t-2 border-dashed border-slate-300 z-50 pointer-events-none flex items-center justify-center">
-                          <span className="text-[7px] font-black uppercase text-slate-400 bg-white px-2 py-0.5 border border-slate-200 rounded-full shadow-sm -mt-[6.5px]">Fold Marker Line</span>
-                        </div>
+              {/* If vertical foldable layout */}
+              {layoutType === 'front-back-vertical' && currentBatch.map((s) => renderStudentCard(s, false, false))}
 
-                        {/* Interactive combined front card component (top half) */}
-                        <div className="w-[240px] h-[382px] flex flex-col relative overflow-hidden" style={bgStyle}>
-                          {/* Top accent */}
-                          <div className="h-1.5 w-full bg-amber-500" />
-                          
-                          {/* Header Block with Lanyard Hole space */}
-                          <DraggableField id="school-header" className={`pt-6 pb-2.5 px-3 flex flex-col items-center justify-center gap-1 transition-all relative ${theme.bannerBg}`} offsets={elementOffsets} setOffsets={() => {}} isEditMode={false}>
-                            {/* Lanyard Hole Slot Guide */}
-                            <div className="absolute top-1.5 left-1/2 -translate-x-1/2 w-8 h-2 rounded-full border border-dashed border-black/20 bg-white/10 flex items-center justify-center z-30 pointer-events-none">
-                              <div className="w-1.5 h-1.5 rounded-full bg-black/10" />
-                            </div>
-                            {schoolLogo && <img src={schoolLogo} className="w-[38px] h-[38px] object-contain shrink-0 rounded-full bg-white border border-white/20 shadow-sm mt-0.5" referrerPolicy="no-referrer" />}
-                            <div className="text-center w-full">
-                              <p className="text-[6.5px] uppercase tracking-widest leading-none font-black mt-0.5">Republic of the Philippines</p>
-                              <p className="text-[6.5px] uppercase tracking-widest leading-none font-black mt-0.5">Department of Education</p>
-                              <p className="text-[10px] uppercase tracking-tight font-black leading-tight mt-1 truncate max-w-full">
-                                {section?.schoolName || "Matatag High School"}
-                              </p>
-                            </div>
-                          </DraggableField>
+              {/* If separate pages, render Front pages first (Top row(s)) */}
+              {layoutType !== 'front-back-vertical' && (layoutType === 'front-back' || layoutType === 'front-only') && (
+                currentBatch.map((s) => renderStudentCard(s, true, false))
+              )}
 
-                          {/* Body elements with watermark */}
-                          <div className={`flex-1 flex flex-col items-center justify-between p-4 relative overflow-hidden ${innerBgClass}`} style={{ fontFamily }}>
-                            <div className="id-print-watermark absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none select-none z-0 overflow-hidden grayscale">
-                              {getWatermarkIcon()}
-                            </div>
-
-                            {/* Photo (Proportionally scaled to match layout preview) */}
-                            <DraggableField id="student-photo" className="mt-1 flex flex-col items-center text-center z-10 w-full animate-fade-in" offsets={elementOffsets} setOffsets={() => {}} isEditMode={false}>
-                              {s.photo ? (
-                                <div className="overflow-hidden bg-slate-100 rounded-xl border border-slate-200 shadow-sm flex items-center justify-center mx-auto" style={{ width: '90px', height: '115px' }}>
-                                  <img src={s.photo} alt={displayName} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                                </div>
-                              ) : includePhotoBox ? (
-                                <div className="border border-dashed rounded-xl flex flex-col items-center justify-center bg-slate-50/85 mx-auto" style={{ width: '90px', height: '115px', borderColor: theme.colorScheme.primaryHex + "44" }}>
-                                  <User size={24} className="text-slate-500 pointer-events-none opacity-60" />
-                                  <span className="text-[7px] uppercase tracking-wider text-slate-700 font-extrabold mt-1">35mm x 45mm Photo</span>
-                                  <span className="text-[5.5px] uppercase tracking-wider text-slate-600 font-bold leading-none">SF10 Source</span>
-                                </div>
-                              ) : (
-                                <div className="w-14 h-14 rounded-full flex items-center justify-center bg-indigo-50 border border-slate-100 uppercase font-black text-xl mx-auto" style={{ color: theme.colorScheme.primaryHex, background: `${theme.colorScheme.primaryHex}10` }}>
-                                  {displayName?.charAt(0) || "-"}
-                                </div>
-                              )}
-                              <span className="text-[8px] font-black tracking-[0.1em] uppercase mt-2 px-2 py-0.5 rounded-full select-none inline-block mx-auto" style={{ background: `${theme.colorScheme.primaryHex}15`, color: theme.colorScheme.primaryHex }}>LRN: {displayLrn}</span>
-                            </DraggableField>
-
-                            {/* Name details */}
-                            <DraggableField id="student-name" className="w-full text-center z-10 flex-grow flex flex-col justify-center min-h-[44px]" offsets={elementOffsets} setOffsets={() => {}} isEditMode={false}>
-                              <h4 className="text-[13px] font-black text-slate-900 leading-tight uppercase tracking-tight line-clamp-2 px-1">
-                                {displayName}
-                              </h4>
-                            </DraggableField>
-                          </div>
-
-                          {/* Base accent */}
-                          <div className="h-1.5 w-full" style={{ background: theme.colorScheme.primaryHex }} />
-                        </div>
-
-                        {/* Interactive combined back card component (bottom half) */}
-                        <div className="w-[240px] h-[382px] flex flex-col relative overflow-hidden" style={bgStyle}>
-                          {/* Lanyard Hole Slot Guide */}
-                          <div className="absolute top-2 left-1/2 -translate-x-1/2 w-8 h-2 rounded-full border border-dashed border-slate-400 bg-slate-100/40 flex items-center justify-center z-30 pointer-events-none">
-                            <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />
-                          </div>
-                          {/* Accent header */}
-                          <div className="h-1.5 w-full" style={{ background: theme.colorScheme.primaryHex }} />
-
-                          {/* Render interior backing card contents */}
-                          <div className={`flex-grow flex flex-col items-center justify-between p-5 relative overflow-hidden text-center ${innerBgClass}`} style={{ fontFamily }}>
-                            <div className="id-print-watermark absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none select-none z-0 overflow-hidden grayscale">
-                              {getWatermarkIcon()}
-                            </div>
-
-                            {/* Group QR Code and Return Policy together */}
-                            <DraggableField id="qr-return" className="w-full flex flex-col items-center gap-1.5 z-10 shrink-0" offsets={elementOffsets} setOffsets={() => {}} isEditMode={false}>
-                              {includeBarcode && (
-                                <div className="p-0.5 bg-white shadow-sm border border-slate-200 shrink-0">
-                                  <QRCode value={displayLrn} size={48} level="M" />
-                                </div>
-                              )}
-
-                              <div className="w-full">
-                                <h5 className="text-[8px] font-black uppercase text-slate-800 tracking-widest leading-none mt-1">Return Policy & Directions</h5>
-                                <p className="text-[8px] text-slate-900 leading-relaxed font-bold mt-1 px-2">
-                                  {emergencyNotes || "If found, please return to the school administration office immediately."}
-                                </p>
-                              </div>
-                            </DraggableField>
-
-                            {/* Emergency Contacts Block */}
-                            <DraggableField id="emergency-contact" className="w-full z-10 border-t border-dashed border-slate-350 pt-3 my-1" offsets={elementOffsets} setOffsets={() => {}} isEditMode={false}>
-                              <h5 className="text-[9px] font-black uppercase tracking-wider text-rose-850 leading-none">IN CASE OF EMERGENCY</h5>
-                              <p className="text-[11px] font-black text-slate-950 mt-1 uppercase max-w-full truncate">
-                                {displayGuardian}
-                              </p>
-                              <p className="text-[8px] text-slate-850 uppercase font-black tracking-tight leading-none mt-0.5">
-                                Relationship: {displayRelationship}
-                              </p>
-                              <p className="text-[10px] font-mono font-black text-slate-950 bg-slate-100 border border-slate-300 py-1 px-3 mt-1.5 rounded-full inline-block tracking-wider">
-                                {studentContactNum}
-                              </p>
-                            </DraggableField>
-
-                            {/* Signature line space */}
-                            <DraggableField id="signature" className="w-full z-10 mt-auto flex flex-col items-center pt-1.5 relative" offsets={elementOffsets} setOffsets={() => {}} isEditMode={false}>
-                              {schoolSignature ? (
-                                <img src={schoolSignature} className="h-9 max-w-[120px] object-contain -mb-2 select-none pointer-events-none z-20" alt="" referrerPolicy="no-referrer" />
-                              ) : (
-                                <span className="font-signature text-xl text-blue-700 tracking-wide rotate-[-3deg] inline-block -mb-2 z-20 select-none transform hover:scale-105 transition-transform">
-                                  {schoolHead}
-                                </span>
-                              )}
-                              <div className="w-28 border-b border-slate-400 z-10" />
-                              <p className="text-[10px] font-black text-slate-950 mt-1 uppercase max-w-full truncate">{schoolHead}</p>
-                              <p className="text-[7px] text-slate-800 uppercase font-black tracking-wider leading-none font-bold">School Principal</p>
-                            </DraggableField>
-
-                            {/* Validity and Expiration Dates */}
-                            <div className="w-full z-10 border-t border-dashed border-slate-300 pt-1.5 flex items-center justify-center text-[7.5px] text-indigo-950 font-black uppercase tracking-tight leading-none">
-                              <span className="text-rose-700">Valid Until: {getExpirationDate(section?.gradeLevel || s?.gradeLevel || 7, section?.schoolYear || "2025-2026").dateStr}</span>
-                            </div>
-
-                            {/* Fine-print school identifiers */}
-                            <div className="w-full z-10 border-t border-slate-300 pt-1.5 flex items-center justify-between text-[7px] text-slate-850 uppercase font-black tracking-wider leading-none">
-                              <span>School ID: {section?.schoolId || "DEPED-10902"}</span>
-                              <span>OFFICIAL ACCESS</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* ID Front (Only if set to Front/Front-Back separate layout styles) */}
-                  {(layoutType === 'front-back' || layoutType === 'front-only') && (
-                    <div className="id-print-card-cell">
-                      <div className={`id-print-card-scalable rounded-3xl overflow-hidden border ${theme.cardBorder} flex flex-col relative`} style={{ fontFamily, ...bgStyle }}>
-                        {/* Top Accent Strip */}
-                                {/* Header Panel with Lanyard Hole space */}
-                        <DraggableField id="school-header" className={`pt-6 pb-2.5 px-3 flex flex-col items-center justify-center gap-1 transition-all relative id-font-family-container ${theme.bannerBg}`} style={{ fontFamily }} offsets={elementOffsets} setOffsets={() => {}} isEditMode={false}>
-                          {/* Lanyard Hole Slot Guide */}
-                          <div className="absolute top-1.5 left-1/2 -translate-x-1/2 w-8 h-2 rounded-full border border-dashed border-black/20 bg-white/10 flex items-center justify-center z-30 pointer-events-none">
-                            <div className="w-1.5 h-1.5 rounded-full bg-black/10" />
-                          </div>
-                          {schoolLogo && <img src={schoolLogo} className="w-[38px] h-[38px] object-contain shrink-0 rounded-full bg-white border border-white/20 shadow-sm mt-0.5" referrerPolicy="no-referrer" />}
-                          <div className="text-center w-full">
-                            <p className="text-[6.5px] uppercase tracking-widest leading-none font-black mt-0.5">Republic of the Philippines</p>
-                            <p className="text-[6.5px] uppercase tracking-widest leading-none font-black mt-0.5">Department of Education</p>
-                            <p className="text-[10px] uppercase tracking-tight font-black leading-tight mt-1 truncate max-w-full">
-                              {section?.schoolName || "Matatag High School"}
-                            </p>
-                          </div>
-                        </DraggableField>
-
-                        {/* Card Interior */}
-                        <div className={`flex-1 flex flex-col items-center justify-between p-4 relative overflow-hidden id-font-family-container ${innerBgClass}`} style={{ fontFamily }}>
-                          {/* Faint Watermark placement */}
-                          <div className="id-print-watermark absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none select-none z-0 overflow-hidden grayscale">
-                            {getWatermarkIcon()}
-                          </div>
-
-                          {/* Avatar Segment */}
-                          <DraggableField id="student-photo" className="mt-1 flex flex-col items-center text-center z-10 w-full animate-fade-in" offsets={elementOffsets} setOffsets={() => {}} isEditMode={false}>
-                            {s.photo ? (
-                              <div className="overflow-hidden bg-slate-100 rounded-xl border border-slate-200 shadow-sm flex items-center justify-center mx-auto transition-transform hover:scale-105" style={{ width: '105px', height: '135px' }}>
-                                <img src={s.photo} alt={displayName} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                              </div>
-                            ) : includePhotoBox ? (
-                              <div className="border-2 border-dashed rounded-xl flex flex-col items-center justify-center bg-slate-50/80 transition-transform hover:scale-105 mx-auto" style={{ width: '105px', height: '135px', borderColor: theme.colorScheme.primaryHex + "44" }}>
-                                <User size={24} className="text-slate-500 pointer-events-none" />
-                                <span className="text-[7.5px] uppercase tracking-wider text-slate-700 font-extrabold mt-1">35mm x 45mm Photo</span>
-                                <span className="text-[6.5px] uppercase tracking-wider text-slate-600 font-bold leading-none">SF10 Image</span>
-                              </div>
-                            ) : (
-                              <div className="w-14 h-14 rounded-full flex items-center justify-center bg-indigo-50 border border-slate-100 uppercase font-black text-xl mx-auto" style={{ color: theme.colorScheme.primaryHex, background: `${theme.colorScheme.primaryHex}10` }}>
-                                {displayName?.charAt(0) || "-"}
-                              </div>
-                            )}
-                            <span className="text-[8px] font-black tracking-[0.1em] uppercase mt-2 px-2 py-0.5 rounded-full select-none inline-block mx-auto" style={{ background: `${theme.colorScheme.primaryHex}15`, color: theme.colorScheme.primaryHex }}>LRN: {displayLrn}</span>
-                          </DraggableField>
-
-                          {/* Name Block */}
-                          <DraggableField id="student-name" className="w-full text-center z-10 flex-grow flex flex-col justify-center min-h-[44px]" offsets={elementOffsets} setOffsets={() => {}} isEditMode={false}>
-                            <h4 className="text-[14px] font-black text-slate-900 leading-tight uppercase tracking-tight line-clamp-2 px-1">
-                              {displayName}
-                            </h4>
-                          </DraggableField>
-                        </div>
-
-                        {/* Bottom Accent */}
-                        <div className="h-1.5 w-full" style={{ background: theme.colorScheme.primaryHex }} />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* ID Back (Only if set to Back/Front-Back separate layout styles) */}
-                  {(layoutType === 'front-back' || layoutType === 'back-only') && (
-                    <div className="id-print-card-cell">
-                      <div className={`id-print-card-scalable rounded-3xl overflow-hidden border ${theme.cardBorder} flex flex-col relative`} style={{ fontFamily, ...bgStyle }}>
-                        {/* Lanyard Hole Slot Guide */}
-                        <div className="absolute top-2 left-1/2 -translate-x-1/2 w-8 h-2 rounded-full border border-dashed border-slate-400 bg-slate-100/40 flex items-center justify-center z-30 pointer-events-none">
-                          <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />
-                        </div>
-                        {/* Solid Header Accent Color */}
-                        <div className="h-1.5 w-full" style={{ background: theme.colorScheme.primaryHex }} />
-                        
-                        {/* ID Back Card Interior */}
-                        <div className={`flex-1 flex flex-col items-center justify-between p-5 relative overflow-hidden text-center id-font-family-container ${innerBgClass}`} style={{ fontFamily }}>
-                          {/* Faint Watermark backdrop */}
-                          <div className="id-print-watermark absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none select-none z-0 overflow-hidden grayscale">
-                            {getWatermarkIcon()}
-                          </div>
-
-                          {/* Group QR Code and Return Policy together */}
-                          <DraggableField id="qr-return" className="w-full flex flex-col items-center gap-1.5 z-10 shrink-0" offsets={elementOffsets} setOffsets={() => {}} isEditMode={false}>
-                            {includeBarcode && (
-                              <div className="p-0.5 bg-white shadow-sm border border-slate-200 shrink-0">
-                                <QRCode value={displayLrn} size={52} level="M" />
-                              </div>
-                            )}
-
-                            <div className="w-full">
-                              <h5 className="text-[8px] font-black uppercase text-slate-800 tracking-widest leading-none mt-1">Return Policy & Directions</h5>
-                              <p className="text-[8px] text-slate-900 leading-relaxed font-bold mt-1 px-2">
-                                {emergencyNotes || "If found, please return to the school administration office immediately."}
-                              </p>
-                            </div>
-                          </DraggableField>
-
-                          {/* Emergency Contacts Block */}
-                          <DraggableField id="emergency-contact" className="w-full z-10 border-t border-dashed border-slate-350 pt-2 my-0.5" offsets={elementOffsets} setOffsets={() => {}} isEditMode={false}>
-                            <h5 className="text-[9px] font-black uppercase tracking-wider text-rose-850">IN CASE OF EMERGENCY</h5>
-                            <p className="text-[11px] font-black text-slate-950 mt-1 uppercase max-w-full truncate">
-                              {displayGuardian}
-                            </p>
-                            <p className="text-[8px] text-slate-850 uppercase font-black tracking-tight leading-none mt-0.5">
-                              Relationship: {displayRelationship}
-                            </p>
-                            <p className="text-[10px] font-mono font-black text-slate-950 bg-slate-100 border border-slate-300 py-1 px-3 mt-1.5 rounded-full inline-block tracking-wider font-bold">
-                              {studentContactNum}
-                            </p>
-                          </DraggableField>
-
-                          {/* Signature line space */}
-                          <DraggableField id="signature" className="w-full z-10 mt-auto flex flex-col items-center pt-1.5 relative" offsets={elementOffsets} setOffsets={() => {}} isEditMode={false}>
-                            {schoolSignature ? (
-                              <img src={schoolSignature} className="h-9 max-w-[120px] object-contain -mb-2 select-none pointer-events-none z-20" alt="" referrerPolicy="no-referrer" />
-                            ) : (
-                              <span className="font-signature text-xl text-blue-700 tracking-wide rotate-[-3deg] inline-block -mb-2 z-20 select-none transform hover:scale-105 transition-transform">
-                                {schoolHead}
-                              </span>
-                            )}
-                            <div className="w-28 border-b border-slate-400 z-10" />
-                            <p className="text-[10px] font-black text-slate-950 mt-1 uppercase max-w-full truncate">{schoolHead}</p>
-                            <p className="text-[7px] text-slate-800 uppercase font-black tracking-wider leading-none font-bold">School Principal</p>
-                          </DraggableField>
-
-                          {/* Validity and Expiration Dates */}
-                          <div className="w-full z-10 border-t border-dashed border-slate-300 pt-1.5 flex items-center justify-center text-[7.5px] text-indigo-950 font-black uppercase tracking-tight leading-none mt-1">
-                            <span className="text-rose-700">Valid Until: {getExpirationDate(section?.gradeLevel || s?.gradeLevel || 7, section?.schoolYear || "2025-2026").dateStr}</span>
-                          </div>
-
-                          {/* Fine-print school identifiers */}
-                          <div className="w-full z-10 border-t border-slate-300 pt-1.5 flex items-center justify-between text-[7px] text-slate-850 uppercase font-black tracking-wider leading-none">
-                            <span>School ID: {section?.schoolId || "DEPED-10902"}</span>
-                            <span>OFFICIAL ACCESS</span>
-                          </div>
-                        </div>
-
-                        {/* Bottom yellow stripe accent */}
-                        <div className="h-1.5 bg-amber-500 w-full" />
-                      </div>
-                    </div>
-                  )}
-                </React.Fragment>
-              );
-            })}
+              {/* Then render Back pages (Bottom row(s)) */}
+              {layoutType !== 'front-back-vertical' && (layoutType === 'front-back' || layoutType === 'back-only') && (
+                currentBatch.map((s) => renderStudentCard(s, false, true))
+              )}
             </div>
           </div>
           );
@@ -13514,8 +13624,10 @@ function IDPrintingCenterModal({
                       const file = e.target.files?.[0];
                       if (file) {
                         const reader = new FileReader();
-                        reader.onloadend = () => {
-                          setCustomBackground(reader.result as string);
+                        reader.onloadend = async () => {
+                          const originalBase64 = reader.result as string;
+                          const compressed = await compressImage(originalBase64, 800, 800, 0.7);
+                          setCustomBackground(compressed);
                         };
                         reader.readAsDataURL(file);
                       }
@@ -13722,8 +13834,10 @@ function IDPrintingCenterModal({
                         const file = e.target.files?.[0];
                         if (file) {
                           const reader = new FileReader();
-                          reader.onloadend = () => {
-                            setSchoolSignature(reader.result as string);
+                          reader.onloadend = async () => {
+                            const originalBase64 = reader.result as string;
+                            const compressed = await compressImage(originalBase64, 400, 400, 0.7);
+                            setSchoolSignature(compressed);
                           };
                           reader.readAsDataURL(file);
                         }
@@ -13894,10 +14008,22 @@ function IDPrintingCenterModal({
 
             {/* Sandbox Live Simulated Interactive Preview Zone (Right Column) */}
             <div className="flex-1 p-6 md:p-8 flex flex-col justify-between overflow-y-auto bg-slate-100/50">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 block">
-                  3. Dynamic Layout Preview
-                </h3>
+              <div className="flex items-center justify-between gap-4 mb-2 flex-wrap">
+                <div className="flex items-center gap-2.5">
+                  <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 block">
+                    3. Dynamic Layout Preview
+                  </h3>
+                  {layoutType === 'front-back-vertical' && (
+                    <button
+                      type="button"
+                      onClick={() => setFlipBackPreview(prev => !prev)}
+                      className="flex items-center gap-1 px-2 py-0.5 bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 rounded-md text-[9px] font-black uppercase tracking-wider transition-all shadow-sm"
+                      title={flipBackPreview ? "Rotate upright to read details" : "Rotate 180° for printing foldable card"}
+                    >
+                      🔄 {flipBackPreview ? "Read upright" : "Flip down (Print)"}
+                    </button>
+                  )}
+                </div>
                 {selectedStudentsToPrint.length > 1 && (
                   <div className="flex items-center gap-2">
                     <button
@@ -13929,19 +14055,22 @@ function IDPrintingCenterModal({
                   <>
                     {/* Brand-new Foldable Interactive Double Side Combined vertical preview */}
                     {layoutType === 'front-back-vertical' && (
-                      <div className={`w-[240px] h-[764px] bg-white rounded-3xl overflow-hidden shadow-2xl border ${theme.cardBorder} flex flex-col relative transition-all`}>
-                        {/* Fold separator marker line with tooltip */}
-                        <div className="absolute top-[382px] left-0 right-0 border-t-2 border-dashed border-slate-300 z-50 pointer-events-none flex items-center justify-center">
-                          <span className="text-[7px] font-black uppercase text-slate-400 bg-white px-2 py-0.5 border border-slate-200 rounded-full shadow-sm -mt-[6.5px]">Fold Marker Line</span>
-                        </div>
-
+                      <div className={`w-[240px] h-[780px] rounded-3xl overflow-hidden shadow-2xl border ${theme.cardBorder} flex flex-col relative transition-all`} style={{ fontFamily, ...bgStyle }}>
                         {/* Interactive combined front card component (top half) */}
                         <div className="w-[240px] h-[382px] flex flex-col relative overflow-hidden" style={bgStyle}>
+                          {customBackground && (
+                            <img 
+                              src={customBackground} 
+                              alt="" 
+                              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'fill', opacity: customBackgroundOpacity / 100, pointerEvents: 'none', userSelect: 'none', zIndex: 0 }}
+                              referrerPolicy="no-referrer"
+                            />
+                          )}
                           {/* Top accent */}
-                          <div className="h-1.5 w-full bg-amber-500" />
+                          <div className="h-1.5 w-full bg-amber-500 z-10" />
                           
                           {/* Header Block with Lanyard Hole space */}
-                          <DraggableField id="school-header" className={`pt-6 pb-2.5 px-3 flex flex-col items-center justify-center gap-1 transition-all relative ${theme.bannerBg}`} offsets={elementOffsets} setOffsets={setElementOffsets} isEditMode={isDragMode}>
+                          <DraggableField id="school-header" className={`pt-6 pb-2.5 px-3 flex flex-col items-center justify-center gap-1 transition-all relative z-10 ${theme.bannerBg}`} offsets={elementOffsets} setOffsets={setElementOffsets} isEditMode={isDragMode}>
                             {/* Lanyard Hole Slot Guide */}
                             <div className="absolute top-1.5 left-1/2 -translate-x-1/2 w-8 h-2 rounded-full border border-dashed border-black/20 bg-white/10 flex items-center justify-center z-30 pointer-events-none">
                               <div className="w-1.5 h-1.5 rounded-full bg-black/10" />
@@ -13950,14 +14079,14 @@ function IDPrintingCenterModal({
                             <div className="text-center w-full">
                               <p className="text-[6.5px] uppercase tracking-widest leading-none font-black mt-0.5">Republic of the Philippines</p>
                               <p className="text-[6.5px] uppercase tracking-widest leading-none font-black mt-0.5">Department of Education</p>
-                              <p className="text-[10px] uppercase tracking-tight font-black leading-tight mt-1 truncate max-w-full">
+                              <p className="text-[13px] uppercase tracking-tight font-black leading-tight mt-1 truncate max-w-full">
                                 {section?.schoolName || "Matatag High School"}
                               </p>
                             </div>
                           </DraggableField>
 
                           {/* Body elements with watermark */}
-                          <div className={`flex-1 flex flex-col items-center justify-between p-4 relative overflow-hidden ${innerBgClass}`} style={{ fontFamily }}>
+                          <div className={`flex-1 flex flex-col items-center justify-between p-4 relative z-10 overflow-hidden ${innerBgClass}`} style={{ fontFamily }}>
                             <div className="id-print-watermark absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none select-none z-0 overflow-hidden grayscale">
                               {getWatermarkIcon()}
                             </div>
@@ -13979,7 +14108,7 @@ function IDPrintingCenterModal({
                                   {(formatStudentName(activePreviewStudent) || activePreviewStudent.name)?.charAt(0) || "-"}
                                 </div>
                               )}
-                              <span className="text-[8px] font-black tracking-[0.1em] uppercase mt-2 px-2 py-0.5 rounded-full select-none inline-block mx-auto" style={{ background: `${theme.colorScheme.primaryHex}15`, color: theme.colorScheme.primaryHex }}>LRN: {activePreviewStudent.lrn || "---"}</span>
+                              <span className="text-[11px] font-extrabold tracking-[0.12em] font-mono mt-2 px-2.5 py-0.5 rounded-full select-none inline-block mx-auto" style={{ background: `${theme.colorScheme.primaryHex}15`, color: theme.colorScheme.primaryHex }}>{activePreviewStudent.lrn || "---"}</span>
                             </DraggableField>
 
                             {/* Name details */}
@@ -13991,17 +14120,30 @@ function IDPrintingCenterModal({
                           </div>
 
                           {/* Base accent */}
-                          <div className="h-1.5 w-full" style={{ background: theme.colorScheme.primaryHex }} />
+                          <div className="h-1.5 w-full z-10" style={{ background: theme.colorScheme.primaryHex }} />
                         </div>
 
-                        {/* Interactive combined back card component (bottom half) */}
-                        <div className="w-[240px] h-[382px] flex flex-col relative overflow-hidden" style={bgStyle}>
+                        {/* Fold line spacer gap with subtle folding line */}
+                        <div className="h-4 w-full flex items-center justify-center relative shrink-0 z-50 pointer-events-none">
+                          <div className="w-full border-t border-dashed border-slate-350/70" />
+                        </div>
+
+                        {/* Interactive combined back card component (bottom half) - Flipped/Rotated 180° with smooth transition */}
+                        <div className={`w-[240px] h-[382px] flex flex-col relative overflow-hidden transition-all duration-500 origin-center ${flipBackPreview ? 'rotate-180' : ''}`} style={bgStyle}>
+                          {customBackground && (
+                            <img 
+                              src={customBackground} 
+                              alt="" 
+                              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'fill', opacity: customBackgroundOpacity / 100, pointerEvents: 'none', userSelect: 'none', zIndex: 0 }}
+                              referrerPolicy="no-referrer"
+                            />
+                          )}
                           {/* Lanyard Hole Slot Guide */}
                           <div className="absolute top-2 left-1/2 -translate-x-1/2 w-8 h-2 rounded-full border border-dashed border-slate-400 bg-slate-100/40 flex items-center justify-center z-30 pointer-events-none">
                             <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />
                           </div>
                           {/* Render interior backing card contents */}
-                          <div className={`flex-grow flex flex-col items-center justify-between p-5 relative overflow-hidden text-center ${innerBgClass}`} style={{ fontFamily }}>
+                          <div className={`flex-grow flex flex-col items-center justify-between p-5 relative z-10 overflow-hidden text-center ${innerBgClass}`} style={{ fontFamily }}>
                             <div className="id-print-watermark absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none select-none z-0 overflow-hidden grayscale">
                               {getWatermarkIcon()}
                             </div>
@@ -14068,8 +14210,16 @@ function IDPrintingCenterModal({
                     {/* Simulated Front Preview (Separate layouts) */}
                     {(layoutType === 'front-back' || layoutType === 'front-only') && (
                       <div className={`w-[240px] h-[382px] bg-white rounded-3xl overflow-hidden shadow-2xl border ${theme.cardBorder} flex flex-col relative transition-all`} style={{ fontFamily, ...bgStyle }}>
+                        {customBackground && (
+                          <img 
+                            src={customBackground} 
+                            alt="" 
+                            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'fill', opacity: customBackgroundOpacity / 100, pointerEvents: 'none', userSelect: 'none', zIndex: 0 }}
+                            referrerPolicy="no-referrer"
+                          />
+                        )}
                         {/* Header Panel with Lanyard Hole space */}
-                        <DraggableField id="school-header" className={`pt-6 pb-2.5 px-3 flex flex-col items-center justify-center gap-1 transition-all relative id-font-family-container ${theme.bannerBg}`} style={{ fontFamily }} offsets={elementOffsets} setOffsets={setElementOffsets} isEditMode={isDragMode}>
+                        <DraggableField id="school-header" className={`pt-6 pb-2.5 px-3 flex flex-col items-center justify-center gap-1 transition-all relative z-10 id-font-family-container ${theme.bannerBg}`} style={{ fontFamily }} offsets={elementOffsets} setOffsets={setElementOffsets} isEditMode={isDragMode}>
                           {/* Lanyard Hole Slot Guide */}
                           <div className="absolute top-1.5 left-1/2 -translate-x-1/2 w-8 h-2 rounded-full border border-dashed border-black/20 bg-white/10 flex items-center justify-center z-30 pointer-events-none">
                             <div className="w-1.5 h-1.5 rounded-full bg-black/10" />
@@ -14078,14 +14228,14 @@ function IDPrintingCenterModal({
                           <div className="text-center w-full">
                             <p className="text-[6.5px] uppercase tracking-widest leading-none font-black mt-0.5">Republic of the Philippines</p>
                             <p className="text-[6.5px] uppercase tracking-widest leading-none font-black mt-0.5">Department of Education</p>
-                            <p className="text-[10px] uppercase tracking-tight font-black leading-tight mt-1 truncate max-w-full">
+                            <p className="text-[13px] uppercase tracking-tight font-black leading-tight mt-1 truncate max-w-full">
                               {section?.schoolName || "Matatag High School"}
                             </p>
                           </div>
                         </DraggableField>
 
                         {/* Card Interior */}
-                        <div className={`flex-1 flex flex-col items-center justify-between p-4 relative overflow-hidden id-font-family-container ${innerBgClass}`} style={{ fontFamily }}>
+                        <div className={`flex-1 flex flex-col items-center justify-between p-4 relative z-10 overflow-hidden id-font-family-container ${innerBgClass}`} style={{ fontFamily }}>
                           {/* Faint Watermark placement */}
                           <div className="id-print-watermark absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none select-none z-0 overflow-hidden grayscale">
                             {getWatermarkIcon()}
@@ -14108,7 +14258,7 @@ function IDPrintingCenterModal({
                                 {formatStudentName(activePreviewStudent).charAt(0) || activePreviewStudent.name?.charAt(0) || "-"}
                               </div>
                             )}
-                            <span className="text-[8px] font-black tracking-[0.1em] uppercase mt-2 px-2 py-0.5 rounded-full select-none inline-block mx-auto" style={{ background: `${theme.colorScheme.primaryHex}15`, color: theme.colorScheme.primaryHex }}>LRN: {activePreviewStudent.lrn || "---"}</span>
+                            <span className="text-[11px] font-extrabold tracking-[0.12em] font-mono mt-2 px-2.5 py-0.5 rounded-full select-none inline-block mx-auto" style={{ background: `${theme.colorScheme.primaryHex}15`, color: theme.colorScheme.primaryHex }}>{activePreviewStudent.lrn || "---"}</span>
                           </DraggableField>
 
                           {/* Name Block */}
@@ -14120,22 +14270,30 @@ function IDPrintingCenterModal({
                         </div>
 
                         {/* Bottom Accent */}
-                        <div className="h-1.5 w-full" style={{ background: theme.colorScheme.primaryHex }} />
+                        <div className="h-1.5 w-full z-10" style={{ background: theme.colorScheme.primaryHex }} />
                       </div>
                     )}
 
                     {/* Simulated Back Preview (Separate layouts) */}
                     {(layoutType === 'front-back' || layoutType === 'back-only') && (
                       <div className={`w-[240px] h-[382px] bg-white rounded-3xl overflow-hidden shadow-2xl border ${theme.cardBorder} flex flex-col relative transition-all`} style={bgStyle}>
+                        {customBackground && (
+                          <img 
+                            src={customBackground} 
+                            alt="" 
+                            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'fill', opacity: customBackgroundOpacity / 100, pointerEvents: 'none', userSelect: 'none', zIndex: 0 }}
+                            referrerPolicy="no-referrer"
+                          />
+                        )}
                         {/* Lanyard Hole Slot Guide */}
                         <div className="absolute top-2 left-1/2 -translate-x-1/2 w-8 h-2 rounded-full border border-dashed border-slate-400 bg-slate-100/40 flex items-center justify-center z-30 pointer-events-none">
                           <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />
                         </div>
                         {/* Solid Header Accent Color */}
-                        <div className="h-1.5 w-full" style={{ background: theme.colorScheme.primaryHex }} />
+                        <div className="h-1.5 w-full z-10" style={{ background: theme.colorScheme.primaryHex }} />
                         
                         {/* ID Back Card Interior */}
-                        <div className={`flex-1 flex flex-col items-center justify-between p-5 relative overflow-hidden text-center id-font-family-container ${innerBgClass}`} style={{ fontFamily }}>
+                        <div className={`flex-1 flex flex-col items-center justify-between p-5 relative z-10 overflow-hidden text-center id-font-family-container ${innerBgClass}`} style={{ fontFamily }}>
                           {/* Faint Watermark backdrop */}
                           <div className="id-print-watermark absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none select-none z-0 overflow-hidden grayscale">
                             {getWatermarkIcon()}
