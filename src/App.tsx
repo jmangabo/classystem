@@ -12755,7 +12755,7 @@ function IDPrintingCenterModal({
       border: 1px solid #cbd5e1 !important;
       border-radius: 4.5mm !important;
       overflow: hidden !important;
-      background: white !important;
+      background-color: white !important;
       page-break-inside: avoid !important;
       break-inside: avoid !important;
       position: relative !important;
@@ -12777,7 +12777,7 @@ function IDPrintingCenterModal({
       border: 1px solid #cbd5e1 !important;
       border-radius: 4.5mm !important;
       overflow: hidden !important;
-      background: white !important;
+      background-color: white !important;
       page-break-inside: avoid !important;
       break-inside: avoid !important;
       position: relative !important;
@@ -12799,7 +12799,7 @@ function IDPrintingCenterModal({
       position: absolute !important;
       top: 0 !important;
       left: 0 !important;
-      background: white !important;
+      background-color: white !important;
       box-sizing: border-box !important;
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
@@ -12817,7 +12817,7 @@ function IDPrintingCenterModal({
       position: absolute !important;
       top: 0 !important;
       left: 0 !important;
-      background: white !important;
+      background-color: white !important;
       box-sizing: border-box !important;
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
@@ -12992,7 +12992,7 @@ function IDPrintingCenterModal({
             box-sizing: border-box !important;
             border: 1px solid #cbd5e1 !important;
             border-radius: 4.5mm !important;
-            background: white !important;
+            background-color: white !important;
             margin-bottom: 5px !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
@@ -13011,7 +13011,7 @@ function IDPrintingCenterModal({
             box-sizing: border-box !important;
             border: 1px solid #cbd5e1 !important;
             border-radius: 4.5mm !important;
-            background: white !important;
+            background-color: white !important;
             margin-bottom: 5px !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
@@ -13028,7 +13028,7 @@ function IDPrintingCenterModal({
             position: absolute !important;
             top: 0 !important;
             left: 0 !important;
-            background: white !important;
+            background-color: white !important;
             box-sizing: border-box !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
@@ -13045,7 +13045,7 @@ function IDPrintingCenterModal({
             position: absolute !important;
             top: 0 !important;
             left: 0 !important;
-            background: white !important;
+            background-color: white !important;
             box-sizing: border-box !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
@@ -13053,6 +13053,12 @@ function IDPrintingCenterModal({
           .id-print-card-landscape {
             width: 85.6mm !important;
             height: 53.98mm !important;
+          }
+
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            color-adjust: exact !important;
           }
 
           .id-print-watermark {
