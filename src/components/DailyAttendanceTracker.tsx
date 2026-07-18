@@ -287,19 +287,34 @@ export const DailyAttendanceTracker: React.FC<DailyAttendanceTrackerProps> = ({ 
     let errMsg = "Unable to access camera.";
     
     if (err && typeof err === 'object') {
-      if (err.message) {
-        errMsg = err.message;
-      }
-      const errName = err.name || err.kind;
-      if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError' || errName === 'permission-denied') {
-        errMsg = "Camera permission denied. Please allow camera access in your browser settings.";
-      } else if (errName === 'NotFoundError' || errName === 'DevicesNotFoundError' || errName === 'no-camera') {
+      const errName = err.name || err.kind || '';
+      const errMsgStr = (err.message || '').toLowerCase();
+      
+      const isPermissionDenied = 
+        errName === 'NotAllowedError' || 
+        errName === 'PermissionDeniedError' || 
+        errName === 'permission-denied' ||
+        errMsgStr.includes('not allowed') || 
+        errMsgStr.includes('permission') || 
+        errMsgStr.includes('denied') || 
+        errMsgStr.includes('current context');
+        
+      if (isPermissionDenied) {
+        errMsg = "Camera permission denied or blocked. If you are using this app inside the preview frame, please click 'Open in New Tab' at the top-right of the preview to allow camera access.";
+      } else if (errName === 'NotFoundError' || errName === 'DevicesNotFoundError' || errName === 'no-camera' || errMsgStr.includes('notfound') || errMsgStr.includes('no camera')) {
         errMsg = "No camera device found.";
       } else if (errName === 'OverconstrainedError' || errName === 'overconstrained') {
         errMsg = "Selected camera type is not available. Please try switching cameras.";
+      } else if (err.message) {
+        errMsg = err.message;
       }
     } else if (typeof err === 'string') {
-      errMsg = err;
+      const lowerErr = err.toLowerCase();
+      if (lowerErr.includes('not allowed') || lowerErr.includes('permission') || lowerErr.includes('denied') || lowerErr.includes('current context')) {
+        errMsg = "Camera permission denied or blocked. If you are using this app inside the preview frame, please click 'Open in New Tab' at the top-right of the preview to allow camera access.";
+      } else {
+        errMsg = err;
+      }
     }
     
     setScannerError(errMsg);

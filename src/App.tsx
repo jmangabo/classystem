@@ -1322,19 +1322,34 @@ export default function App() {
     let errMsg = "Unable to access camera.";
     
     if (err && typeof err === 'object') {
-      if (err.message) {
-        errMsg = err.message;
-      }
-      const errName = err.name || err.kind;
-      if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError' || errName === 'permission-denied') {
-        errMsg = "Camera permission denied. Please allow camera access in your browser settings.";
-      } else if (errName === 'NotFoundError' || errName === 'DevicesNotFoundError' || errName === 'no-camera') {
+      const errName = err.name || err.kind || '';
+      const errMsgStr = (err.message || '').toLowerCase();
+      
+      const isPermissionDenied = 
+        errName === 'NotAllowedError' || 
+        errName === 'PermissionDeniedError' || 
+        errName === 'permission-denied' ||
+        errMsgStr.includes('not allowed') || 
+        errMsgStr.includes('permission') || 
+        errMsgStr.includes('denied') || 
+        errMsgStr.includes('current context');
+        
+      if (isPermissionDenied) {
+        errMsg = "Camera permission denied or blocked. If you are using this app inside the preview frame, please click 'Open in New Tab' at the top-right of the preview to allow camera access.";
+      } else if (errName === 'NotFoundError' || errName === 'DevicesNotFoundError' || errName === 'no-camera' || errMsgStr.includes('notfound') || errMsgStr.includes('no camera')) {
         errMsg = "No camera device found.";
       } else if (errName === 'OverconstrainedError' || errName === 'overconstrained') {
         errMsg = "Selected camera type is not available. Please try switching cameras.";
+      } else if (err.message) {
+        errMsg = err.message;
       }
     } else if (typeof err === 'string') {
-      errMsg = err;
+      const lowerErr = err.toLowerCase();
+      if (lowerErr.includes('not allowed') || lowerErr.includes('permission') || lowerErr.includes('denied') || lowerErr.includes('current context')) {
+        errMsg = "Camera permission denied or blocked. If you are using this app inside the preview frame, please click 'Open in New Tab' at the top-right of the preview to allow camera access.";
+      } else {
+        errMsg = err;
+      }
     }
     
     setGlobalScannerError(errMsg);
@@ -6821,6 +6836,7 @@ function SectionsView({
   const [confirmFinalizeConfig, setConfirmFinalizeConfig] = useState<{ subjectId: string, term: number, finalize: boolean } | null>(null);
   const [isOverviewOpen, setIsOverviewOpen] = useState(false);
   const [collapsedAdminGrades, setCollapsedAdminGrades] = useState<Set<number>>(new Set());
+  const [openAdminMenu, setOpenAdminMenu] = useState<string | null>(null);
 
   const hasAssignedSubjects = useMemo(() => {
     return subjects.some(s => (s.teacherEmail || "").toLowerCase() === (user?.email || "").toLowerCase()) ||
@@ -7657,6 +7673,71 @@ function SectionsView({
     }
   };
 
+  const renderAdminDropdown = (
+    id: string, 
+    label: string, 
+    icon: React.ReactNode, 
+    items: {
+      label: string;
+      icon: React.ReactNode;
+      onClick?: () => void;
+      customRender?: (close: () => void) => React.ReactNode;
+      visible: boolean;
+      textClass?: string;
+    }[]
+  ) => {
+    const visibleItems = items.filter(item => item.visible);
+    if (visibleItems.length === 0) return null;
+    const isOpen = openAdminMenu === id;
+    const setIsOpen = (val: boolean) => setOpenAdminMenu(val ? id : null);
+
+    return (
+      <div className="relative w-full sm:w-auto z-30">
+        <button 
+          type="button"
+          onClick={() => setIsOpen(!isOpen)}
+          className="flex items-center justify-between sm:justify-center gap-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-sm px-5 py-2.5 rounded-xl transition-all shadow-sm w-full sm:w-auto"
+        >
+          <div className="flex items-center gap-2">
+            {icon}
+            <span>{label}</span>
+          </div>
+          <ChevronDown size={14} className={`opacity-50 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+        </button>
+        {isOpen && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
+            <div className="absolute left-0 sm:left-auto sm:right-0 top-full mt-2 w-full sm:w-64 bg-white border border-slate-200 rounded-xl shadow-xl p-2 flex flex-col gap-1 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+              {visibleItems.map((item, index) => {
+                if (item.customRender) {
+                  return (
+                    <div key={index} className="w-full">
+                      {item.customRender(() => setIsOpen(false))}
+                    </div>
+                  );
+                }
+                return (
+                  <button
+                    key={index}
+                    type="button"
+                    onClick={() => {
+                      if (item.onClick) item.onClick();
+                      setIsOpen(false);
+                    }}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-bold transition-all text-left ${item.textClass || 'text-slate-700 hover:bg-slate-50'}`}
+                  >
+                    {item.icon}
+                    <span>{item.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="h-screen print:h-auto bg-slate-50 flex flex-col font-sans overflow-hidden print:overflow-visible">
       
@@ -8049,93 +8130,117 @@ function SectionsView({
 
               {(user?.role === 'admin' || user?.role === 'system_admin' || user?.role === 'school_head' || isAuthorizedCashier) && (
                 <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto shrink-0 mt-6 xl:mt-0 mb-8">
-                  {onShowFinancialStatement && (user?.role === 'system_admin' || user?.role === 'school_head' || isAuthorizedCashier) && (
-                    <button 
-                      onClick={onShowFinancialStatement}
-                      className="flex items-center justify-center gap-2 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 font-bold text-sm px-5 py-2.5 rounded-xl transition-all shadow-sm w-full sm:w-auto"
-                    >
-                      <BarChart2 size={16} className="text-emerald-600" />
-                      <span>Financial Statement</span>
-                    </button>
+                  {renderAdminDropdown(
+                    'financials', 
+                    'Financials', 
+                    <BarChart2 size={16} className="text-emerald-600" />,
+                    [
+                      {
+                        label: 'Financial Statement',
+                        icon: <BarChart2 size={15} className="text-emerald-600" />,
+                        onClick: onShowFinancialStatement,
+                        visible: !!(onShowFinancialStatement && (user?.role === 'system_admin' || user?.role === 'school_head' || isAuthorizedCashier)),
+                        textClass: 'text-emerald-700 hover:bg-emerald-50'
+                      }
+                    ]
                   )}
-                  {onShowSF4 && (user?.role === 'system_admin' || user?.role === 'school_head') && (
-                    <button 
-                      onClick={onShowSF4}
-                      className="flex items-center justify-center gap-2 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 font-bold text-sm px-5 py-2.5 rounded-xl transition-all shadow-sm w-full sm:w-auto"
-                    >
-                      <FileText size={16} className="text-amber-600" />
-                      <span>School Form 4</span>
-                    </button>
+
+                  {renderAdminDropdown(
+                    'school-forms', 
+                    'School Forms', 
+                    <FileText size={16} className="text-amber-600" />,
+                    [
+                      {
+                        label: 'School Form 4 (SF4)',
+                        icon: <FileText size={15} className="text-amber-600" />,
+                        onClick: onShowSF4,
+                        visible: !!(onShowSF4 && (user?.role === 'system_admin' || user?.role === 'school_head')),
+                        textClass: 'text-amber-700 hover:bg-amber-50'
+                      },
+                      {
+                        label: 'School Form 7 (SF7)',
+                        icon: <FileText size={15} className="text-indigo-600" />,
+                        onClick: onShowSF7,
+                        visible: !!(onShowSF7 && (user?.role === 'system_admin' || user?.role === 'school_head' || user?.role === 'admin')),
+                        textClass: 'text-indigo-700 hover:bg-indigo-50'
+                      }
+                    ]
                   )}
-                  {onShowSF7 && (user?.role === 'system_admin' || user?.role === 'school_head' || user?.role === 'admin') && (
-                    <button 
-                      onClick={onShowSF7}
-                      className="flex items-center justify-center gap-2 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-800 font-bold text-sm px-5 py-2.5 rounded-xl transition-all shadow-sm w-full sm:w-auto"
-                    >
-                      <FileText size={16} className="text-indigo-600" />
-                      <span>School Form 7</span>
-                    </button>
+
+                  {renderAdminDropdown(
+                    'academic-programs', 
+                    'Academic Programs', 
+                    <BookOpen size={16} className="text-indigo-600" />,
+                    [
+                      {
+                        label: 'Subject Menu',
+                        icon: <BookOpen size={15} className="text-indigo-600" />,
+                        onClick: () => onSetActiveTab('subjects'),
+                        visible: user?.role === 'system_admin',
+                        textClass: 'text-slate-700 hover:bg-slate-50'
+                      },
+                      {
+                        label: 'G9/G10 TLE Allocation',
+                        icon: <GraduationCap size={15} className="text-indigo-600" />,
+                        onClick: () => onSetActiveTab('tle-dashboard'),
+                        visible: !!(user?.role === 'admin' || user?.role === 'system_admin' || (user?.role === 'teacher' && hasAssignedSubjects)),
+                        textClass: 'text-slate-700 hover:bg-slate-50'
+                      },
+                      {
+                        label: 'ARAL Program',
+                        icon: <GraduationCap size={15} className="text-indigo-600" />,
+                        onClick: () => onSetActiveTab('aral'),
+                        visible: !!(onSetActiveTab && (user?.role === 'system_admin' || user?.role === 'school_head' || user?.role === 'admin' || (mapUserRoleToAralRole && mapUserRoleToAralRole(user?.role, user?.email) === 'ARAL Coordinator'))),
+                        textClass: 'text-indigo-700 hover:bg-indigo-50'
+                      }
+                    ]
                   )}
-                  {onSetActiveTab && (user?.role === 'system_admin' || user?.role === 'school_head' || user?.role === 'admin' || (mapUserRoleToAralRole && mapUserRoleToAralRole(user?.role, user?.email) === 'ARAL Coordinator')) && (
-                    <button 
-                      onClick={() => onSetActiveTab('aral')}
-                      className="flex items-center justify-center gap-2 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-800 font-bold text-sm px-5 py-2.5 rounded-xl transition-all shadow-sm w-full sm:w-auto"
-                    >
-                      <GraduationCap size={16} className="text-indigo-600" />
-                      <span>ARAL Program</span>
-                    </button>
-                  )}
-                  {(user?.role === 'admin' || user?.role === 'system_admin') && onManageStudentList && (
-                    <button 
-                      onClick={onManageStudentList}
-                      className="flex items-center justify-center gap-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-sm px-5 py-2.5 rounded-xl transition-all shadow-sm w-full sm:w-auto"
-                    >
-                      <TableIcon size={16} className="text-indigo-600" />
-                      <span>Student List</span>
-                    </button>
-                  )}
-                  {(user?.role === 'admin' || user?.role === 'system_admin' || (user?.role === 'teacher' && hasAssignedSubjects)) && (
-                    <button 
-                      onClick={() => onSetActiveTab('tle-dashboard')}
-                      className="flex items-center justify-center gap-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-sm px-5 py-2.5 rounded-xl transition-all shadow-sm w-full sm:w-auto"
-                    >
-                      <GraduationCap size={16} className="text-indigo-600" />
-                      <span>G9/10 TLE Allocation</span>
-                    </button>
-                  )}
-                  {user?.role === 'system_admin' && (
-                    <>
-                      <button 
-                        onClick={() => onSetActiveTab('subjects')}
-                        className="flex items-center justify-center gap-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-sm px-5 py-2.5 rounded-xl transition-all shadow-sm w-full sm:w-auto"
-                      >
-                        <BookOpen size={16} className="text-indigo-600" />
-                        <span>Subject Menu</span>
-                      </button>
-                      <button 
-                        type="button"
-                        onClick={downloadDashboardCSVTemplate}
-                        className="flex items-center justify-center gap-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-650 font-bold text-sm px-5 py-2.5 rounded-xl transition-all shadow-sm w-full sm:w-auto cursor-pointer"
-                      >
-                        <Download size={16} className="text-indigo-600" />
-                        <span>Download CSV Template</span>
-                      </button>
-                      <label 
-                        className={`flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 border border-indigo-700 text-white font-bold text-sm px-5 py-2.5 rounded-xl transition-all shadow-md hover:-translate-y-0.5 active:translate-y-0 cursor-pointer w-full sm:w-auto animate-in duration-200 fade-in shadow-indigo-600/20 ${
-                          isUploadingDashboard ? 'opacity-50 cursor-not-allowed' : ''
-                        }`}
-                      >
-                        <FileUp size={16} className="text-white" />
-                        <span>Bulk Upload (CSV)</span>
-                        <input 
-                          type="file" 
-                          accept=".csv" 
-                          className="hidden" 
-                          onChange={handleDashboardFileUpload}
-                          disabled={isUploadingDashboard}
-                        />
-                      </label>
-                    </>
+
+                  {renderAdminDropdown(
+                    'learner-mgmt', 
+                    'Learner Management', 
+                    <Users size={16} className="text-indigo-600" />,
+                    [
+                      {
+                        label: 'Student List',
+                        icon: <TableIcon size={15} className="text-indigo-600" />,
+                        onClick: onManageStudentList,
+                        visible: !!((user?.role === 'admin' || user?.role === 'system_admin') && onManageStudentList),
+                        textClass: 'text-slate-700 hover:bg-slate-50'
+                      },
+                      {
+                        label: 'Download CSV Template',
+                        icon: <Download size={15} className="text-indigo-600" />,
+                        onClick: downloadDashboardCSVTemplate,
+                        visible: user?.role === 'system_admin',
+                        textClass: 'text-slate-700 hover:bg-slate-50'
+                      },
+                      {
+                        label: 'Bulk Upload (for Learner Upload)',
+                        icon: <FileUp size={15} className="text-indigo-600" />,
+                        visible: user?.role === 'system_admin',
+                        customRender: (close) => (
+                          <label 
+                            className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-bold transition-all text-left cursor-pointer w-full text-indigo-600 hover:bg-indigo-50/50 ${
+                              isUploadingDashboard ? 'opacity-50 cursor-not-allowed' : ''
+                            }`}
+                          >
+                            <FileUp size={15} className="text-indigo-600" />
+                            <span>Bulk Upload (for Learner Upload)</span>
+                            <input 
+                              type="file" 
+                              accept=".csv" 
+                              className="hidden" 
+                              onChange={(e) => {
+                                handleDashboardFileUpload(e);
+                                close();
+                              }}
+                              disabled={isUploadingDashboard}
+                            />
+                          </label>
+                        )
+                      }
+                    ]
                   )}
                 </div>
               )}
@@ -17421,19 +17526,34 @@ function DashboardView({
     let errMsg = "Unable to access camera.";
     
     if (err && typeof err === 'object') {
-      if (err.message) {
-        errMsg = err.message;
-      }
-      const errName = err.name || err.kind;
-      if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError' || errName === 'permission-denied') {
-        errMsg = "Camera permission denied. Please allow camera access in your browser settings.";
-      } else if (errName === 'NotFoundError' || errName === 'DevicesNotFoundError' || errName === 'no-camera') {
+      const errName = err.name || err.kind || '';
+      const errMsgStr = (err.message || '').toLowerCase();
+      
+      const isPermissionDenied = 
+        errName === 'NotAllowedError' || 
+        errName === 'PermissionDeniedError' || 
+        errName === 'permission-denied' ||
+        errMsgStr.includes('not allowed') || 
+        errMsgStr.includes('permission') || 
+        errMsgStr.includes('denied') || 
+        errMsgStr.includes('current context');
+        
+      if (isPermissionDenied) {
+        errMsg = "Camera permission denied or blocked. If you are using this app inside the preview frame, please click 'Open in New Tab' at the top-right of the preview to allow camera access.";
+      } else if (errName === 'NotFoundError' || errName === 'DevicesNotFoundError' || errName === 'no-camera' || errMsgStr.includes('notfound') || errMsgStr.includes('no camera')) {
         errMsg = "No camera device found.";
       } else if (errName === 'OverconstrainedError' || errName === 'overconstrained') {
         errMsg = "Selected camera type is not available. Please try switching cameras.";
+      } else if (err.message) {
+        errMsg = err.message;
       }
     } else if (typeof err === 'string') {
-      errMsg = err;
+      const lowerErr = err.toLowerCase();
+      if (lowerErr.includes('not allowed') || lowerErr.includes('permission') || lowerErr.includes('denied') || lowerErr.includes('current context')) {
+        errMsg = "Camera permission denied or blocked. If you are using this app inside the preview frame, please click 'Open in New Tab' at the top-right of the preview to allow camera access.";
+      } else {
+        errMsg = err;
+      }
     }
     
     setLocalScannerError(errMsg);
