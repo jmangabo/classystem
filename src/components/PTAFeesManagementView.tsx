@@ -879,6 +879,26 @@ export function PTAFeesManagementView({
 
   const [voidConfirmPayment, setVoidConfirmPayment] = useState<PTAPayment | null>(null);
 
+  // Helper to extract OR-No and match payments
+  const getPaymentsForLog = (details: string) => {
+    const match = details.match(/OR-No:\s*([^\s,]+)/);
+    if (!match) return [];
+    const orNum = match[1].trim();
+    if (!orNum || orNum === 'N/A') return [];
+    return payments.filter(p => p.orNumber === orNum);
+  };
+
+  const handleVoidPaymentsFromAudit = (associatedPayments: PTAPayment[], log: PTAAuditLog) => {
+    if (!isSuperAdmin) {
+      alert("Only system administrators or school finance managers are authorized to void payment transactions.");
+      return;
+    }
+    const mainPayment = associatedPayments.find(p => !p.coveredBySibling) || associatedPayments[0];
+    if (mainPayment) {
+      setVoidConfirmPayment(mainPayment);
+    }
+  };
+
   // 10. Undo/Void recorded payment
   const handleVoidPayment = (paymentItem: PTAPayment) => {
     if (!isSuperAdmin) {
@@ -891,15 +911,34 @@ export function PTAFeesManagementView({
   const executeVoidPayment = async () => {
     if (!voidConfirmPayment) return;
     try {
-      await deleteDoc(doc(db, 'pta_payments', voidConfirmPayment.id));
+      // Find all payments sharing the same OR number
+      const related = payments.filter(p => p.orNumber === voidConfirmPayment.orNumber);
+      
+      const batches = [];
+      let currentBatch = writeBatch(db);
+      let count = 0;
+      
+      related.forEach((p) => {
+        currentBatch.delete(doc(db, 'pta_payments', p.id));
+        count++;
+        if (count === 500) {
+          batches.push(currentBatch.commit());
+          currentBatch = writeBatch(db);
+          count = 0;
+        }
+      });
+      if (count > 0) batches.push(currentBatch.commit());
+      await Promise.all(batches);
+
+      const targetNames = related.map(p => p.studentName).join(', ');
       await writeAuditLog(
         'payment_void', 
-        `VOIDED PTA Payment log: Removed receipt for ${voidConfirmPayment.studentName} tracking ₱${voidConfirmPayment.amountPaid} under OR-${voidConfirmPayment.orNumber}`
+        `VOIDED PTA Payment log: Removed receipt and coverage for [${targetNames}] tracking total ₱${related.reduce((sum, p) => sum + p.amountPaid, 0)} under OR-${voidConfirmPayment.orNumber}`
       );
       setVoidConfirmPayment(null);
       setShowReceipt(null);
     } catch (err) {
-      handleFirestoreError(err, 'delete', `pta_payments/${voidConfirmPayment.id}`);
+      handleFirestoreError(err, 'delete', `pta_payments`);
     } finally {
       setVoidConfirmPayment(null);
     }
@@ -2882,33 +2921,47 @@ export function PTAFeesManagementView({
                     <p className="text-xs font-bold">No transactions or modifications have been captured yet.</p>
                   </div>
                 ) : (
-                  auditLogs.map(log => (
-                    <div key={log.id} className="pt-4 flex items-start space-x-3 text-xs">
-                      <div className="mt-0.5">
-                        {log.actionType.startsWith('fee_') ? (
-                          <div className="p-1.5 bg-amber-50 rounded text-amber-700 border border-amber-100"><Layers size={14} /></div>
-                        ) : log.actionType === 'payment_void' ? (
-                          <div className="p-1.5 bg-rose-50 rounded text-rose-700 border border-rose-100"><ShieldAlert size={14} /></div>
-                        ) : (
-                          <div className="p-1.5 bg-emerald-50 rounded text-emerald-700 border border-emerald-100"><Coins size={14} /></div>
+                  auditLogs.map(log => {
+                    const associatedPayments = log.actionType === 'payment_record' ? getPaymentsForLog(log.details) : [];
+                    return (
+                      <div key={log.id} className="pt-4 flex items-start space-x-3 text-xs">
+                        <div className="mt-0.5">
+                          {log.actionType.startsWith('fee_') ? (
+                            <div className="p-1.5 bg-amber-50 rounded text-amber-700 border border-amber-100"><Layers size={14} /></div>
+                          ) : log.actionType === 'payment_void' ? (
+                            <div className="p-1.5 bg-rose-50 rounded text-rose-700 border border-rose-100"><ShieldAlert size={14} /></div>
+                          ) : (
+                            <div className="p-1.5 bg-emerald-50 rounded text-emerald-700 border border-emerald-100"><Coins size={14} /></div>
+                          )}
+                        </div>
+                        <div className="space-y-1 flex-1">
+                          <div className="flex justify-between items-center">
+                            <span className="font-extrabold uppercase text-[10px] text-slate-500 tracking-wider">
+                              {log.actionType.replace(/_/g, ' ')}
+                            </span>
+                            <span className="font-mono text-[10px] text-slate-400 font-bold bg-slate-100 px-1.5 py-0.5 rounded">
+                              {new Date(log.timestamp).toLocaleString()}
+                            </span>
+                          </div>
+                          <p className="text-slate-800 font-bold leading-relaxed">{log.details}</p>
+                          <div className="text-[10px] font-semibold text-slate-400">
+                            Performed by: <span className="font-mono text-slate-600 font-heavy">{log.performedByEmail}</span> ({log.performedByName})
+                          </div>
+                        </div>
+                        {isSuperAdmin && log.actionType === 'payment_record' && associatedPayments.length > 0 && (
+                          <div className="self-center pl-2">
+                            <button
+                              onClick={() => handleVoidPaymentsFromAudit(associatedPayments, log)}
+                              className="p-1.5 text-rose-600 hover:text-rose-800 hover:bg-rose-50 rounded-lg transition-all border border-transparent hover:border-rose-100 flex items-center justify-center shadow-sm hover:shadow"
+                              title="Void this payment transaction and revert learner paid status"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
                         )}
                       </div>
-                      <div className="space-y-1 flex-1">
-                        <div className="flex justify-between items-center">
-                          <span className="font-extrabold uppercase text-[10px] text-slate-500 tracking-wider">
-                            {log.actionType.replace(/_/g, ' ')}
-                          </span>
-                          <span className="font-mono text-[10px] text-slate-400 font-bold bg-slate-100 px-1.5 py-0.5 rounded">
-                            {new Date(log.timestamp).toLocaleString()}
-                          </span>
-                        </div>
-                        <p className="text-slate-800 font-bold leading-relaxed">{log.details}</p>
-                        <div className="text-[10px] font-semibold text-slate-400">
-                          Performed by: <span className="font-mono text-slate-600 font-heavy">{log.performedByEmail}</span> ({log.performedByName})
-                        </div>
-                      </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </div>
