@@ -723,7 +723,7 @@ export function SF10View({
 
       const processedSubjects = sortedSubjects.map(s => {
         const terms: TermNumber[] = termMode === 3 ? [1, 2, 3] : [1, 2, 3, 4];
-        let grades = terms.map(t => calculateGrade(stud, s, t as TermNumber).final);
+        let grades = terms.map(t => s.finalizedTerms?.includes(t as TermNumber) ? calculateGrade(stud, s, t as TermNumber).final : 0);
         
         if (s.name.toUpperCase().trim() === 'MAPEH') {
           const musicAndArts = subs.find(sub => sub.name.toUpperCase().trim() === 'MUSIC AND ARTS');
@@ -746,7 +746,7 @@ export function SF10View({
           
           if (activeComps.length > 0) {
             grades = terms.map(t => {
-              const compGrades = activeComps.map(c => calculateGrade(stud, c, t).final).filter(g => g > 0);
+              const compGrades = activeComps.map(c => c.finalizedTerms?.includes(t as TermNumber) ? calculateGrade(stud, c, t as TermNumber).final : 0).filter(g => g > 0);
               return compGrades.length > 0 ? Math.round(compGrades.reduce((acc, curr) => acc + curr, 0) / activeComps.length) : 0;
             });
           }
@@ -759,7 +759,7 @@ export function SF10View({
           const activeComps = [effComm, mabKom].filter(Boolean) as Subject[];
           if (activeComps.length > 0) {
             grades = terms.map(t => {
-              const compGrades = activeComps.map(c => calculateGrade(stud, c, t).final).filter(g => g > 0);
+              const compGrades = activeComps.map(c => c.finalizedTerms?.includes(t as TermNumber) ? calculateGrade(stud, c, t as TermNumber).final : 0).filter(g => g > 0);
               return compGrades.length > 0 ? Math.round(compGrades.reduce((acc, curr) => acc + curr, 0) / activeComps.length) : 0;
             });
           }
@@ -1079,7 +1079,7 @@ export function SF10View({
 
   const getSubjectFinalRating = (student: Student, subject: Subject) => {
     const terms: TermNumber[] = [1, 2, 3, 4];
-    const grades = terms.map(t => calculateGrade(student, subject, t as TermNumber).final);
+    const grades = terms.map(t => subject.finalizedTerms?.includes(t as TermNumber) ? calculateGrade(student, subject, t as TermNumber).final : 0);
     const validGrades = grades.filter(g => g > 0);
     return validGrades.length > 0 ? Math.round(validGrades.reduce((a, b) => a + b, 0) / terms.length) : 0;
   };
@@ -1631,7 +1631,7 @@ const AcademicYearTable: React.FC<AcademicYearTableProps> = ({ section, student,
         ? terms.filter(t => s.offeredTerms!.includes(t))
         : terms;
 
-      let grades = terms.map(t => calculateGrade(student, s, t as TermNumber).final);
+      let grades = terms.map(t => s.finalizedTerms?.includes(t as TermNumber) ? calculateGrade(student, s, t as TermNumber).final : 0);
       
       // Calculate MAPEH components average if it's MAPEH
       if (s.name.toUpperCase().trim() === 'MAPEH') {
@@ -1655,7 +1655,7 @@ const AcademicYearTable: React.FC<AcademicYearTableProps> = ({ section, student,
         
         if (activeComps.length > 0) {
           grades = terms.map(t => {
-            const compGrades = activeComps.map(c => calculateGrade(student, c, t).final).filter(g => g > 0);
+            const compGrades = activeComps.map(c => c.finalizedTerms?.includes(t as TermNumber) ? calculateGrade(student, c, t as TermNumber).final : 0).filter(g => g > 0);
             return compGrades.length > 0 ? Math.round(compGrades.reduce((acc, curr) => acc + curr, 0) / activeComps.length) : 0;
           });
         }
@@ -1669,7 +1669,7 @@ const AcademicYearTable: React.FC<AcademicYearTableProps> = ({ section, student,
         const activeComps = [effComm, mabKom].filter(Boolean) as Subject[];
         if (activeComps.length > 0) {
           grades = terms.map(t => {
-            const compGrades = activeComps.map(c => calculateGrade(student, c, t).final).filter(g => g > 0);
+            const compGrades = activeComps.map(c => c.finalizedTerms?.includes(t as TermNumber) ? calculateGrade(student, c, t as TermNumber).final : 0).filter(g => g > 0);
             return compGrades.length > 0 ? Math.round(compGrades.reduce((acc, curr) => acc + curr, 0) / activeComps.length) : 0;
           });
         }

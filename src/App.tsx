@@ -57,6 +57,7 @@ import {
   CheckCircle,
   ClipboardCheck,
   Lock,
+  Unlock,
   Bell,
   XCircle,
   Building,
@@ -8640,12 +8641,12 @@ function SectionsView({
                   </div>
                   
                   <h3 className="text-xl font-black text-slate-900 mb-2">
-                    {confirmFinalizeConfig.finalize ? 'Finalize Term Grades?' : 'Unfinalize Term Grades?'}
+                    {confirmFinalizeConfig.finalize ? 'Finalize & Release Term Grades?' : 'Unfinalize Term Grades?'}
                   </h3>
                   
                   <p className="text-slate-500 text-sm font-medium mb-6 leading-relaxed">
                     {confirmFinalizeConfig.finalize 
-                      ? `Are you sure you want to finalize Term ${confirmFinalizeConfig.term} for this subject? Once finalized, you cannot edit the grades.`
+                      ? `Are you sure you want to finalize Term ${confirmFinalizeConfig.term} for this subject? Finalizing will release and display these grades in the Learner's Class Card (SF9), Permanent Academic Records (SF10), and Section Grading Sheet.`
                       : `Are you sure you want to unfinalize Term ${confirmFinalizeConfig.term} for this subject?`}
                   </p>
                   
@@ -8669,7 +8670,7 @@ function SectionsView({
                           : 'bg-amber-600 hover:bg-amber-700 shadow-amber-600/20'
                       }`}
                     >
-                      {confirmFinalizeConfig.finalize ? 'Yes, Finalize' : 'Yes, Unfinalize'}
+                      {confirmFinalizeConfig.finalize ? 'Yes, Finalize & Release' : 'Yes, Unfinalize'}
                     </button>
                   </div>
                 </motion.div>
@@ -12353,12 +12354,12 @@ function IDPrintingCenterModal({
   onClose,
   isAdmin = false
 }: IDPrintingCenterModalProps) {
-  // Select all by default or preselect the single student
+  // Select all by default or preselect the single student (selecting only learners with photo uploaded by default)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => {
     if (preselectedStudent) {
       return new Set([preselectedStudent.id]);
     } else {
-      return new Set(students.map(s => s.id));
+      return new Set(students.filter(s => !!s.photo && s.photo.trim() !== '').map(s => s.id));
     }
   });
 
@@ -12447,6 +12448,7 @@ function IDPrintingCenterModal({
   const [flipBackPreview, setFlipBackPreview] = useState(true);
   const [includePhotoBox, setIncludePhotoBox] = useState(true);
   const [includeBarcode, setIncludeBarcode] = useState(true);
+  const [excludeNoPhoto, setExcludeNoPhoto] = useState<boolean>(true);
   const [watermarkLogo, setWatermarkLogo] = useState<'shield' | 'star' | 'book' | 'school'>('school');
   
   const [emergencyNotes, setEmergencyNotes] = useState(
@@ -12604,8 +12606,12 @@ function IDPrintingCenterModal({
 
   // Selected students list for rendering
   const selectedStudentsToPrint = useMemo(() => {
-    return students.filter(s => selectedIds.has(s.id));
-  }, [students, selectedIds]);
+    return students.filter(s => {
+      if (!selectedIds.has(s.id)) return false;
+      if (excludeNoPhoto && (!s.photo || s.photo.trim() === '')) return false;
+      return true;
+    });
+  }, [students, selectedIds, excludeNoPhoto]);
 
   // Handle individual selection toggles
   const toggleStudentSelection = (id: string) => {
@@ -12620,6 +12626,10 @@ function IDPrintingCenterModal({
 
   const selectAllStudents = () => {
     setSelectedIds(new Set(students.map(s => s.id)));
+  };
+
+  const selectWithPhotoStudents = () => {
+    setSelectedIds(new Set(students.filter(s => !!s.photo).map(s => s.id)));
   };
 
   const deselectAllStudents = () => {
@@ -12891,26 +12901,24 @@ function IDPrintingCenterModal({
               {/* Avatar Segment */}
               <DraggableField id="student-photo" className="mt-1 flex flex-col items-center text-center z-10 w-full animate-fade-in" offsets={elementOffsets} setOffsets={() => {}} isEditMode={false}>
                 {s.photo ? (
-                  <div className="overflow-hidden bg-slate-100 rounded-xl border border-slate-200 shadow-sm flex items-center justify-center mx-auto transition-transform hover:scale-105" style={{ width: '105px', height: '135px' }}>
+                  <div className="overflow-hidden bg-slate-100 rounded-xl border border-slate-200 shadow-sm flex items-center justify-center mx-auto transition-transform hover:scale-105" style={{ width: '115px', height: '148px' }}>
                     <img src={s.photo} alt={displayName} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                   </div>
                 ) : includePhotoBox ? (
-                  <div className="border-2 border-dashed rounded-xl flex flex-col items-center justify-center bg-slate-50/80 transition-transform hover:scale-105 mx-auto" style={{ width: '105px', height: '135px', borderColor: theme.colorScheme.primaryHex + "44" }}>
-                    <User size={24} className="text-slate-500 pointer-events-none" />
-                    <span className="text-[7.5px] uppercase tracking-wider text-slate-700 font-extrabold mt-1">35mm x 45mm Photo</span>
-                    <span className="text-[6.5px] uppercase tracking-wider text-slate-600 font-bold leading-none">SF10 Image</span>
+                  <div className="border-2 border-dashed rounded-xl flex flex-col items-center justify-center bg-slate-50/80 transition-transform hover:scale-105 mx-auto" style={{ width: '115px', height: '148px', borderColor: theme.colorScheme.primaryHex + "44" }}>
+                    <User size={26} className="text-slate-500 pointer-events-none opacity-60" />
                   </div>
                 ) : (
-                  <div className="w-14 h-14 rounded-full flex items-center justify-center bg-indigo-50 border border-slate-100 uppercase font-black text-xl mx-auto" style={{ color: theme.colorScheme.primaryHex, background: `${theme.colorScheme.primaryHex}10` }}>
+                  <div className="w-16 h-16 rounded-full flex items-center justify-center bg-indigo-50 border border-slate-100 uppercase font-black text-2xl mx-auto" style={{ color: theme.colorScheme.primaryHex, background: `${theme.colorScheme.primaryHex}10` }}>
                     {displayName?.charAt(0) || "-"}
                   </div>
                 )}
-                <span className="text-[11px] font-extrabold tracking-[0.12em] font-mono mt-2 px-2.5 py-0.5 rounded-full select-none inline-block mx-auto" style={{ background: `${theme.colorScheme.primaryHex}15`, color: theme.colorScheme.primaryHex }}>{displayLrn}</span>
+                <span className="text-[11.5px] font-extrabold tracking-[0.12em] font-mono mt-1.5 px-2.5 py-0.5 rounded-full select-none inline-block mx-auto" style={{ background: `${theme.colorScheme.primaryHex}15`, color: theme.colorScheme.primaryHex }}>{displayLrn}</span>
               </DraggableField>
 
               {/* Name Block */}
               <DraggableField id="student-name" className="w-full text-center z-10 flex-grow flex flex-col justify-center min-h-[44px]" offsets={elementOffsets} setOffsets={() => {}} isEditMode={false}>
-                <h4 className="text-[14px] font-black text-slate-900 leading-tight uppercase tracking-tight line-clamp-2 px-1">
+                <h4 className="text-[16.5px] font-black text-slate-900 leading-tight uppercase tracking-tight line-clamp-2 px-1">
                   {displayName}
                 </h4>
               </DraggableField>
@@ -13054,26 +13062,24 @@ function IDPrintingCenterModal({
               {/* Photo (Proportionally scaled to match layout preview) */}
               <DraggableField id="student-photo" className="mt-1 flex flex-col items-center text-center z-10 w-full animate-fade-in" offsets={elementOffsets} setOffsets={() => {}} isEditMode={false}>
                 {s.photo ? (
-                  <div className="overflow-hidden bg-slate-100 rounded-xl border border-slate-200 shadow-sm flex items-center justify-center mx-auto" style={{ width: '90px', height: '115px' }}>
+                  <div className="overflow-hidden bg-slate-100 rounded-xl border border-slate-200 shadow-sm flex items-center justify-center mx-auto" style={{ width: '100px', height: '128px' }}>
                     <img src={s.photo} alt={displayName} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                   </div>
                 ) : includePhotoBox ? (
-                  <div className="border border-dashed rounded-xl flex flex-col items-center justify-center bg-slate-50/85 mx-auto" style={{ width: '90px', height: '115px', borderColor: theme.colorScheme.primaryHex + "44" }}>
-                    <User size={24} className="text-slate-500 pointer-events-none opacity-60" />
-                    <span className="text-[7px] uppercase tracking-wider text-slate-700 font-extrabold mt-1">35mm x 45mm Photo</span>
-                    <span className="text-[5.5px] uppercase tracking-wider text-slate-600 font-bold leading-none">SF10 Source</span>
+                  <div className="border border-dashed rounded-xl flex flex-col items-center justify-center bg-slate-50/85 mx-auto" style={{ width: '100px', height: '128px', borderColor: theme.colorScheme.primaryHex + "44" }}>
+                    <User size={26} className="text-slate-500 pointer-events-none opacity-60" />
                   </div>
                 ) : (
-                  <div className="w-14 h-14 rounded-full flex items-center justify-center bg-indigo-50 border border-slate-100 uppercase font-black text-xl mx-auto" style={{ color: theme.colorScheme.primaryHex, background: `${theme.colorScheme.primaryHex}10` }}>
+                  <div className="w-16 h-16 rounded-full flex items-center justify-center bg-indigo-50 border border-slate-100 uppercase font-black text-2xl mx-auto" style={{ color: theme.colorScheme.primaryHex, background: `${theme.colorScheme.primaryHex}10` }}>
                     {displayName?.charAt(0) || "-"}
                   </div>
                 )}
-                <span className="text-[11px] font-extrabold tracking-[0.12em] font-mono mt-2 px-2.5 py-0.5 rounded-full select-none inline-block mx-auto" style={{ background: `${theme.colorScheme.primaryHex}15`, color: theme.colorScheme.primaryHex }}>{displayLrn}</span>
+                <span className="text-[11.5px] font-extrabold tracking-[0.12em] font-mono mt-1.5 px-2.5 py-0.5 rounded-full select-none inline-block mx-auto" style={{ background: `${theme.colorScheme.primaryHex}15`, color: theme.colorScheme.primaryHex }}>{displayLrn}</span>
               </DraggableField>
 
               {/* Name details */}
               <DraggableField id="student-name" className="w-full text-center z-10 flex-grow flex flex-col justify-center min-h-[44px]" offsets={elementOffsets} setOffsets={() => {}} isEditMode={false}>
-                <h4 className="text-[13px] font-black text-slate-900 leading-tight uppercase tracking-tight line-clamp-2 px-1">
+                <h4 className="text-[15.5px] font-black text-slate-900 leading-tight uppercase tracking-tight line-clamp-2 px-1">
                   {displayName}
                 </h4>
               </DraggableField>
@@ -13175,8 +13181,8 @@ function IDPrintingCenterModal({
   // Print execution handler
   const handlePrint = (e: React.FormEvent) => {
     e.preventDefault();
-    if (selectedIds.size === 0) {
-      alert("Please select at least one learner to print.");
+    if (selectedStudentsToPrint.length === 0) {
+      alert("No learners with uploaded photos are selected for printing. Please upload student photos or uncheck 'Exclude Learners Without Photo'.");
       return;
     }
     setTimeout(() => {
@@ -13186,8 +13192,8 @@ function IDPrintingCenterModal({
 
   const handleGeneratePrintPage = (e: React.FormEvent) => {
     e.preventDefault();
-    if (selectedIds.size === 0) {
-      alert("Please select at least one learner to print.");
+    if (selectedStudentsToPrint.length === 0) {
+      alert("No learners with uploaded photos are selected for printing. Please upload student photos or uncheck 'Exclude Learners Without Photo'.");
       return;
     }
 
@@ -13863,6 +13869,24 @@ function IDPrintingCenterModal({
                     <div className={`w-4 h-4 bg-white rounded-full shadow transition-all ${includePhotoBox ? 'translate-x-4' : 'translate-x-0'}`} />
                   </button>
                 </div>
+
+                <div className="w-full h-px bg-slate-100" />
+
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-slate-800 tracking-wider">Exclude Learners Without Photo</label>
+                    <p className="text-[8px] text-slate-400">Do not print IDs for learners with no photo uploaded</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setExcludeNoPhoto(!excludeNoPhoto)}
+                    className={`w-9 h-5 rounded-full p-0.5 transition-all outline-none ${
+                      excludeNoPhoto ? 'bg-emerald-600' : 'bg-slate-300'
+                    }`}
+                  >
+                    <div className={`w-4 h-4 bg-white rounded-full shadow transition-all ${excludeNoPhoto ? 'translate-x-4' : 'translate-x-0'}`} />
+                  </button>
+                </div>
               </div>
 
               {/* Customizable back-card details */}
@@ -14043,24 +14067,32 @@ function IDPrintingCenterModal({
             {/* Student Search & List Checklists (Middle Column) */}
             <div className="w-full md:w-64 border-r border-slate-150 p-6 flex flex-col overflow-hidden bg-slate-50/10 shrink-0">
               <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3 block">
-                2. Select Students ({selectedIds.size})
+                2. Select Students ({selectedStudentsToPrint.length} printable)
               </h3>
               
               {/* Select Actions */}
-              <div className="flex items-center gap-2 mb-3">
+              <div className="flex items-center gap-1.5 mb-3">
                 <button
                   type="button"
                   onClick={selectAllStudents}
                   className="flex-1 py-1.5 bg-slate-200/60 hover:bg-slate-200 border border-slate-300 rounded-xl text-[9px] font-black uppercase tracking-wider text-slate-700 transition-all select-none active:scale-95"
                 >
-                  Select All
+                  All
+                </button>
+                <button
+                  type="button"
+                  onClick={selectWithPhotoStudents}
+                  className="flex-1 py-1.5 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl text-[9px] font-black uppercase tracking-wider text-indigo-700 transition-all select-none active:scale-95"
+                  title="Select only learners with photos uploaded"
+                >
+                  With Photo
                 </button>
                 <button
                   type="button"
                   onClick={deselectAllStudents}
-                  className="flex-1 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-[9px] font-black uppercase tracking-wider text-slate-550 transition-all select-none active:scale-95"
+                  className="px-2 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-[9px] font-black uppercase tracking-wider text-slate-550 transition-all select-none active:scale-95"
                 >
-                  Clear All
+                  Clear
                 </button>
               </div>
 
@@ -14085,14 +14117,18 @@ function IDPrintingCenterModal({
                 ) : (
                   searchedStudents.map((s) => {
                     const isSelected = selectedIds.has(s.id);
+                    const hasPhoto = !!(s.photo && s.photo.trim() !== '');
+                    const isOmitted = excludeNoPhoto && !hasPhoto;
                     return (
                       <div
                         key={s.id}
                         onClick={() => toggleStudentSelection(s.id)}
                         className={`flex items-center gap-2.5 p-2 rounded-xl border transition-all cursor-pointer select-none ${
-                          isSelected 
-                            ? 'bg-indigo-50/50 border-indigo-200/50 shadow-sm' 
-                            : 'border-slate-50 hover:border-slate-150/60 bg-white hover:bg-slate-50'
+                          isOmitted
+                            ? 'opacity-60 bg-slate-50/80 border-slate-100'
+                            : isSelected 
+                              ? 'bg-indigo-50/50 border-indigo-200/50 shadow-sm' 
+                              : 'border-slate-50 hover:border-slate-150/60 bg-white hover:bg-slate-50'
                         }`}
                       >
                         <div className={`w-4 h-4 rounded-md flex items-center justify-center transition-colors ${
@@ -14101,7 +14137,14 @@ function IDPrintingCenterModal({
                           {isSelected && <Check size={11} strokeWidth={4} />}
                         </div>
                         <div className="flex-1 overflow-hidden">
-                          <p className={`text-[10px] font-bold truncate ${isSelected ? 'text-indigo-950' : 'text-slate-600'}`}>{s.name || `${s.lastName}, ${s.firstName}`}</p>
+                          <div className="flex items-center justify-between gap-1">
+                            <p className={`text-[10px] font-bold truncate ${isSelected ? 'text-indigo-950' : 'text-slate-600'}`}>{s.name || `${s.lastName}, ${s.firstName}`}</p>
+                            {!hasPhoto && (
+                              <span className="text-[7px] font-black uppercase tracking-tight px-1 py-0.2 bg-amber-100 text-amber-800 rounded shrink-0">
+                                No Photo
+                              </span>
+                            )}
+                          </div>
                           <p className="text-[8px] font-mono text-slate-400 mt-0.5 leading-none">{s.lrn || "NO LRN ID"}</p>
                         </div>
                       </div>
@@ -14199,26 +14242,24 @@ function IDPrintingCenterModal({
                             {/* Photo (Proportionally scaled to match layout preview) */}
                             <DraggableField id="student-photo" className="mt-1 flex flex-col items-center text-center z-10 w-full animate-fade-in" offsets={elementOffsets} setOffsets={setElementOffsets} isEditMode={isDragMode}>
                               {activePreviewStudent.photo ? (
-                                <div className="overflow-hidden bg-slate-100 rounded-xl border border-slate-200 shadow-sm flex items-center justify-center mx-auto" style={{ width: '90px', height: '115px' }}>
+                                <div className="overflow-hidden bg-slate-100 rounded-xl border border-slate-200 shadow-sm flex items-center justify-center mx-auto" style={{ width: '100px', height: '128px' }}>
                                   <img src={activePreviewStudent.photo} alt={activePreviewStudent.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                                 </div>
                               ) : includePhotoBox ? (
-                                <div className="border border-dashed rounded-xl flex flex-col items-center justify-center bg-slate-50/85 mx-auto" style={{ width: '90px', height: '115px', borderColor: theme.colorScheme.primaryHex + "44" }}>
-                                  <User size={24} className="text-slate-500 pointer-events-none opacity-60" />
-                                  <span className="text-[7px] uppercase tracking-wider text-slate-700 font-extrabold mt-1">35mm x 45mm Photo</span>
-                                  <span className="text-[5.5px] uppercase tracking-wider text-slate-600 font-bold leading-none">SF10 Source</span>
+                                <div className="border border-dashed rounded-xl flex flex-col items-center justify-center bg-slate-50/85 mx-auto" style={{ width: '100px', height: '128px', borderColor: theme.colorScheme.primaryHex + "44" }}>
+                                  <User size={26} className="text-slate-500 pointer-events-none opacity-60" />
                                 </div>
                               ) : (
-                                <div className="w-14 h-14 rounded-full flex items-center justify-center bg-indigo-50 border border-slate-100 uppercase font-black text-xl mx-auto" style={{ color: theme.colorScheme.primaryHex, background: `${theme.colorScheme.primaryHex}10` }}>
+                                <div className="w-16 h-16 rounded-full flex items-center justify-center bg-indigo-50 border border-slate-100 uppercase font-black text-2xl mx-auto" style={{ color: theme.colorScheme.primaryHex, background: `${theme.colorScheme.primaryHex}10` }}>
                                   {(formatStudentName(activePreviewStudent) || activePreviewStudent.name)?.charAt(0) || "-"}
                                 </div>
                               )}
-                              <span className="text-[11px] font-extrabold tracking-[0.12em] font-mono mt-2 px-2.5 py-0.5 rounded-full select-none inline-block mx-auto" style={{ background: `${theme.colorScheme.primaryHex}15`, color: theme.colorScheme.primaryHex }}>{activePreviewStudent.lrn || "---"}</span>
+                              <span className="text-[11.5px] font-extrabold tracking-[0.12em] font-mono mt-1.5 px-2.5 py-0.5 rounded-full select-none inline-block mx-auto" style={{ background: `${theme.colorScheme.primaryHex}15`, color: theme.colorScheme.primaryHex }}>{activePreviewStudent.lrn || "---"}</span>
                             </DraggableField>
 
                             {/* Name details */}
                             <DraggableField id="student-name" className="w-full text-center z-10 flex-grow flex flex-col justify-center min-h-[44px]" offsets={elementOffsets} setOffsets={setElementOffsets} isEditMode={isDragMode}>
-                              <h4 className="text-[13px] font-black text-slate-900 leading-tight uppercase tracking-tight line-clamp-2 px-1">
+                              <h4 className="text-[15.5px] font-black text-slate-900 leading-tight uppercase tracking-tight line-clamp-2 px-1">
                                 {formatStudentName(activePreviewStudent) || activePreviewStudent.name}
                               </h4>
                             </DraggableField>
@@ -14346,29 +14387,27 @@ function IDPrintingCenterModal({
                             {getWatermarkIcon()}
                           </div>
 
-                          {/* Avatar Segment - Perfect 35mm x 45mm ratio representing 105px x 135px aspect */}
+                          {/* Avatar Segment - Perfect 35mm x 45mm ratio representing 115px x 148px aspect */}
                           <DraggableField id="student-photo" className="mt-1 flex flex-col items-center text-center z-10 w-full animate-fade-in" offsets={elementOffsets} setOffsets={setElementOffsets} isEditMode={isDragMode}>
                             {activePreviewStudent.photo ? (
-                              <div className="overflow-hidden bg-slate-100 rounded-xl border border-slate-200 shadow-sm flex items-center justify-center mx-auto transition-transform hover:scale-105" style={{ width: '105px', height: '135px' }}>
+                              <div className="overflow-hidden bg-slate-100 rounded-xl border border-slate-200 shadow-sm flex items-center justify-center mx-auto transition-transform hover:scale-105" style={{ width: '115px', height: '148px' }}>
                                 <img src={activePreviewStudent.photo} alt={activePreviewStudent.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                               </div>
                             ) : includePhotoBox ? (
-                              <div className="border-2 border-dashed rounded-xl flex flex-col items-center justify-center bg-slate-50/80 transition-transform hover:scale-105 mx-auto" style={{ width: '105px', height: '135px', borderColor: theme.colorScheme.primaryHex + "44" }}>
-                                <User size={24} className="text-slate-500 pointer-events-none" />
-                                <span className="text-[7.5px] uppercase tracking-wider text-slate-700 font-extrabold mt-1">35mm x 45mm Photo</span>
-                                <span className="text-[6.5px] uppercase tracking-wider text-slate-600 font-bold leading-none">SF10 Image</span>
+                              <div className="border-2 border-dashed rounded-xl flex flex-col items-center justify-center bg-slate-50/80 transition-transform hover:scale-105 mx-auto" style={{ width: '115px', height: '148px', borderColor: theme.colorScheme.primaryHex + "44" }}>
+                                <User size={26} className="text-slate-500 pointer-events-none opacity-60" />
                               </div>
                             ) : (
-                              <div className="w-14 h-14 rounded-full flex items-center justify-center bg-indigo-50 border border-slate-100 uppercase font-black text-xl mx-auto" style={{ color: theme.colorScheme.primaryHex, background: `${theme.colorScheme.primaryHex}10` }}>
+                              <div className="w-16 h-16 rounded-full flex items-center justify-center bg-indigo-50 border border-slate-100 uppercase font-black text-2xl mx-auto" style={{ color: theme.colorScheme.primaryHex, background: `${theme.colorScheme.primaryHex}10` }}>
                                 {formatStudentName(activePreviewStudent).charAt(0) || activePreviewStudent.name?.charAt(0) || "-"}
                               </div>
                             )}
-                            <span className="text-[11px] font-extrabold tracking-[0.12em] font-mono mt-2 px-2.5 py-0.5 rounded-full select-none inline-block mx-auto" style={{ background: `${theme.colorScheme.primaryHex}15`, color: theme.colorScheme.primaryHex }}>{activePreviewStudent.lrn || "---"}</span>
+                            <span className="text-[11.5px] font-extrabold tracking-[0.12em] font-mono mt-1.5 px-2.5 py-0.5 rounded-full select-none inline-block mx-auto" style={{ background: `${theme.colorScheme.primaryHex}15`, color: theme.colorScheme.primaryHex }}>{activePreviewStudent.lrn || "---"}</span>
                           </DraggableField>
 
                           {/* Name Block */}
                           <DraggableField id="student-name" className="w-full text-center z-10 flex-grow flex flex-col justify-center min-h-[44px]" offsets={elementOffsets} setOffsets={setElementOffsets} isEditMode={isDragMode}>
-                            <h4 className="text-[14px] font-black text-slate-900 leading-tight uppercase tracking-tight line-clamp-2 px-1">
+                            <h4 className="text-[16.5px] font-black text-slate-900 leading-tight uppercase tracking-tight line-clamp-2 px-1">
                               {formatStudentName(activePreviewStudent) || activePreviewStudent.name}
                             </h4>
                           </DraggableField>
@@ -14478,7 +14517,14 @@ function IDPrintingCenterModal({
               <div className="p-4 bg-white/85 border border-slate-150/70 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 z-10">
                 <div className="flex flex-col text-left">
                   <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest leading-none">Total Output Batch</span>
-                  <span className="text-lg font-black text-indigo-950 mt-1 leading-none">{selectedIds.size} Identifications selected</span>
+                  <div className="flex items-baseline gap-2 mt-1 flex-wrap">
+                    <span className="text-lg font-black text-indigo-950 leading-none">{selectedStudentsToPrint.length} Printable IDs</span>
+                    {excludeNoPhoto && (
+                      <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                        ({students.filter(s => selectedIds.has(s.id) && (!s.photo || s.photo.trim() === '')).length} omitted: no photo)
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-center gap-3">
                   <button
@@ -14490,7 +14536,7 @@ function IDPrintingCenterModal({
                   </button>
                   <button
                     type="button"
-                    disabled={selectedIds.size === 0}
+                    disabled={selectedStudentsToPrint.length === 0}
                     onClick={handleGeneratePrintPage}
                     className="px-6 py-3 bg-emerald-600 rounded-xl hover:bg-emerald-700 disabled:bg-slate-300 disabled:opacity-50 text-white font-black uppercase text-[10px] tracking-widest shadow-xl shadow-emerald-650/15 active:scale-95 transition-all flex items-center gap-2 select-none"
                     title="Open a pixel-perfect dedicated page to print/save as PDF cleanly"
@@ -14500,7 +14546,7 @@ function IDPrintingCenterModal({
                   </button>
                   <button
                     type="button"
-                    disabled={selectedIds.size === 0}
+                    disabled={selectedStudentsToPrint.length === 0}
                     onClick={handlePrint}
                     className="px-6 py-3 bg-indigo-650 rounded-xl hover:bg-indigo-700 disabled:bg-slate-300 disabled:opacity-50 text-white font-black uppercase text-[10px] tracking-widest shadow-xl shadow-indigo-650/15 active:scale-95 transition-all flex items-center gap-2 select-none"
                     title="Directly trigger standard local browser print on the current window frame"
@@ -16939,7 +16985,39 @@ function GradebookView({
         </div>
       )}
 
-      {!isSubjectTermFinalized && (
+      {isSubjectTermFinalized ? (
+        <div className="mx-8 mt-4 animate-in fade-in duration-300">
+          <div className="p-4 rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50 to-teal-50 text-emerald-900 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+            <div className="flex items-center gap-3.5">
+              <div className="w-10 h-10 rounded-full bg-emerald-100 border border-emerald-200 flex items-center justify-center shrink-0">
+                <CheckCircle size={20} className="text-emerald-600" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 mb-0.5">
+                  <h4 className="font-black uppercase tracking-widest text-[11px] text-emerald-950">
+                    Term {activeTerm} Grades Finalized & Released
+                  </h4>
+                  <span className="bg-emerald-200/80 text-emerald-900 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+                    Released
+                  </span>
+                </div>
+                <p className="text-xs font-medium text-emerald-800/90">
+                  Grades for Term {activeTerm} in {selectedSubject.name} are finalized and released. They are now visible on the Class Card (SF9), Academic Records (SF10), and Grading Sheet.
+                </p>
+              </div>
+            </div>
+            {onToggleFinalizeSubjectTerm && !isYearEndFinalized && (
+              <button
+                onClick={() => setConfirmFinalizeConfig({ subjectId: selectedSubject.id, term: activeTerm, finalize: false })}
+                className="px-4 py-2 font-bold rounded-xl text-xs bg-white hover:bg-amber-50 text-amber-700 border border-amber-200 transition-all uppercase tracking-wider flex items-center gap-1.5 shadow-sm hover:border-amber-300 shrink-0 cursor-pointer"
+              >
+                <Unlock size={13} />
+                Unfinalize Term
+              </button>
+            )}
+          </div>
+        </div>
+      ) : (
         <div className="mx-8 mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
            <div className={`p-4 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm transition-all duration-300 ${
              hasUnsavedChanges 
@@ -17004,7 +17082,7 @@ function GradebookView({
                    }`}
                  >
                    <Sparkles size={14} className={hasUnsavedChanges ? "" : "animate-spin"} style={{ animationDuration: '6s' }} />
-                   Finalize - Terms
+                   Finalize & Release Grades
                  </button>
                )}
              </div>
@@ -17274,12 +17352,12 @@ function GradebookView({
               </div>
               
               <h3 className="text-xl font-black text-slate-900 mb-2">
-                {confirmFinalizeConfig.finalize ? 'Finalize Term Grades?' : 'Unfinalize Term Grades?'}
+                {confirmFinalizeConfig.finalize ? 'Finalize & Release Term Grades?' : 'Unfinalize Term Grades?'}
               </h3>
               
               <p className="text-slate-500 text-sm font-medium mb-6 leading-relaxed">
                 {confirmFinalizeConfig.finalize 
-                  ? `Are you sure you want to finalize Term ${confirmFinalizeConfig.term} for this subject? Once finalized, you cannot edit the grades.`
+                  ? `Are you sure you want to finalize Term ${confirmFinalizeConfig.term} for this subject? Finalizing will release and display these grades in the Learner's Class Card (SF9), Permanent Academic Records (SF10), and Section Grading Sheet.`
                   : `Are you sure you want to unfinalize Term ${confirmFinalizeConfig.term} for this subject?`}
               </p>
               
@@ -17303,7 +17381,7 @@ function GradebookView({
                       : 'bg-amber-600 hover:bg-amber-700 shadow-amber-600/20'
                   }`}
                 >
-                  {confirmFinalizeConfig.finalize ? 'Yes, Finalize' : 'Yes, Unfinalize'}
+                  {confirmFinalizeConfig.finalize ? 'Yes, Finalize & Release' : 'Yes, Unfinalize'}
                 </button>
               </div>
             </motion.div>
@@ -18355,12 +18433,12 @@ function DashboardView({
               </div>
               
               <h3 className="text-xl font-black text-slate-900 mb-2">
-                {confirmFinalizeConfig.finalize ? 'Finalize Term Grades?' : 'Unfinalize Term Grades?'}
+                {confirmFinalizeConfig.finalize ? 'Finalize & Release Term Grades?' : 'Unfinalize Term Grades?'}
               </h3>
               
               <p className="text-slate-500 text-sm font-medium mb-6 leading-relaxed">
                 {confirmFinalizeConfig.finalize 
-                  ? `Are you sure you want to finalize Term ${confirmFinalizeConfig.term} for this subject? Once finalized, you cannot edit the grades.`
+                  ? `Are you sure you want to finalize Term ${confirmFinalizeConfig.term} for this subject? Finalizing will release and display these grades in the Learner's Class Card (SF9), Permanent Academic Records (SF10), and Section Grading Sheet.`
                   : `Are you sure you want to unfinalize Term ${confirmFinalizeConfig.term} for this subject?`}
               </p>
               
@@ -18384,7 +18462,7 @@ function DashboardView({
                       : 'bg-amber-600 hover:bg-amber-700 shadow-amber-600/20'
                   }`}
                 >
-                  {confirmFinalizeConfig.finalize ? 'Yes, Finalize' : 'Yes, Unfinalize'}
+                  {confirmFinalizeConfig.finalize ? 'Yes, Finalize & Release' : 'Yes, Unfinalize'}
                 </button>
               </div>
             </motion.div>
@@ -19836,6 +19914,9 @@ function MATATAGReportCardModal({
     if (!isTermReleased(term)) {
       return <div className="flex items-center justify-center text-slate-300" title="Locked by Adviser"><Lock size={10} /></div>;
     }
+    if (subject && !subject.finalizedTerms?.includes(term as TermNumber)) {
+      return <span className="text-slate-300 font-medium text-[10px]">-</span>;
+    }
     if (grade > 0) {
       if (useDescriptiveGrading && isGrade1To3) {
          return <span className="text-indigo-600 font-bold text-[10px]">{getDescriptiveGrade(grade)}</span>;
@@ -20166,6 +20247,9 @@ function MATATAGReportCardModal({
     if (s.offeredTerms && !s.offeredTerms.includes(term)) {
       return -1; // Not offered this term
     }
+    if (!s.finalizedTerms?.includes(term)) {
+      return 0; // Not finalized/released in Record Assessment
+    }
     return calculateGrade(student, s, term).final;
   };
 
@@ -20180,6 +20264,9 @@ function MATATAGReportCardModal({
     
     if (expectedTerms.length === 0) return 0;
     
+    const finalizedExpectedTerms = expectedTerms.filter(t => s.finalizedTerms?.includes(t));
+    if (finalizedExpectedTerms.length < expectedTerms.length) return 0;
+
     const grades = expectedTerms.map(t => getSubjectTermGrade(s, t));
     const valid = grades.filter(g => g > 0);
     return valid.length === expectedTerms.length ? Math.round(valid.reduce((a, b) => a + b, 0) / expectedTerms.length) : 0;
@@ -22650,6 +22737,9 @@ function SummarySheetView({
     if (subject.offeredTerms && subject.offeredTerms.length > 0 && !subject.offeredTerms.includes(term)) {
       return -1; // Not offered this term
     }
+    if (!subject.finalizedTerms?.includes(term)) {
+      return 0; // Not finalized/released in Record Assessment
+    }
     return calculateGrade(student, subject, term).final;
   };
 
@@ -22663,6 +22753,9 @@ function SummarySheetView({
     if (subject.offeredTerms && subject.offeredTerms.length > 0) {
       terms = termsToShow.filter(t => subject.offeredTerms!.includes(t));
     }
+    const finalizedTerms = terms.filter(t => subject.finalizedTerms?.includes(t));
+    if (finalizedTerms.length < terms.length) return 0;
+
     const grades = terms.map(t => getSubjectTermGrade(student, subject, t));
     const valid = grades.filter(g => g > 0);
     return valid.length === terms.length && terms.length > 0 ? Math.round(valid.reduce((a, b) => a + b, 0) / terms.length) : 0;
