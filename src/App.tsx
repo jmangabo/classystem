@@ -93,9 +93,11 @@ import {
   Info,
   Edit,
   Copy,
-  Type
+  Type,
+  Palette
 } from "lucide-react";
 
+import { ThemeCustomizerModal, DEFAULT_THEME_SETTINGS, SystemThemeSettings } from "./components/ThemeCustomizerModal";
 import { SystemDocumentationView } from "./components/SystemDocumentationView";
 import { SF8View } from "./components/SF8View";
 import { ManualSiblingSelector } from "./components/ManualSiblingSelector";
@@ -832,6 +834,44 @@ export default function App() {
 
   const [isMasterDataOpen, setIsMasterDataOpen] = useState(true);
 
+  // System Theme Settings State & Live Dynamic Engine
+  const [systemThemeSettings, setSystemThemeSettings] = useState<SystemThemeSettings>(() => {
+    try {
+      const saved = localStorage.getItem('class_enterprise_system_theme');
+      return saved ? JSON.parse(saved) : DEFAULT_THEME_SETTINGS;
+    } catch {
+      return DEFAULT_THEME_SETTINGS;
+    }
+  });
+  const [isThemeModalOpen, setIsThemeModalOpen] = useState(false);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('class_enterprise_system_theme', JSON.stringify(systemThemeSettings));
+    } catch (err) {
+      console.error('Failed to save system theme settings:', err);
+    }
+
+    const root = document.documentElement;
+    if (systemThemeSettings.mode === 'dark') {
+      root.classList.add('dark');
+    } else if (systemThemeSettings.mode === 'light') {
+      root.classList.remove('dark');
+    } else {
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      if (prefersDark) {
+        root.classList.add('dark');
+      } else {
+        root.classList.remove('dark');
+      }
+    }
+
+    root.setAttribute('data-theme-color', systemThemeSettings.color);
+    root.setAttribute('data-theme-density', systemThemeSettings.density);
+    root.setAttribute('data-theme-font', systemThemeSettings.font);
+    root.setAttribute('data-theme-radius', systemThemeSettings.radius);
+  }, [systemThemeSettings]);
+
   const mapUserRoleToAralRole = (role?: string, email?: string): AralRole => {
     if (email && aralSchoolInfo?.coordinatorEmails?.some(e => e.trim().toLowerCase() === email.trim().toLowerCase())) {
       return 'ARAL Coordinator';
@@ -1090,6 +1130,7 @@ export default function App() {
   const [statusChangeReason, setStatusChangeReason] = useState("");
 
   const [showGlobalScanner, setShowGlobalScanner] = useState(false);
+  const [isScannerFullScreen, setIsScannerFullScreen] = useState(true);
   const [globalScannerFacingMode, setGlobalScannerFacingMode] = useState<'user' | 'environment'>('environment');
   const [globalRecentScan, setGlobalRecentScan] = useState<{ status: 'success' | 'error', message: string, student?: Student | null, section?: Section | null } | null>(null);
   const [globalScannerError, setGlobalScannerError] = useState<string | null>(null);
@@ -3195,6 +3236,7 @@ export default function App() {
   if (userProfile?.role === 'student') {
     if (studentViewMatched) {
        return <StudentPortal 
+         onOpenThemeModal={() => setIsThemeModalOpen(true)}
          student={studentViewMatched.student} 
          section={studentViewMatched.section}
          subjects={subjects}
@@ -3597,7 +3639,7 @@ export default function App() {
 
     return (
       <>
-        <SectionsView onCreateAralClass={handleCreateAralClass} onUpdateAralClass={handleUpdateAralClass} onDeleteAralClass={handleDeleteAralClass} aralClasses={aralClasses} 
+        <SectionsView onOpenThemeModal={() => setIsThemeModalOpen(true)} onCreateAralClass={handleCreateAralClass} onUpdateAralClass={handleUpdateAralClass} onDeleteAralClass={handleDeleteAralClass} aralClasses={aralClasses} 
           selectedAralClassId={selectedAralClassId}
           onSelectAralClassId={setSelectedAralClassId}
           onScanID={() => {
@@ -3663,32 +3705,57 @@ export default function App() {
         {/* Render Global Scanner if open */}
         <AnimatePresence>
           {showGlobalScanner && (
-            <div className="fixed inset-0 z-[150] flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm">
+            <div className={`fixed inset-0 z-[150] ${isScannerFullScreen ? 'p-0 bg-white' : 'p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center'}`}>
               <motion.div 
                 initial={{ scale: 0.95, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.95, opacity: 0 }}
-                className="bg-white rounded-2xl sm:rounded-3xl w-full max-w-[95vw] lg:max-w-6xl xl:max-w-7xl h-[95vh] md:h-[90vh] max-h-[850px] shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200"
+                className={`bg-white shadow-2xl overflow-hidden flex flex-col transition-all duration-200 ${
+                  isScannerFullScreen 
+                    ? 'w-screen h-screen rounded-none border-0' 
+                    : 'rounded-2xl sm:rounded-3xl w-full max-w-[95vw] lg:max-w-6xl xl:max-w-7xl h-[95vh] md:h-[90vh] max-h-[850px] animate-in zoom-in-95'
+                }`}
               >
-                <div className="p-5 sm:p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50 shrink-0">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center shrink-0">
                       <QrCode size={20} />
                     </div>
                     <div>
                       <h3 className="font-extrabold text-slate-800 tracking-tight text-sm sm:text-base">Scan ID Card</h3>
-                      <p className="text-[10px] text-indigo-600 font-bold uppercase tracking-widest">Attendance & Learner Validity (Widescreen Optimized)</p>
+                      <p className="text-[10px] text-indigo-600 font-bold uppercase tracking-widest">Attendance & Learner Validity (Full Screen Window)</p>
                     </div>
                   </div>
-                  <button 
-                    onClick={() => {
-                      setShowGlobalScanner(false);
-                      setGlobalRecentScan(null);
-                    }}
-                    className="w-10 h-10 flex items-center justify-center text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
-                  >
-                    <X size={20} />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsScannerFullScreen(!isScannerFullScreen)}
+                      className="p-2 text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl transition-all flex items-center gap-1.5 text-xs font-extrabold shadow-xs cursor-pointer"
+                      title={isScannerFullScreen ? "Exit Fullscreen Window" : "Expand to Fullscreen"}
+                    >
+                      {isScannerFullScreen ? (
+                        <>
+                          <Minimize2 size={16} className="text-slate-700" />
+                          <span className="hidden sm:inline">Exit Fullscreen</span>
+                        </>
+                      ) : (
+                        <>
+                          <Maximize2 size={16} className="text-slate-700" />
+                          <span className="hidden sm:inline">Full Screen</span>
+                        </>
+                      )}
+                    </button>
+                    <button 
+                      onClick={() => {
+                        setShowGlobalScanner(false);
+                        setGlobalRecentScan(null);
+                      }}
+                      className="w-10 h-10 flex items-center justify-center text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
+                      title="Close Scanner"
+                    >
+                      <X size={20} />
+                    </button>
+                  </div>
                 </div>
 
                 <div className="p-6 grid grid-cols-1 md:grid-cols-12 gap-8 items-stretch flex-1 overflow-y-auto custom-scrollbar">
@@ -4275,7 +4342,17 @@ export default function App() {
           </nav>
         </div>
 
-        <div className="flex items-center gap-6 shrink-0 md:ml-4">
+        <div className="flex items-center gap-3 shrink-0 md:ml-4">
+          <button
+            type="button"
+            onClick={() => setIsThemeModalOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-extrabold text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-xl transition-all cursor-pointer shadow-xs"
+            title="System Theme Settings"
+          >
+            <Palette size={16} className="text-indigo-600 dark:text-indigo-400" />
+            <span className="hidden sm:inline uppercase tracking-wider text-[11px]">Theme</span>
+          </button>
+
           <div className="text-right hidden sm:block">
             <div className="flex items-center gap-2 justify-end">
               <span className="text-xs font-black text-slate-800 uppercase tracking-tight">{selectedSection.name}</span>
@@ -4285,8 +4362,6 @@ export default function App() {
           </div>
           
           <div className="h-8 w-px bg-slate-100 hidden md:block"></div>
-
-          {/* User profile and logout removed as requested */}
         </div>
       </header>
 
@@ -4996,32 +5071,57 @@ export default function App() {
       {/* Global QR Scanner Modal (with Learner Information and Validity check) */}
       <AnimatePresence>
         {showGlobalScanner && (
-          <div className="fixed inset-0 z-[150] flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className={`fixed inset-0 z-[150] ${isScannerFullScreen ? 'p-0 bg-white' : 'p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center'}`}>
             <motion.div 
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white rounded-2xl sm:rounded-3xl w-full max-w-[95vw] lg:max-w-6xl xl:max-w-7xl h-[95vh] md:h-[90vh] max-h-[850px] shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200"
+              className={`bg-white shadow-2xl overflow-hidden flex flex-col transition-all duration-200 ${
+                isScannerFullScreen 
+                  ? 'w-screen h-screen rounded-none border-0' 
+                  : 'rounded-2xl sm:rounded-3xl w-full max-w-[95vw] lg:max-w-6xl xl:max-w-7xl h-[95vh] md:h-[90vh] max-h-[850px] animate-in zoom-in-95'
+              }`}
             >
-              <div className="p-5 sm:p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50 shrink-0">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center shrink-0">
                     <QrCode size={20} />
                   </div>
                   <div>
                     <h3 className="font-extrabold text-slate-800 tracking-tight text-sm sm:text-base">Scan ID Card</h3>
-                    <p className="text-[10px] text-indigo-600 font-bold uppercase tracking-widest">Attendance & Learner Validity (Widescreen Optimized)</p>
+                    <p className="text-[10px] text-indigo-600 font-bold uppercase tracking-widest">Attendance & Learner Validity (Full Screen Window)</p>
                   </div>
                 </div>
-                <button 
-                  onClick={() => {
-                    setShowGlobalScanner(false);
-                    setGlobalRecentScan(null);
-                  }}
-                  className="w-10 h-10 flex items-center justify-center text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
-                >
-                  <X size={20} />
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsScannerFullScreen(!isScannerFullScreen)}
+                    className="p-2 text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl transition-all flex items-center gap-1.5 text-xs font-extrabold shadow-xs cursor-pointer"
+                    title={isScannerFullScreen ? "Exit Fullscreen Window" : "Expand to Fullscreen"}
+                  >
+                    {isScannerFullScreen ? (
+                      <>
+                        <Minimize2 size={16} className="text-slate-700" />
+                        <span className="hidden sm:inline">Exit Fullscreen</span>
+                      </>
+                    ) : (
+                      <>
+                        <Maximize2 size={16} className="text-slate-700" />
+                        <span className="hidden sm:inline">Full Screen</span>
+                      </>
+                    )}
+                  </button>
+                  <button 
+                    onClick={() => {
+                      setShowGlobalScanner(false);
+                      setGlobalRecentScan(null);
+                    }}
+                    className="w-10 h-10 flex items-center justify-center text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
+                    title="Close Scanner"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
               </div>
 
               <div className="p-6 grid grid-cols-1 md:grid-cols-12 gap-8 items-stretch flex-1 overflow-y-auto custom-scrollbar">
@@ -5241,6 +5341,14 @@ export default function App() {
           </div>
         )}
       </AnimatePresence>
+
+      <ThemeCustomizerModal
+        isOpen={isThemeModalOpen}
+        onClose={() => setIsThemeModalOpen(false)}
+        settings={systemThemeSettings}
+        onUpdateSettings={setSystemThemeSettings}
+        onResetSettings={() => setSystemThemeSettings(DEFAULT_THEME_SETTINGS)}
+      />
     </div>
   );
 }
@@ -6914,6 +7022,7 @@ function StatementOfAccountView({
 function SectionsView({ 
   sections, 
   expiredSchoolIds = [],
+  onOpenThemeModal,
   onSelect, 
   onCreate,
   onUpdate,
@@ -6963,6 +7072,7 @@ function SectionsView({
 }: { 
   sections: Section[], 
   expiredSchoolIds?: string[],
+  onOpenThemeModal?: () => void,
   onSelect: (s: Section) => void,
   onCreate: (data: any) => void,
   onUpdate: (id: string, data: any) => void,
@@ -8028,6 +8138,15 @@ function SectionsView({
           </div>
         </div>
         <div className="flex items-center gap-3 md:gap-4 shrink-0">
+          <button
+            type="button"
+            onClick={onOpenThemeModal}
+            className="flex items-center gap-1.5 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-extrabold text-xs px-3 py-2 rounded-lg transition-all shadow-xs cursor-pointer"
+            title="System Theme Customizer"
+          >
+            <Palette size={15} className="text-indigo-600 dark:text-indigo-400" />
+            <span className="hidden sm:inline">Theme</span>
+          </button>
            {(isMainAdmin || user?.role === 'system_admin') && !!globalSettings?.finalizationDeadline && (
              <button
                onClick={() => setShowRequestsModal(true)}
@@ -25131,6 +25250,7 @@ function StudentPortal({
   section, 
   subjects,
   onLogout,
+  onOpenThemeModal,
   schoolCalendar,
   allEnrollments,
   onSwitchEnrollment,
@@ -25146,6 +25266,7 @@ function StudentPortal({
   section: Section, 
   subjects: Subject[],
   onLogout: () => void,
+  onOpenThemeModal?: () => void,
   schoolCalendar: any[],
   allEnrollments: { student: Student, section: Section }[],
   onSwitchEnrollment: (enrollment: { student: Student, section: Section }) => void,
@@ -25342,6 +25463,13 @@ function StudentPortal({
                   </p>
                 </div>
              </div>
+             <button
+               onClick={onOpenThemeModal}
+               className="p-2 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 transition-all border border-transparent hover:border-indigo-100 cursor-pointer"
+               title="System Theme Settings"
+             >
+                <Palette size={18} />
+             </button>
              <button 
                onClick={onShowFeedback}
                className="p-2 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 transition-all border border-transparent hover:border-indigo-100"
