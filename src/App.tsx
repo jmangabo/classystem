@@ -3305,7 +3305,7 @@ export default function App() {
     );
   }
 
-  if (showAdminSF7 && (userProfile?.role === 'system_admin' || userProfile?.role === 'school_head' || userProfile?.role === 'admin')) {
+  if (showAdminSF7 && (userProfile?.role === 'system_admin' || userProfile?.role === 'admin')) {
     return (
       <div className="flex flex-col h-screen overflow-hidden bg-slate-50">
         <header className="h-20 bg-white border-b border-slate-200 flex items-center justify-between px-8 shrink-0 shadow-sm z-50">
@@ -4103,7 +4103,7 @@ export default function App() {
                 { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={14} /> },
                 { id: 'enroll', label: 'Learner', icon: <UserPlus size={14} /> },
                 { id: 'subjects', label: 'Subjects', icon: <BookOpen size={14} /> },
-                { id: 'gradebook', label: 'Records Assessment', icon: <TableIcon size={14} /> },
+                { id: 'gradebook', label: 'eClass Records', icon: <TableIcon size={14} /> },
                 { id: 'summary', label: 'Grading Sheet', icon: <ClipboardCheck size={14} /> },
                 { id: 'transfers', label: 'Transfer Facility', icon: <Share2 size={14} /> },
                 { id: 'pta', label: 'PTA Fees', icon: <CreditCard size={14} /> },
@@ -4136,8 +4136,8 @@ export default function App() {
                 // SF4 is accessible to system_admin, school_head, and authorized cashier
                 if (tab.id === 'sf4' && userProfile?.role !== 'system_admin' && userProfile?.role !== 'school_head' && !isAuthorizedCashier) return false;
 
-                // SF7 is accessible to system_admin, admin, school_head, and teachers
-                if (tab.id === 'sf7' && userProfile?.role !== 'system_admin' && userProfile?.role !== 'admin' && userProfile?.role !== 'school_head' && userProfile?.role !== 'teacher') return false;
+                // SF7 is accessible only to system_admin and admin
+                if (tab.id === 'sf7' && userProfile?.role !== 'system_admin' && userProfile?.role !== 'admin') return false;
 
                 if (userProfile?.role === 'system_admin' || userProfile?.role === 'admin' || isAuthorizedCashier) {
                   const allowedTabsList = [
@@ -4154,7 +4154,7 @@ export default function App() {
                   return allowedTabsList.filter(id => id !== 'sf4').includes(tab.id);
                 }
                 if (userProfile?.role === 'school_head') {
-                   return ['sf8', 'sf4', 'sf7', 'sf10', 'anecdotes', 'aral'].includes(tab.id);
+                   return ['sf8', 'sf4', 'sf10', 'anecdotes', 'aral'].includes(tab.id);
                 }
                 if (userProfile?.role === 'guidance_designate') {
                    return ['anecdotes', 'aral'].includes(tab.id);
@@ -4162,9 +4162,9 @@ export default function App() {
                 if (userProfile?.role === 'teacher') {
                   if (isSectionAdviser) {
                     // Advisers see most things except restricted ones like SF4
-                    return ['dashboard', 'enroll', 'subjects', 'pta', 'sf8', 'sf10', 'attendance', 'observed-values', 'sf2', 'transfers', 'anecdotes', 'guide', 'gradebook', 'summary', 'sf7', 'aral'].includes(tab.id);
+                    return ['dashboard', 'enroll', 'subjects', 'pta', 'sf8', 'sf10', 'attendance', 'observed-values', 'sf2', 'transfers', 'anecdotes', 'guide', 'gradebook', 'summary', 'aral'].includes(tab.id);
                   }
-                  return tab.id === 'gradebook' || tab.id === 'dashboard' || tab.id === 'anecdotes' || tab.id === 'pta' || tab.id === 'sf7' || tab.id === 'aral';
+                  return tab.id === 'gradebook' || tab.id === 'dashboard' || tab.id === 'anecdotes' || tab.id === 'pta' || tab.id === 'aral';
                 }
                 return true;
               });
@@ -8469,7 +8469,7 @@ function SectionsView({
                         label: 'School Form 7 (SF7)',
                         icon: <FileText size={15} className="text-indigo-600" />,
                         onClick: onShowSF7,
-                        visible: !!(onShowSF7 && (user?.role === 'system_admin' || user?.role === 'school_head' || user?.role === 'admin')),
+                        visible: !!(onShowSF7 && (user?.role === 'system_admin' || user?.role === 'admin')),
                         textClass: 'text-indigo-700 hover:bg-indigo-50'
                       }
                     ]
@@ -16886,6 +16886,8 @@ function GradebookView({
 
   const showLockedState = currentUser?.role === 'teacher' && !hasAssignedSubjects;
   const [showDataEntryHint, setShowDataEntryHint] = useState(false);
+  const [showActivityModal, setShowActivityModal] = useState(false);
+  const [showActivityLegend, setShowActivityLegend] = useState(true);
   const [confirmFinalizeConfig, setConfirmFinalizeConfig] = useState<{ subjectId: string, term: number, finalize: boolean } | null>(null);
 
   const [localGrades, setLocalGrades] = useState<Record<string, Record<string, Record<number, any>>>>({});
@@ -18174,6 +18176,14 @@ function GradebookView({
 
           <div className="flex items-center gap-3 w-full md:w-auto mt-4 md:mt-0 relative z-10">
             <button 
+              onClick={() => setShowActivityModal(true)}
+              className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold transition-all shadow-xs active:scale-95 whitespace-nowrap cursor-pointer"
+              title="Configure Activity Titles, Topics & HPS"
+            >
+              <Edit size={14} className="text-indigo-600" />
+              Activity Titles & Topics
+            </button>
+            <button 
               onClick={exportToExcel}
               className="flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-all shadow-sm active:scale-95 whitespace-nowrap"
             >
@@ -18334,6 +18344,135 @@ function GradebookView({
              <p className="text-sm font-medium text-amber-700 max-w-sm text-center">The previous term is not yet finalized, so this subject and term's gradebook is locked.</p>
            </div>
         ) : (
+        <>
+        {/* Active Activities & Topics Overview Legend */}
+        <div className="mb-6 bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 bg-indigo-50 border border-indigo-100 rounded-lg flex items-center justify-center text-indigo-600">
+                <BookOpen size={15} />
+              </div>
+              <div>
+                <h3 className="text-xs font-black uppercase tracking-wider text-slate-800">
+                  eClass Activities & Topics Summary
+                </h3>
+                <p className="text-[11px] text-slate-500 font-medium">
+                  Active task titles, descriptions, and Highest Possible Scores (HPS) for {selectedSubject.name} (Term {activeTerm})
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={() => setShowActivityModal(true)}
+                className="text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:underline flex items-center gap-1 cursor-pointer bg-indigo-50/60 px-2.5 py-1 rounded-lg border border-indigo-100"
+              >
+                <Edit size={12} />
+                Edit Titles & HPS
+              </button>
+              <button 
+                onClick={() => setShowActivityLegend(!showActivityLegend)} 
+                className="text-xs text-slate-500 font-bold hover:text-slate-800 transition-colors px-2 py-1 rounded hover:bg-slate-100 cursor-pointer"
+              >
+                {showActivityLegend ? "Collapse Overview" : "Expand Overview"}
+              </button>
+            </div>
+          </div>
+
+          {showActivityLegend && (
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4 pt-3 border-t border-slate-100 text-xs">
+              <div className="bg-slate-50/80 rounded-xl p-3 border border-slate-150">
+                <div className="flex justify-between items-center mb-2">
+                  <h4 className="font-black text-blue-800 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
+                    <span className="w-2 h-2 bg-blue-500 rounded-full" />
+                    Written Works ({selectedSubject.wwWeight}%)
+                  </h4>
+                  <span className="text-[10px] font-bold text-slate-400">WW1 - WW5</span>
+                </div>
+                <div className="space-y-1.5">
+                  {[0, 1, 2, 3, 4].map(i => {
+                    const hps = refData.writtenWorks?.maxScores?.[i] || 0;
+                    const name = refData.writtenWorks?.names?.[i];
+                    return (
+                      <div key={`legend-ww-${i}`} className={`flex justify-between items-center text-[11px] px-2.5 py-1.5 rounded-lg border transition-all ${hps > 0 ? 'bg-white border-blue-100 text-slate-800 shadow-2xs' : 'bg-slate-100/50 border-slate-200/60 text-slate-400'}`}>
+                        <div className="truncate pr-2">
+                          <strong className="text-blue-700 font-black mr-1">WW{i+1}:</strong>
+                          <span>{name && name.trim() !== '' ? name : <span className="italic opacity-60">Activity {i+1}</span>}</span>
+                        </div>
+                        <span className={`font-bold text-[10px] px-1.5 py-0.5 rounded ${hps > 0 ? 'bg-blue-50 text-blue-700' : 'bg-slate-200/50 text-slate-400'}`}>
+                          {hps > 0 ? `HPS: ${hps}` : 'Disabled'}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="bg-slate-50/80 rounded-xl p-3 border border-slate-150">
+                <div className="flex justify-between items-center mb-2">
+                  <h4 className="font-black text-emerald-800 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
+                    <span className="w-2 h-2 bg-emerald-500 rounded-full" />
+                    Performance Tasks ({selectedSubject.ptWeight}%)
+                  </h4>
+                  <span className="text-[10px] font-bold text-slate-400">PT1 - PT5</span>
+                </div>
+                <div className="space-y-1.5">
+                  {[0, 1, 2, 3, 4].map(i => {
+                    const hps = refData.performanceTasks?.maxScores?.[i] || 0;
+                    const name = refData.performanceTasks?.names?.[i];
+                    return (
+                      <div key={`legend-pt-${i}`} className={`flex justify-between items-center text-[11px] px-2.5 py-1.5 rounded-lg border transition-all ${hps > 0 ? 'bg-white border-emerald-100 text-slate-800 shadow-2xs' : 'bg-slate-100/50 border-slate-200/60 text-slate-400'}`}>
+                        <div className="truncate pr-2">
+                          <strong className="text-emerald-700 font-black mr-1">PT{i+1}:</strong>
+                          <span>{name && name.trim() !== '' ? name : <span className="italic opacity-60">Task {i+1}</span>}</span>
+                        </div>
+                        <span className={`font-bold text-[10px] px-1.5 py-0.5 rounded ${hps > 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-200/50 text-slate-400'}`}>
+                          {hps > 0 ? `HPS: ${hps}` : 'Disabled'}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="bg-slate-50/80 rounded-xl p-3 border border-slate-150">
+                <div className="flex justify-between items-center mb-2">
+                  <h4 className="font-black text-amber-800 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
+                    <span className="w-2 h-2 bg-amber-500 rounded-full" />
+                    Summative Tests & Exam ({selectedSubject.taWeight}%)
+                  </h4>
+                  <span className="text-[10px] font-bold text-slate-400">ST & Exam</span>
+                </div>
+                <div className="space-y-1.5">
+                  {[0, 1].map(i => {
+                    const hps = refData.summativeTests?.maxScores?.[i] || 0;
+                    const name = refData.summativeTests?.names?.[i];
+                    return (
+                      <div key={`legend-st-${i}`} className={`flex justify-between items-center text-[11px] px-2.5 py-1.5 rounded-lg border transition-all ${hps > 0 ? 'bg-white border-amber-100 text-slate-800 shadow-2xs' : 'bg-slate-100/50 border-slate-200/60 text-slate-400'}`}>
+                        <div className="truncate pr-2">
+                          <strong className="text-amber-700 font-black mr-1">ST{i+1}:</strong>
+                          <span>{name && name.trim() !== '' ? name : <span className="italic opacity-60">Summative {i+1}</span>}</span>
+                        </div>
+                        <span className={`font-bold text-[10px] px-1.5 py-0.5 rounded ${hps > 0 ? 'bg-amber-50 text-amber-700' : 'bg-slate-200/50 text-slate-400'}`}>
+                          {hps > 0 ? `HPS: ${hps}` : 'Disabled'}
+                        </span>
+                      </div>
+                    );
+                  })}
+                  <div className={`flex justify-between items-center text-[11px] px-2.5 py-1.5 rounded-lg border transition-all ${(refData.termExam?.maxScore || 0) > 0 ? 'bg-amber-50/60 border-amber-200 text-slate-800 shadow-2xs' : 'bg-slate-100/50 border-slate-200/60 text-slate-400'}`}>
+                    <div className="truncate pr-2">
+                      <strong className="text-amber-900 font-black mr-1">Exam:</strong>
+                      <span>Quarterly / Term Exam</span>
+                    </div>
+                    <span className={`font-bold text-[10px] px-1.5 py-0.5 rounded ${(refData.termExam?.maxScore || 0) > 0 ? 'bg-amber-100 text-amber-800' : 'bg-slate-200/50 text-slate-400'}`}>
+                      {(refData.termExam?.maxScore || 0) > 0 ? `HPS: ${refData.termExam.maxScore}` : 'Disabled'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
         <div className="bg-white border border-slate-200 rounded-lg shadow-sm">
           <div className="overflow-x-auto relative">
             <table className="w-full border-collapse text-xs border border-slate-200">
@@ -18355,53 +18494,83 @@ function GradebookView({
                 </tr>
                 <tr className="bg-slate-50 text-[10px] font-bold text-slate-500 border-b border-slate-200">
                   {/* WW sub-headers */}
-                  {[0, 1, 2, 3, 4].map(i => (
-                    <th key={`wwh-${i}`} className="p-0 border border-slate-200 min-w-[40px]">
-                       <input 
-                        type="text"
-                        disabled={isNotOffered || isYearEndFinalized || isSubjectTermFinalized}
-                        value={refData.writtenWorks?.names?.[i] || ""}
-                        onChange={(e) => handleMassUpdate('written', 'names', i, e.target.value)}
-                        placeholder={`W${i+1}`}
-                        className={`w-full text-center bg-transparent outline-none py-2 text-[9px] font-bold text-slate-700 placeholder:text-slate-300 ${(isNotOffered || isYearEndFinalized || isSubjectTermFinalized) ? 'cursor-not-allowed opacity-50' : ''}`}
-                       />
-                    </th>
-                  ))}
+                  {[0, 1, 2, 3, 4].map(i => {
+                    const name = refData.writtenWorks?.names?.[i] || "";
+                    const hps = refData.writtenWorks?.maxScores?.[i] || 0;
+                    return (
+                      <th key={`wwh-${i}`} className="p-1 border border-slate-200 min-w-[75px]" title={`Written Work ${i+1}${name ? `: ${name}` : ''} (HPS: ${hps})`}>
+                        <div className="flex flex-col items-center gap-0.5 py-0.5">
+                          <span className="text-[9px] font-black text-indigo-700 bg-indigo-50 px-1.5 py-0.2 rounded border border-indigo-100 uppercase tracking-wider">
+                            WW{i+1}
+                          </span>
+                          <input 
+                            type="text"
+                            disabled={isNotOffered || isYearEndFinalized || isSubjectTermFinalized}
+                            value={name}
+                            onChange={(e) => handleMassUpdate('written', 'names', i, e.target.value)}
+                            placeholder="Activity title"
+                            title={`WW${i+1} Activity Title / Topic Description`}
+                            className={`w-full text-center bg-white border border-slate-200 focus:border-indigo-400 outline-none py-1 px-1 text-[9px] font-medium text-slate-800 placeholder:text-slate-300 rounded shadow-2xs transition-all ${(isNotOffered || isYearEndFinalized || isSubjectTermFinalized) ? 'cursor-not-allowed opacity-50' : ''}`}
+                          />
+                        </div>
+                      </th>
+                    );
+                  })}
                   <th className="bg-slate-50 text-slate-700 border-r border-slate-200 w-12 text-center">Total</th>
                   <th className="bg-slate-50 text-slate-700 border-r border-slate-200 w-10 text-center">PS</th>
                   <th className="bg-slate-50/80 text-slate-700 border-r border-slate-200 w-12 font-bold text-center">WS</th>
                   
                   {/* PT sub-headers */}
-                  {[0, 1, 2, 3, 4].map(i => (
-                    <th key={`pth-${i}`} className="p-0 border-r border-slate-200 min-w-[40px]">
-                       <input 
-                        type="text"
-                        disabled={isNotOffered || isYearEndFinalized || isSubjectTermFinalized}
-                        value={refData.performanceTasks?.names?.[i] || ""}
-                        onChange={(e) => handleMassUpdate('performance', 'names', i, e.target.value)}
-                        placeholder={`PT${i+1}`}
-                        className={`w-full text-center bg-transparent outline-none py-2 text-[9px] font-bold text-slate-600 placeholder:text-slate-300 ${(isNotOffered || isYearEndFinalized || isSubjectTermFinalized) ? 'cursor-not-allowed opacity-50' : ''}`}
-                       />
-                    </th>
-                  ))}
+                  {[0, 1, 2, 3, 4].map(i => {
+                    const name = refData.performanceTasks?.names?.[i] || "";
+                    const hps = refData.performanceTasks?.maxScores?.[i] || 0;
+                    return (
+                      <th key={`pth-${i}`} className="p-1 border-r border-slate-200 min-w-[75px]" title={`Performance Task ${i+1}${name ? `: ${name}` : ''} (HPS: ${hps})`}>
+                        <div className="flex flex-col items-center gap-0.5 py-0.5">
+                          <span className="text-[9px] font-black text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-100 uppercase tracking-wider">
+                            PT{i+1}
+                          </span>
+                          <input 
+                            type="text"
+                            disabled={isNotOffered || isYearEndFinalized || isSubjectTermFinalized}
+                            value={name}
+                            onChange={(e) => handleMassUpdate('performance', 'names', i, e.target.value)}
+                            placeholder="Activity title"
+                            title={`PT${i+1} Activity Title / Topic Description`}
+                            className={`w-full text-center bg-white border border-slate-200 focus:border-emerald-400 outline-none py-1 px-1 text-[9px] font-medium text-slate-800 placeholder:text-slate-300 rounded shadow-2xs transition-all ${(isNotOffered || isYearEndFinalized || isSubjectTermFinalized) ? 'cursor-not-allowed opacity-50' : ''}`}
+                          />
+                        </div>
+                      </th>
+                    );
+                  })}
                   <th className="bg-slate-50 text-slate-700 border-r border-slate-200 w-12 text-center">Total</th>
                   <th className="bg-slate-50 text-slate-700 border-r border-slate-200 w-10 text-center">PS</th>
                   <th className="bg-slate-50/80 text-slate-700 border-r border-slate-200 w-12 font-bold text-center">WS</th>
 
                   {/* ST sub-headers */}
-                  {[0, 1].map(i => (
-                    <th key={`sth-${i}`} className="p-0 border-r border-slate-200 min-w-[40px] py-1">
-                       <input 
-                        type="text"
-                        disabled={isNotOffered || isYearEndFinalized || isSubjectTermFinalized}
-                        value={refData.summativeTests?.names?.[i] || ""}
-                        onChange={(e) => handleMassUpdate('summative', 'names', i, e.target.value)}
-                        placeholder={`ST${i+1}`}
-                        className={`w-full text-center bg-transparent outline-none text-[9px] font-bold text-slate-600 placeholder:text-slate-300 ${(isNotOffered || isYearEndFinalized || isSubjectTermFinalized) ? 'cursor-not-allowed opacity-50' : ''}`}
-                       />
-                       <div className="text-[8px] text-slate-400 font-bold text-center select-none leading-none pb-0.5">30% WS</div>
-                    </th>
-                  ))}
+                  {[0, 1].map(i => {
+                    const name = refData.summativeTests?.names?.[i] || "";
+                    const hps = refData.summativeTests?.maxScores?.[i] || 0;
+                    return (
+                      <th key={`sth-${i}`} className="p-1 border-r border-slate-200 min-w-[75px]" title={`Summative Test ${i+1}${name ? `: ${name}` : ''} (HPS: ${hps})`}>
+                        <div className="flex flex-col items-center gap-0.5 py-0.5">
+                          <span className="text-[9px] font-black text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-100 uppercase tracking-wider">
+                            ST{i+1}
+                          </span>
+                          <input 
+                            type="text"
+                            disabled={isNotOffered || isYearEndFinalized || isSubjectTermFinalized}
+                            value={name}
+                            onChange={(e) => handleMassUpdate('summative', 'names', i, e.target.value)}
+                            placeholder="Activity title"
+                            title={`ST${i+1} Activity Title / Topic Description`}
+                            className={`w-full text-center bg-white border border-slate-200 focus:border-amber-400 outline-none py-1 px-1 text-[9px] font-medium text-slate-800 placeholder:text-slate-300 rounded shadow-2xs transition-all ${(isNotOffered || isYearEndFinalized || isSubjectTermFinalized) ? 'cursor-not-allowed opacity-50' : ''}`}
+                          />
+                          <div className="text-[8px] text-slate-400 font-bold text-center select-none leading-none mt-0.5">30% WS</div>
+                        </div>
+                      </th>
+                    );
+                  })}
                   <th className="bg-slate-50 text-slate-700 border-r border-slate-200 w-16 text-center py-1">
                     <div className="font-bold">Term Exam</div>
                     <div className="text-[8px] text-slate-400 font-bold select-none leading-none mt-0.5">40% WS</div>
@@ -18512,7 +18681,9 @@ function GradebookView({
             </table>
           </div>
         </div>
+        </>
         )}
+
         {/* MPS Summary Section */}
         <section className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6 pb-12">
           {[
@@ -18621,6 +18792,208 @@ function GradebookView({
           </div>
         )}
       </AnimatePresence>
+
+      {/* Activity Titles, Topics & HPS Modal */}
+      {showActivityModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center font-bold">
+                  <Edit size={20} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-800 text-base">Activity Titles, Topics & HPS Config</h3>
+                  <p className="text-xs text-slate-500 font-medium">{selectedSubject.name} — Term {activeTerm} eClass Record</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowActivityModal(false)}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto space-y-6 custom-scrollbar flex-1">
+              <div className="bg-indigo-50/60 border border-indigo-100 rounded-xl p-3.5 text-xs text-indigo-900 flex items-start gap-2.5">
+                <BookOpen size={16} className="text-indigo-600 mt-0.5 shrink-0" />
+                <p className="leading-relaxed">
+                  Specify the title or topic description for each Written Work, Performance Task, and Summative Test (e.g. <em>Quiz 1: Cell Structure</em>, <em>Group Activity: Poster Design</em>). Setting the <strong>Highest Possible Score (HPS)</strong> activates the score column in the eClass Record.
+                </p>
+              </div>
+
+              {/* Written Works Section */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-xs font-black text-blue-800 uppercase tracking-wider flex items-center gap-2">
+                    <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                    Written Works (WW) — Weight: {selectedSubject.wwWeight}%
+                  </h4>
+                  <span className="text-[10px] text-slate-400 font-medium">Max 5 Activities</span>
+                </div>
+                <div className="space-y-2">
+                  {[0, 1, 2, 3, 4].map(i => {
+                    const name = refData.writtenWorks?.names?.[i] || "";
+                    const hps = refData.writtenWorks?.maxScores?.[i] ?? "";
+                    return (
+                      <div key={`modal-ww-${i}`} className="grid grid-cols-12 gap-3 items-center p-2.5 bg-slate-50 rounded-xl border border-slate-150 hover:bg-white hover:border-indigo-200 transition-all">
+                        <div className="col-span-2 sm:col-span-1">
+                          <span className="text-xs font-black text-indigo-700 bg-indigo-100 px-2 py-1 rounded-lg block text-center">WW{i+1}</span>
+                        </div>
+                        <div className="col-span-6 sm:col-span-8">
+                          <input 
+                            type="text"
+                            disabled={isNotOffered || isYearEndFinalized || isSubjectTermFinalized}
+                            value={name}
+                            onChange={(e) => handleMassUpdate('written', 'names', i, e.target.value)}
+                            placeholder={`Activity ${i+1} Title / Topic (e.g. Quiz on Fractions)`}
+                            className="w-full text-xs p-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-indigo-500 font-medium text-slate-800"
+                          />
+                        </div>
+                        <div className="col-span-4 sm:col-span-3 flex items-center gap-1.5">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase">HPS:</span>
+                          <input 
+                            type="text"
+                            inputMode="numeric"
+                            disabled={isNotOffered || isYearEndFinalized || isSubjectTermFinalized}
+                            value={hps === 0 ? "" : hps}
+                            onChange={(e) => handleMassUpdate('written', 'maxScores', i, e.target.value)}
+                            placeholder="0"
+                            className="w-full text-xs font-bold text-center p-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800"
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Performance Tasks Section */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-xs font-black text-emerald-800 uppercase tracking-wider flex items-center gap-2">
+                    <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>
+                    Performance Tasks (PT) — Weight: {selectedSubject.ptWeight}%
+                  </h4>
+                  <span className="text-[10px] text-slate-400 font-medium">Max 5 Tasks</span>
+                </div>
+                <div className="space-y-2">
+                  {[0, 1, 2, 3, 4].map(i => {
+                    const name = refData.performanceTasks?.names?.[i] || "";
+                    const hps = refData.performanceTasks?.maxScores?.[i] ?? "";
+                    return (
+                      <div key={`modal-pt-${i}`} className="grid grid-cols-12 gap-3 items-center p-2.5 bg-slate-50 rounded-xl border border-slate-150 hover:bg-white hover:border-emerald-200 transition-all">
+                        <div className="col-span-2 sm:col-span-1">
+                          <span className="text-xs font-black text-emerald-700 bg-emerald-100 px-2 py-1 rounded-lg block text-center">PT{i+1}</span>
+                        </div>
+                        <div className="col-span-6 sm:col-span-8">
+                          <input 
+                            type="text"
+                            disabled={isNotOffered || isYearEndFinalized || isSubjectTermFinalized}
+                            value={name}
+                            onChange={(e) => handleMassUpdate('performance', 'names', i, e.target.value)}
+                            placeholder={`Performance Task ${i+1} Title (e.g. Science Experiment)`}
+                            className="w-full text-xs p-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-emerald-500 font-medium text-slate-800"
+                          />
+                        </div>
+                        <div className="col-span-4 sm:col-span-3 flex items-center gap-1.5">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase">HPS:</span>
+                          <input 
+                            type="text"
+                            inputMode="numeric"
+                            disabled={isNotOffered || isYearEndFinalized || isSubjectTermFinalized}
+                            value={hps === 0 ? "" : hps}
+                            onChange={(e) => handleMassUpdate('performance', 'maxScores', i, e.target.value)}
+                            placeholder="0"
+                            className="w-full text-xs font-bold text-center p-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-emerald-500 text-slate-800"
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Summative Tests Section */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-xs font-black text-amber-800 uppercase tracking-wider flex items-center gap-2">
+                    <span className="w-2 h-2 bg-amber-500 rounded-full"></span>
+                    Summative Tests & Exam — Weight: {selectedSubject.taWeight}%
+                  </h4>
+                </div>
+                <div className="space-y-2">
+                  {[0, 1].map(i => {
+                    const name = refData.summativeTests?.names?.[i] || "";
+                    const hps = refData.summativeTests?.maxScores?.[i] ?? "";
+                    return (
+                      <div key={`modal-st-${i}`} className="grid grid-cols-12 gap-3 items-center p-2.5 bg-slate-50 rounded-xl border border-slate-150 hover:bg-white hover:border-amber-200 transition-all">
+                        <div className="col-span-2 sm:col-span-1">
+                          <span className="text-xs font-black text-amber-700 bg-amber-100 px-2 py-1 rounded-lg block text-center">ST{i+1}</span>
+                        </div>
+                        <div className="col-span-6 sm:col-span-8">
+                          <input 
+                            type="text"
+                            disabled={isNotOffered || isYearEndFinalized || isSubjectTermFinalized}
+                            value={name}
+                            onChange={(e) => handleMassUpdate('summative', 'names', i, e.target.value)}
+                            placeholder={`Summative Test ${i+1} Title (e.g. Unit Examination)`}
+                            className="w-full text-xs p-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-amber-500 font-medium text-slate-800"
+                          />
+                        </div>
+                        <div className="col-span-4 sm:col-span-3 flex items-center gap-1.5">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase">HPS:</span>
+                          <input 
+                            type="text"
+                            inputMode="numeric"
+                            disabled={isNotOffered || isYearEndFinalized || isSubjectTermFinalized}
+                            value={hps === 0 ? "" : hps}
+                            onChange={(e) => handleMassUpdate('summative', 'maxScores', i, e.target.value)}
+                            placeholder="0"
+                            className="w-full text-xs font-bold text-center p-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-amber-500 text-slate-800"
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  <div className="grid grid-cols-12 gap-3 items-center p-2.5 bg-amber-50/50 rounded-xl border border-amber-200">
+                    <div className="col-span-2 sm:col-span-1">
+                      <span className="text-[10px] font-black text-amber-900 bg-amber-200 px-1 py-1 rounded-lg block text-center uppercase">Exam</span>
+                    </div>
+                    <div className="col-span-6 sm:col-span-8">
+                      <span className="text-xs font-bold text-slate-800">Quarterly / Term Final Examination</span>
+                    </div>
+                    <div className="col-span-4 sm:col-span-3 flex items-center gap-1.5">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase">HPS:</span>
+                      <input 
+                        type="text"
+                        inputMode="numeric"
+                        disabled={isNotOffered || isYearEndFinalized || isSubjectTermFinalized}
+                        value={refData.termExam?.maxScore === 0 ? "" : (refData.termExam?.maxScore || "")}
+                        onChange={(e) => handleExamMaxChange(e.target.value)}
+                        placeholder="0"
+                        className="w-full text-xs font-bold text-center p-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-amber-500 text-slate-800"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-between items-center">
+              <span className="text-xs text-slate-500 font-medium">Changes sync immediately with class records</span>
+              <button
+                onClick={() => setShowActivityModal(false)}
+                className="px-6 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 transition-all shadow-sm active:scale-95 cursor-pointer"
+              >
+                Save & Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -26675,9 +27048,11 @@ function StudentPortal({
                                        {(rawData.writtenWorks?.scores || []).map((score, i) => {
                                           const max = rawData.writtenWorks?.maxScores?.[i] || 0;
                                           if (max === 0) return null;
+                                          const actName = rawData.writtenWorks?.names?.[i];
+                                          const displayTitle = actName && actName.trim() !== '' ? `WW${i + 1}: ${actName}` : `Written Work ${i + 1}`;
                                           return (
                                              <div key={i} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
-                                                <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Activity {i + 1}</span>
+                                                <span className="text-xs font-semibold text-slate-700 tracking-tight" title={displayTitle}>{displayTitle}</span>
                                                 <div className="flex items-baseline gap-1">
                                                    <span className="text-sm font-bold text-slate-900">{score}</span>
                                                    <span className="text-[10px] text-slate-400">/ {max}</span>
@@ -26702,9 +27077,11 @@ function StudentPortal({
                                        {(rawData.performanceTasks?.scores || []).map((score, i) => {
                                           const max = rawData.performanceTasks?.maxScores?.[i] || 0;
                                           if (max === 0) return null;
+                                          const actName = rawData.performanceTasks?.names?.[i];
+                                          const displayTitle = actName && actName.trim() !== '' ? `PT${i + 1}: ${actName}` : `Performance Task ${i + 1}`;
                                           return (
                                              <div key={i} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
-                                                <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Activity {i + 1}</span>
+                                                <span className="text-xs font-semibold text-slate-700 tracking-tight" title={displayTitle}>{displayTitle}</span>
                                                 <div className="flex items-baseline gap-1">
                                                    <span className="text-sm font-bold text-slate-900">{score}</span>
                                                    <span className="text-[10px] text-slate-400">/ {max}</span>
@@ -28662,7 +29039,7 @@ function UserGuideView() {
               <p className="text-sm text-slate-600">Define the percentage weights for Written Works, Performance Tasks, and Term Assessments for each subject.</p>
             </div>
             <div className="p-5 border-l-4 border-emerald-600 bg-emerald-50/30 rounded-r-2xl">
-              <h6 className="font-bold text-emerald-900 mb-1">2. Record Assessment</h6>
+              <h6 className="font-bold text-emerald-900 mb-1">2. eClass Records</h6>
               <p className="text-sm text-slate-600">This is the digital Gradebook. Enter daily scores; the system performs real-time transmutation and calculation based on subject weights. It also generates automatic <strong>Statistics</strong> summarizing the Mean Percentage Score (MPS) and categorizing passing rates by proficiency descriptors (Advancing, Benchmarking, Connecting, Developing, Emerging) individually for male and female students.</p>
             </div>
             <div className="p-5 border-l-4 border-amber-600 bg-amber-50/30 rounded-r-2xl">
