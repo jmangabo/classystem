@@ -29,77 +29,251 @@
     --accent: #4f46e5;
     --accent-hover: #4338ca;
     --accent-light: #e0e7ff;
+    --accent-subtle: #eef2ff;
+    --accent-border: #c7d2fe;
+    --accent-text: #3730a3;
     --accent-ring: rgba(79, 70, 229, 0.25);
   }
   :root[data-theme-color="emerald"] {
     --accent: #059669;
     --accent-hover: #047857;
     --accent-light: #d1fae5;
+    --accent-subtle: #ecfdf5;
+    --accent-border: #a7f3d0;
+    --accent-text: #065f46;
     --accent-ring: rgba(5, 150, 105, 0.25);
   }
   :root[data-theme-color="teal"] {
     --accent: #0d9488;
     --accent-hover: #0f766e;
     --accent-light: #ccfbf1;
+    --accent-subtle: #f0fdfa;
+    --accent-border: #99f6e4;
+    --accent-text: #115e59;
     --accent-ring: rgba(13, 148, 136, 0.25);
   }
   :root[data-theme-color="violet"] {
     --accent: #7c3aed;
     --accent-hover: #6d28d9;
     --accent-light: #ede9fe;
+    --accent-subtle: #f5f3ff;
+    --accent-border: #ddd6fe;
+    --accent-text: #5b21b6;
     --accent-ring: rgba(124, 58, 237, 0.25);
   }
   :root[data-theme-color="rose"] {
     --accent: #e11d48;
     --accent-hover: #be123c;
     --accent-light: #ffe4e6;
+    --accent-subtle: #fff1f2;
+    --accent-border: #fecdd3;
+    --accent-text: #9f1239;
     --accent-ring: rgba(225, 29, 72, 0.25);
   }
   :root[data-theme-color="amber"] {
     --accent: #d97706;
     --accent-hover: #b45309;
     --accent-light: #fef3c7;
+    --accent-subtle: #fffbeb;
+    --accent-border: #fde68a;
+    --accent-text: #92400e;
     --accent-ring: rgba(217, 119, 6, 0.25);
   }
   :root[data-theme-color="ocean"] {
     --accent: #0284c7;
     --accent-hover: #0369a1;
     --accent-light: #e0f2fe;
+    --accent-subtle: #f0f9ff;
+    --accent-border: #bae6fd;
+    --accent-text: #075985;
     --accent-ring: rgba(2, 132, 199, 0.25);
   }
   :root[data-theme-color="gold"] {
     --accent: #b45309;
     --accent-hover: #92400e;
     --accent-light: #fef9c3;
+    --accent-subtle: #fefce8;
+    --accent-border: #fef08a;
+    --accent-text: #713f12;
     --accent-ring: rgba(180, 83, 9, 0.25);
   }
   :root[data-theme-color="midnight"] {
     --accent: #6366f1;
     --accent-hover: #4f46e5;
     --accent-light: #312e81;
+    --accent-subtle: #1e1b4b;
+    --accent-border: #3730a3;
+    --accent-text: #a5b4fc;
     --accent-ring: rgba(99, 102, 241, 0.35);
   }
 
-  /* Font Presets */
-  :root[data-theme-font="mono"] {
-    font-family: var(--font-mono);
-  }
-  :root[data-theme-font="serif"] {
-    font-family: var(--font-serif);
-  }
-  :root[data-theme-font="sans"] {
-    font-family: var(--font-sans);
+  /* Automatic Dynamic Palette Overrides across UI */
+  :root[data-theme-color] .bg-indigo-600,
+  :root[data-theme-color] .bg-indigo-500,
+  :root[data-theme-color] .bg-indigo-700 {
+    background-color: var(--accent) !important;
   }
 
-  /* Radius Presets */
-  :root[data-theme-radius="sharp"] {
-    --border-radius: 0.25rem;
+  :root[data-theme-color] .hover\:bg-indigo-700:hover,
+  :root[data-theme-color] .hover\:bg-indigo-600:hover,
+  :root[data-theme-color] .hover\:bg-indigo-800:hover {
+    background-color: var(--accent-hover) !important;
   }
-  :root[data-theme-radius="modern"] {
-    --border-radius: 1rem;
+
+  :root[data-theme-color] .bg-indigo-50,
+  :root[data-theme-color] .bg-indigo-50\/30,
+  :root[data-theme-color] .bg-indigo-50\/40,
+  :root[data-theme-color] .bg-indigo-50\/50,
+  :root[data-theme-color] .bg-indigo-50\/60,
+  :root[data-theme-color] .bg-indigo-50\/70,
+  :root[data-theme-color] .bg-indigo-50\/80,
+  :root[data-theme-color] .bg-indigo-50\/90 {
+    background-color: var(--accent-subtle) !important;
   }
-  :root[data-theme-radius="pill"] {
-    --border-radius: 1.75rem;
+
+  :root[data-theme-color] .bg-indigo-100,
+  :root[data-theme-color] .bg-indigo-100\/50,
+  :root[data-theme-color] .bg-indigo-100\/80 {
+    background-color: var(--accent-light) !important;
+  }
+
+  :root[data-theme-color] .text-indigo-600,
+  :root[data-theme-color] .text-indigo-500 {
+    color: var(--accent) !important;
+  }
+
+  :root[data-theme-color] .text-indigo-700,
+  :root[data-theme-color] .text-indigo-800,
+  :root[data-theme-color] .text-indigo-900 {
+    color: var(--accent-text) !important;
+  }
+
+  :root[data-theme-color] .border-indigo-600,
+  :root[data-theme-color] .border-indigo-500 {
+    border-color: var(--accent) !important;
+  }
+
+  :root[data-theme-color] .border-indigo-100,
+  :root[data-theme-color] .border-indigo-150,
+  :root[data-theme-color] .border-indigo-200,
+  :root[data-theme-color] .border-indigo-300 {
+    border-color: var(--accent-border) !important;
+  }
+
+  :root[data-theme-color] .ring-indigo-500,
+  :root[data-theme-color] .ring-indigo-600,
+  :root[data-theme-color] .focus\:ring-indigo-500:focus,
+  :root[data-theme-color] .focus\:ring-indigo-500\/10:focus,
+  :root[data-theme-color] .focus\:ring-indigo-500\/20:focus {
+    --tw-ring-color: var(--accent-ring) !important;
+  }
+
+  :root[data-theme-color] .from-indigo-600,
+  :root[data-theme-color] .from-indigo-500 {
+    --tw-gradient-from: var(--accent) var(--tw-gradient-from-position) !important;
+  }
+  :root[data-theme-color] .to-indigo-700,
+  :root[data-theme-color] .to-indigo-600,
+  :root[data-theme-color] .to-indigo-800 {
+    --tw-gradient-to: var(--accent-hover) var(--tw-gradient-to-position) !important;
+  }
+
+  /* Font Family Presets Overrides */
+  :root[data-theme-font="mono"],
+  :root[data-theme-font="mono"] body,
+  :root[data-theme-font="mono"] button,
+  :root[data-theme-font="mono"] input,
+  :root[data-theme-font="mono"] select,
+  :root[data-theme-font="mono"] textarea,
+  :root[data-theme-font="mono"] table,
+  :root[data-theme-font="mono"] p,
+  :root[data-theme-font="mono"] h1,
+  :root[data-theme-font="mono"] h2,
+  :root[data-theme-font="mono"] h3,
+  :root[data-theme-font="mono"] h4,
+  :root[data-theme-font="mono"] h5,
+  :root[data-theme-font="mono"] h6,
+  :root[data-theme-font="mono"] .font-sans {
+    font-family: var(--font-mono) !important;
+  }
+
+  :root[data-theme-font="serif"],
+  :root[data-theme-font="serif"] body,
+  :root[data-theme-font="serif"] button,
+  :root[data-theme-font="serif"] input,
+  :root[data-theme-font="serif"] select,
+  :root[data-theme-font="serif"] textarea,
+  :root[data-theme-font="serif"] table,
+  :root[data-theme-font="serif"] p,
+  :root[data-theme-font="serif"] h1,
+  :root[data-theme-font="serif"] h2,
+  :root[data-theme-font="serif"] h3,
+  :root[data-theme-font="serif"] h4,
+  :root[data-theme-font="serif"] h5,
+  :root[data-theme-font="serif"] h6,
+  :root[data-theme-font="serif"] .font-sans {
+    font-family: var(--font-serif) !important;
+  }
+
+  :root[data-theme-font="sans"],
+  :root[data-theme-font="sans"] body,
+  :root[data-theme-font="sans"] button,
+  :root[data-theme-font="sans"] input,
+  :root[data-theme-font="sans"] select,
+  :root[data-theme-font="sans"] textarea,
+  :root[data-theme-font="sans"] table {
+    font-family: var(--font-sans) !important;
+  }
+
+  /* Radius Presets Overrides */
+  :root[data-theme-radius="sharp"] .rounded-3xl,
+  :root[data-theme-radius="sharp"] .rounded-2xl,
+  :root[data-theme-radius="sharp"] .rounded-xl,
+  :root[data-theme-radius="sharp"] .rounded-lg,
+  :root[data-theme-radius="sharp"] .rounded-md {
+    border-radius: 4px !important;
+  }
+
+  :root[data-theme-radius="modern"] .rounded-2xl {
+    border-radius: 1rem !important;
+  }
+  :root[data-theme-radius="modern"] .rounded-3xl {
+    border-radius: 1.5rem !important;
+  }
+
+  :root[data-theme-radius="pill"] .rounded-3xl,
+  :root[data-theme-radius="pill"] .rounded-2xl,
+  :root[data-theme-radius="pill"] .rounded-xl {
+    border-radius: 1.75rem !important;
+  }
+  :root[data-theme-radius="pill"] .rounded-lg,
+  :root[data-theme-radius="pill"] .rounded-md {
+    border-radius: 1rem !important;
+  }
+
+  /* Display Density Presets Overrides */
+  :root[data-theme-density="compact"] td,
+  :root[data-theme-density="compact"] th {
+    padding-top: 0.25rem !important;
+    padding-bottom: 0.25rem !important;
+  }
+  :root[data-theme-density="compact"] .p-6 {
+    padding: 1rem !important;
+  }
+  :root[data-theme-density="compact"] .p-8 {
+    padding: 1.25rem !important;
+  }
+
+  :root[data-theme-density="spacious"] td,
+  :root[data-theme-density="spacious"] th {
+    padding-top: 0.75rem !important;
+    padding-bottom: 0.75rem !important;
+  }
+  :root[data-theme-density="spacious"] .p-6 {
+    padding: 2rem !important;
+  }
+  :root[data-theme-density="spacious"] .p-8 {
+    padding: 2.25rem !important;
   }
 
   /* Dark Mode Styles */

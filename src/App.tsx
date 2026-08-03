@@ -1107,6 +1107,8 @@ export default function App() {
   const [preselectedStudentForAnecdotal, setPreselectedStudentForAnecdotal] = useState<Student | null>(null);
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [isSettingsDropdownOpen, setIsSettingsDropdownOpen] = useState(false);
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+  const [isSectionSwitcherOpen, setIsSectionSwitcherOpen] = useState(false);
   const [showAdminUsers, setShowAdminUsers] = useState(false);
   const [showAdminStudentList, setShowAdminStudentList] = useState(false);
   const [showAdminSchools, setShowAdminSchools] = useState(false);
@@ -3975,6 +3977,14 @@ export default function App() {
             </div>
           )}
         </AnimatePresence>
+
+        <ThemeCustomizerModal
+          isOpen={isThemeModalOpen}
+          onClose={() => setIsThemeModalOpen(false)}
+          settings={systemThemeSettings}
+          onUpdateSettings={setSystemThemeSettings}
+          onResetSettings={() => setSystemThemeSettings(DEFAULT_THEME_SETTINGS)}
+        />
       </>
     );
   }
@@ -4079,64 +4089,125 @@ export default function App() {
     <div className="flex flex-col h-screen bg-[#f8fafc] text-slate-900 font-sans overflow-hidden">
       {!globalSettings?.activeSchoolYear && <EncodingClosedBanner />}
       <DeadlineBanner globalSettings={globalSettings} />
-      <header className="sticky top-0 z-[100] h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 xl:px-8 shrink-0 shadow-sm overflow-visible">
-        <div className="flex items-center gap-4 xl:gap-8 min-w-max pr-4">
-          <div className="flex items-center gap-4 border-r border-slate-100 pr-4 shrink-0">
+      <header className="sticky top-0 z-[100] h-16 bg-white border-b border-slate-200 flex items-center justify-between px-3 sm:px-4 xl:px-8 shrink-0 shadow-sm overflow-visible">
+        {/* Left Side: Back button, Logo, & Interactive Quick Section Switcher */}
+        <div className="flex items-center gap-2 sm:gap-4 xl:gap-6 min-w-0">
+          <div className="flex items-center gap-2 sm:gap-4 border-r border-slate-100 pr-2 sm:pr-4 shrink-0">
             <button 
               onClick={() => setSelectedSection(null)}
-              className="p-2.5 hover:bg-slate-50 rounded-xl text-slate-400 hover:text-slate-900 transition-all group border border-transparent hover:border-slate-100"
+              className="p-2 hover:bg-slate-50 rounded-xl text-slate-400 hover:text-slate-900 transition-all group border border-transparent hover:border-slate-100"
               title="Back to Sections"
             >
               <ArrowLeft size={18} />
             </button>
             <div className="flex flex-col">
-              <h1 className="font-black text-lg md:text-xl tracking-tighter leading-none text-indigo-600 uppercase italic">
+              <h1 className="font-black text-base sm:text-lg md:text-xl tracking-tighter leading-none text-indigo-600 uppercase italic">
                 CLASS
               </h1>
-              <span className="text-[8px] text-slate-400 font-bold tracking-[0.2em] uppercase mt-0.5">Enterprise Portal</span>
+              <span className="text-[7px] sm:text-[8px] text-slate-400 font-bold tracking-[0.2em] uppercase mt-0.5 hidden xs:inline">Enterprise Portal</span>
             </div>
           </div>
 
-          <nav className="hidden xl:flex items-center gap-1 shrink-0">
+          {/* Quick Section Switcher Dropdown (Responsive for Mobile, Tablet, and Wide Screen) */}
+          {selectedSection && (
+            <div className="relative z-[110]">
+              <button
+                onClick={() => setIsSectionSwitcherOpen(!isSectionSwitcherOpen)}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 bg-indigo-50/80 hover:bg-indigo-100/90 border border-indigo-200/60 rounded-xl text-xs font-bold text-indigo-900 transition-all cursor-pointer shadow-2xs max-w-[140px] sm:max-w-[200px] md:max-w-[260px] truncate ${isSectionSwitcherOpen ? 'ring-2 ring-indigo-400/40 bg-indigo-100' : ''}`}
+                title="Click to switch section"
+              >
+                <div className="w-2 h-2 rounded-full bg-emerald-500 shrink-0 animate-pulse"></div>
+                <div className="flex flex-col items-start truncate min-w-0">
+                  <span className="text-[11px] sm:text-xs font-black tracking-tight truncate w-full text-indigo-950">
+                    {selectedSection.name}
+                  </span>
+                  <span className="text-[9px] font-semibold text-indigo-600/80 uppercase tracking-wider hidden sm:block truncate w-full">
+                    {(Number(selectedSection.gradeLevel) === 0) ? "Kindergarten" : `Grade ${selectedSection.gradeLevel}`} • {selectedSection.schoolYear}
+                  </span>
+                </div>
+                <ChevronDown size={14} className={`text-indigo-500 shrink-0 transition-transform duration-200 ml-auto ${isSectionSwitcherOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {isSectionSwitcherOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setIsSectionSwitcherOpen(false)} />
+                  <div className="absolute top-full left-0 mt-2 w-72 bg-white border border-slate-200 shadow-xl rounded-2xl p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                    <div className="px-3 py-2 border-b border-slate-100 mb-1 flex items-center justify-between">
+                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Quick Switch Section</span>
+                      <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md">
+                        {sections.filter(s => !globalSettings?.activeSchoolYear || s.schoolYear === globalSettings.activeSchoolYear).length} Sections
+                      </span>
+                    </div>
+                    <div className="max-h-64 overflow-y-auto custom-scrollbar space-y-1 pr-1">
+                      {sections
+                        .filter(s => !globalSettings?.activeSchoolYear || s.schoolYear === globalSettings.activeSchoolYear)
+                        .map(sec => {
+                          const isCurrent = sec.id === selectedSection.id;
+                          return (
+                            <button
+                              key={sec.id}
+                              onClick={() => {
+                                setSelectedSection(sec);
+                                setIsSectionSwitcherOpen(false);
+                              }}
+                              className={`w-full flex items-center justify-between p-2.5 rounded-xl text-left transition-all text-xs ${
+                                isCurrent 
+                                  ? 'bg-indigo-600 text-white font-bold shadow-xs' 
+                                  : 'hover:bg-slate-50 text-slate-700 font-medium'
+                              }`}
+                            >
+                              <div className="flex flex-col min-w-0 pr-2">
+                                <span className="font-bold truncate">{sec.name}</span>
+                                <span className={`text-[10px] ${isCurrent ? 'text-indigo-100' : 'text-slate-400'}`}>
+                                  {(Number(sec.gradeLevel) === 0) ? "Kindergarten" : `Grade ${sec.gradeLevel}`} • Adviser: {sec.adviserName || 'Unassigned'}
+                                </span>
+                              </div>
+                              {isCurrent && <Check size={14} className="shrink-0" />}
+                            </button>
+                          );
+                        })}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Desktop Navigation (xl:flex) */}
+          <nav className="hidden xl:flex items-center gap-1 shrink-0 ml-2">
             {(() => {
               const allTabs = [
-                { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={14} /> },
-                { id: 'enroll', label: 'Learner', icon: <UserPlus size={14} /> },
-                { id: 'subjects', label: 'Subjects', icon: <BookOpen size={14} /> },
-                { id: 'gradebook', label: 'eClass Records', icon: <TableIcon size={14} /> },
-                { id: 'summary', label: 'Grading Sheet', icon: <ClipboardCheck size={14} /> },
-                { id: 'transfers', label: 'Transfer Facility', icon: <Share2 size={14} /> },
-                { id: 'pta', label: 'PTA Fees', icon: <CreditCard size={14} /> },
-                { id: 'sf2', label: 'School Form 2', icon: <FileText size={14} /> },
-                { id: 'sf10', label: 'Learners Records', icon: <HistoryIcon size={14} /> },
-                { id: 'attendance', label: 'Daily Attendance', icon: <Calendar size={14} /> },
-                { id: 'observed-values', label: 'Teacher Comments/Remarks', icon: <Heart size={14} /> },
-                { id: 'anecdotes', label: 'Anecdotal Records', icon: <MessageSquare size={14} /> },
-                { id: 'sf8', label: 'School Form 8', icon: <Activity size={14} /> },
-                { id: 'sf4', label: 'School Form 4', icon: <FileText size={14} /> },
-                { id: 'sf7', label: 'School Form 7', icon: <FileText size={14} /> },
-                { id: 'guide', label: 'Guide', icon: <HelpCircle size={14} /> },
-                { id: 'sys-docs', label: 'System Documentation', icon: <Terminal size={14} /> },
+                { id: 'dashboard', label: 'Dashboard', shortLabel: 'Dashboard', icon: <LayoutDashboard size={14} /> },
+                { id: 'enroll', label: 'Learner', shortLabel: 'Learner', icon: <UserPlus size={14} /> },
+                { id: 'subjects', label: 'Subjects', shortLabel: 'Subjects', icon: <BookOpen size={14} /> },
+                { id: 'gradebook', label: 'eClass Records', shortLabel: 'eClass Records', icon: <TableIcon size={14} /> },
+                { id: 'summary', label: 'Grading Sheet', shortLabel: 'Grading Sheet', icon: <ClipboardCheck size={14} /> },
+                { id: 'transfers', label: 'Transfer Facility', shortLabel: 'Transfers', icon: <Share2 size={14} /> },
+                { id: 'pta', label: 'PTA Fees', shortLabel: 'PTA Fees', icon: <CreditCard size={14} /> },
+                { id: 'sf2', label: 'School Form 2', shortLabel: 'SF2 Report', icon: <FileText size={14} /> },
+                { id: 'sf10', label: 'Learners Records', shortLabel: 'SF10 Record', icon: <HistoryIcon size={14} /> },
+                { id: 'attendance', label: 'Daily Attendance', shortLabel: 'Attendance', icon: <Calendar size={14} /> },
+                { id: 'observed-values', label: 'Teacher Comments/Remarks', shortLabel: 'Remarks', icon: <Heart size={14} /> },
+                { id: 'anecdotes', label: 'Anecdotal Records', shortLabel: 'Anecdotes', icon: <MessageSquare size={14} /> },
+                { id: 'sf8', label: 'School Form 8', shortLabel: 'SF8 Health', icon: <Activity size={14} /> },
+                { id: 'sf4', label: 'School Form 4', shortLabel: 'SF4 Report', icon: <FileText size={14} /> },
+                { id: 'sf7', label: 'School Form 7', shortLabel: 'SF7 Profile', icon: <FileText size={14} /> },
+                { id: 'guide', label: 'Guide', shortLabel: 'Guide', icon: <HelpCircle size={14} /> },
+                { id: 'sys-docs', label: 'System Documentation', shortLabel: 'Docs', icon: <Terminal size={14} /> },
                 ...(currentUser?.email === 'jessiemangabo@gmail.com' ? [
-                  { id: 'logs', label: 'VIEW LOGS & UNKNOWNS', icon: <Terminal size={14} /> },
-                  { id: 'logs-clear', label: 'CLEAR UNKNOWN ONLY', icon: <Trash2 size={14} /> }
+                  { id: 'logs', label: 'VIEW LOGS & UNKNOWNS', shortLabel: 'Logs', icon: <Terminal size={14} /> },
+                  { id: 'logs-clear', label: 'CLEAR UNKNOWN ONLY', shortLabel: 'Clear', icon: <Trash2 size={14} /> }
                 ] : [])
               ];
+
               const allowedTabs = allTabs.filter(tab => {
                 if (tab.id === 'subjects' && userProfile?.role !== 'system_admin' && userProfile?.role !== 'admin' && !isSectionAdviser) return false;
                 if (tab.id === 'logs' || tab.id === 'logs-clear') return currentUser?.email === 'jessiemangabo@gmail.com';
                 if (tab.id === 'summary' && !isSectionAdviser) return false;
-
                 if (tab.id === 'pta' && !(userProfile?.role === 'teacher' && isSectionAdviser)) return false;
-
                 if (tab.id === 'gradebook' && (!editableSubjects || editableSubjects.length === 0) && !isSectionAdviser) return false;
-
                 if ((tab.id === 'attendance' || tab.id === 'sf2') && !hasCalendarMatch) return false;
-                
-                // SF4 is accessible to system_admin, school_head, and authorized cashier
                 if (tab.id === 'sf4' && userProfile?.role !== 'system_admin' && userProfile?.role !== 'school_head' && !isAuthorizedCashier) return false;
-
-                // SF7 is accessible only to system_admin and admin
                 if (tab.id === 'sf7' && userProfile?.role !== 'system_admin' && userProfile?.role !== 'admin') return false;
 
                 if (userProfile?.role === 'system_admin' || userProfile?.role === 'admin' || isAuthorizedCashier) {
@@ -4161,7 +4232,6 @@ export default function App() {
                 }
                 if (userProfile?.role === 'teacher') {
                   if (isSectionAdviser) {
-                    // Advisers see most things except restricted ones like SF4
                     return ['dashboard', 'enroll', 'subjects', 'pta', 'sf8', 'sf10', 'attendance', 'observed-values', 'sf2', 'transfers', 'anecdotes', 'guide', 'gradebook', 'summary', 'aral'].includes(tab.id);
                   }
                   return tab.id === 'gradebook' || tab.id === 'dashboard' || tab.id === 'anecdotes' || tab.id === 'pta' || tab.id === 'aral';
@@ -4179,8 +4249,8 @@ export default function App() {
                   }}
                   className={`flex shrink-0 items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all relative ${
                     activeTab === tab.id 
-                      ? 'text-indigo-600 bg-indigo-50/50' 
-                      : 'text-slate-400 hover:text-slate-700 hover:bg-slate-50'
+                      ? 'text-indigo-600 bg-indigo-50/50 font-extrabold' 
+                      : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
                   }`}
                 >
                   {tab.icon}
@@ -4204,12 +4274,12 @@ export default function App() {
                     <button 
                       onClick={() => {
                         setIsOpen(!isOpen);
-                        setIsSettingsDropdownOpen(false); // Close settings if main menu clicked
+                        setIsSettingsDropdownOpen(false);
                       }}
                       className={`flex shrink-0 items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all relative ${
                       tabs.some(t => t.id === activeTab) 
                         ? 'text-indigo-600 bg-indigo-50/50' 
-                        : 'text-slate-400 hover:text-slate-700 hover:bg-slate-50'
+                        : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
                     }`}>
                       {icon}
                       <span className="uppercase tracking-wide">{label}</span>
@@ -4219,8 +4289,8 @@ export default function App() {
                     {isOpen && (
                       <>
                         <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
-                        <div className="absolute block top-full pt-4 left-0 w-52 z-50">
-                          <div className="bg-white border border-slate-200 shadow-xl rounded-xl p-2 flex flex-col gap-1">
+                        <div className="absolute block top-full pt-4 left-0 w-56 z-50">
+                          <div className="bg-white border border-slate-200 shadow-xl rounded-2xl p-2 flex flex-col gap-1">
                           {tabs.map(tab => (
                             <button
                               key={tab.id}
@@ -4228,10 +4298,10 @@ export default function App() {
                                 setActiveTab(tab.id as any);
                                 setIsOpen(false);
                               }}
-                              className={`flex shrink-0 items-center justify-between gap-2 px-3 py-2.5 rounded-lg text-[11px] font-bold transition-all text-left ${
+                              className={`flex shrink-0 items-center justify-between gap-2 px-3 py-2.5 rounded-xl text-[11px] font-bold transition-all text-left ${
                                 activeTab === tab.id 
-                                  ? 'text-indigo-600 bg-indigo-50/50' 
-                                  : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'
+                                  ? 'text-indigo-600 bg-indigo-50/70 font-extrabold' 
+                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
                               }`}
                             >
                               <div className="flex items-center gap-2">
@@ -4265,12 +4335,12 @@ export default function App() {
                       <button 
                         onClick={() => {
                           setIsSettingsDropdownOpen(!isSettingsDropdownOpen);
-                          setOpenDropdown(null); // Close other menus if settings clicked
+                          setOpenDropdown(null);
                         }}
                         className={`flex shrink-0 items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all relative ${
                         isSettingsDropdownOpen 
                           ? 'text-indigo-600 bg-indigo-50/50' 
-                          : 'text-slate-400 hover:text-slate-700 hover:bg-slate-50'
+                          : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
                       }`}>
                         <Settings size={14} />
                         <span className="uppercase tracking-wide">Settings Menu</span>
@@ -4280,10 +4350,10 @@ export default function App() {
                         <>
                           <div className="fixed inset-0 z-40" onClick={() => setIsSettingsDropdownOpen(false)} />
                           <div className="absolute block top-full pt-4 left-0 w-56 z-50">
-                            <div className="bg-white border border-slate-200 shadow-xl rounded-xl p-2 flex flex-col gap-1">
+                            <div className="bg-white border border-slate-200 shadow-xl rounded-2xl p-2 flex flex-col gap-1">
                                <button
                                   onClick={() => { setShowAdminUsers(true); setIsSettingsDropdownOpen(false); }}
-                                  className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-[11px] font-bold text-slate-500 hover:text-slate-900 hover:bg-slate-50 border-b border-slate-50 w-full text-left cursor-pointer"
+                                  className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-[11px] font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-50 border-b border-slate-50 w-full text-left cursor-pointer"
                                >
                                   <Users size={14} /> <span className="uppercase tracking-wider">Manage Users</span>
                                </button>
@@ -4294,39 +4364,39 @@ export default function App() {
                                     setGlobalScannerError(null);
                                     setIsSettingsDropdownOpen(false); 
                                   }}
-                                  className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-[11px] font-bold text-slate-500 hover:text-slate-900 hover:bg-indigo-50 hover:text-indigo-700 border-b border-slate-50 w-full text-left cursor-pointer"
+                                  className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-[11px] font-bold text-slate-600 hover:text-slate-900 hover:bg-indigo-50 hover:text-indigo-700 border-b border-slate-50 w-full text-left cursor-pointer"
                                >
                                   <QrCode size={14} /> <span className="uppercase tracking-wider">Scan ID</span>
                                </button>
                                {userProfile?.role === 'system_admin' && (
                                  <button
                                     onClick={() => { setActiveTab('subjects'); setIsSettingsDropdownOpen(false); }}
-                                    className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-[11px] font-bold text-slate-500 hover:text-slate-900 hover:bg-slate-50 border-b border-slate-50 w-full text-left"
+                                    className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-[11px] font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-50 border-b border-slate-50 w-full text-left"
                                  >
                                     <BookOpen size={14} /> <span className="uppercase tracking-wider">Subject Menu</span>
                                  </button>
                                )}
                                <button
                                   onClick={() => { setShowAdminSchools(true); setIsSettingsDropdownOpen(false); }}
-                                  className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-[11px] font-bold text-slate-500 hover:text-slate-900 hover:bg-slate-50 border-b border-slate-50 w-full text-left"
+                                  className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-[11px] font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-50 border-b border-slate-50 w-full text-left"
                                >
                                   <Building size={14} /> <span className="uppercase tracking-wider">Manage School</span>
                                </button>
                                <button
                                   onClick={() => { setShowAdminSchoolYear(true); setIsSettingsDropdownOpen(false); }}
-                                  className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-[11px] font-bold text-slate-500 hover:text-slate-900 hover:bg-slate-50 border-b border-slate-50 w-full text-left"
+                                  className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-[11px] font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-50 border-b border-slate-50 w-full text-left"
                                >
                                   <Calendar size={14} /> <span className="uppercase tracking-wider">School Year</span>
                                </button>
                                <button
                                   onClick={() => { setShowAdminSchoolCalendar(true); setIsSettingsDropdownOpen(false); }}
-                                  className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-[11px] font-bold text-slate-500 hover:text-slate-900 hover:bg-slate-50 border-b border-slate-50 w-full text-left"
+                                  className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-[11px] font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-50 border-b border-slate-50 w-full text-left"
                                >
                                   <Calendar size={14} /> <span className="uppercase tracking-wider">School Calendar</span>
                                </button>
                                <button
                                   onClick={() => { setShowAdminFeedback(true); setIsSettingsDropdownOpen(false); }}
-                                  className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-[11px] font-bold text-indigo-600 hover:bg-indigo-50 w-full text-left"
+                                  className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-[11px] font-bold text-indigo-600 hover:bg-indigo-50 w-full text-left"
                                >
                                   <Sparkles size={14} /> <span className="uppercase tracking-wider">Feedback Dashboard</span>
                                </button>
@@ -4342,91 +4412,326 @@ export default function App() {
           </nav>
         </div>
 
-        <div className="flex items-center gap-3 shrink-0 md:ml-4">
+        {/* Right Side Header Controls */}
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          {/* Mobile & Tablet Section Menu Trigger Button (xl:hidden) */}
           <button
             type="button"
-            onClick={() => setIsThemeModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-extrabold text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-xl transition-all cursor-pointer shadow-xs"
-            title="System Theme Settings"
+            onClick={() => setIsMobileNavOpen(true)}
+            className="xl:hidden flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition-all shadow-sm active:scale-95 cursor-pointer"
+            title="Open Section Menu"
           >
-            <Palette size={16} className="text-indigo-600 dark:text-indigo-400" />
-            <span className="hidden sm:inline uppercase tracking-wider text-[11px]">Theme</span>
+            <Menu size={16} />
+            <span className="hidden sm:inline uppercase tracking-wider text-[11px]">Section Menu</span>
           </button>
-
-          <div className="text-right hidden sm:block">
-            <div className="flex items-center gap-2 justify-end">
-              <span className="text-xs font-black text-slate-800 uppercase tracking-tight">{selectedSection.name}</span>
-              <span className="w-1 h-1 rounded-full bg-emerald-500"></span>
-            </div>
-            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5 opacity-60">{(Number(selectedSection.gradeLevel) === 0) ? "Kindergarten" : `Grade ${selectedSection.gradeLevel}`} • {selectedSection.schoolYear}</p>
-          </div>
-          
-          <div className="h-8 w-px bg-slate-100 hidden md:block"></div>
         </div>
       </header>
 
-      {/* Main Navigation (Mobile/Tablet Only) */}
-      <div className="xl:hidden h-14 bg-white border-b border-slate-100 flex items-center justify-start sm:justify-around px-4 shrink-0 shadow-sm overflow-x-auto custom-scrollbar gap-2">
+      {/* Responsive Horizontal Quick Bar (Mobile & Tablet - xl:hidden) */}
+      <div className="xl:hidden h-14 bg-white border-b border-slate-200/80 flex items-center justify-start px-3 shrink-0 shadow-2xs overflow-x-auto custom-scrollbar gap-2 snap-x">
+        <button
+          onClick={() => setIsMobileNavOpen(true)}
+          className="px-3 py-1.5 shrink-0 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 transition-all flex items-center gap-1.5 text-xs font-bold shadow-xs active:scale-95 cursor-pointer snap-start"
+          title="All Section Menus"
+        >
+          <Menu size={14} />
+          <span>All Menus</span>
+        </button>
+
         <button
           onClick={() => {
             setShowGlobalScanner(true);
             setGlobalRecentScan(null);
             setGlobalScannerError(null);
           }}
-          className="p-3 shrink-0 rounded-2xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-all flex items-center justify-center border border-indigo-100 active:scale-95 cursor-pointer"
+          className="px-3 py-1.5 shrink-0 rounded-xl bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-all flex items-center gap-1.5 text-xs font-bold border border-indigo-200/60 active:scale-95 cursor-pointer snap-start"
           title="Scan ID"
         >
-          <QrCode size={20} />
+          <QrCode size={14} />
+          <span>Scan ID</span>
         </button>
-        {[
-          { id: 'dashboard', icon: <LayoutDashboard size={20} /> },
-          { id: 'enroll', icon: <UserPlus size={20} /> },
-          { id: 'subjects', icon: <BookOpen size={20} /> },
-          { id: 'gradebook', icon: <TableIcon size={20} /> },
-          { id: 'summary', icon: <ClipboardCheck size={20} /> },
-          { id: 'sf8', icon: <Activity size={20} /> },
-          { id: 'transfers', icon: <Share2 size={20} /> },
-          { id: 'attendance', icon: <Calendar size={20} /> },
-          { id: 'observed-values', icon: <Heart size={20} /> },
-          { id: 'anecdotes', icon: <MessageSquare size={20} /> },
-          { id: 'guide', icon: <HelpCircle size={20} /> },
-        ].filter(tab => {
-          if (tab.id === 'subjects' && userProfile?.role !== 'system_admin' && userProfile?.role !== 'admin' && !isSectionAdviser) return false;
-          if (tab.id === 'summary' && !isSectionAdviser) return false;
 
-          if (tab.id === 'gradebook' && (!editableSubjects || editableSubjects.length === 0) && !isSectionAdviser) return false;
+        {(() => {
+          const allTabs = [
+            { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={14} /> },
+            { id: 'enroll', label: 'Learner', icon: <UserPlus size={14} /> },
+            { id: 'subjects', label: 'Subjects', icon: <BookOpen size={14} /> },
+            { id: 'gradebook', label: 'eClass Records', icon: <TableIcon size={14} /> },
+            { id: 'summary', label: 'Grading Sheet', icon: <ClipboardCheck size={14} /> },
+            { id: 'sf8', label: 'SF8 Health', icon: <Activity size={14} /> },
+            { id: 'transfers', label: 'Transfers', icon: <Share2 size={14} /> },
+            { id: 'attendance', label: 'Attendance', icon: <Calendar size={14} /> },
+            { id: 'sf2', label: 'SF2 Report', icon: <FileText size={14} /> },
+            { id: 'observed-values', label: 'Remarks', icon: <Heart size={14} /> },
+            { id: 'anecdotes', label: 'Anecdotes', icon: <MessageSquare size={14} /> },
+            { id: 'sf10', label: 'SF10 Record', icon: <HistoryIcon size={14} /> },
+            { id: 'pta', label: 'PTA Fees', icon: <CreditCard size={14} /> },
+            { id: 'guide', label: 'Guide', icon: <HelpCircle size={14} /> },
+          ];
 
-          // SF4 is ONLY for system_admin
-          if (tab.id === 'sf4' && userProfile?.role !== 'system_admin') return false;
+          return allTabs.filter(tab => {
+            if (tab.id === 'subjects' && userProfile?.role !== 'system_admin' && userProfile?.role !== 'admin' && !isSectionAdviser) return false;
+            if (tab.id === 'summary' && !isSectionAdviser) return false;
+            if (tab.id === 'pta' && !(userProfile?.role === 'teacher' && isSectionAdviser)) return false;
+            if (tab.id === 'gradebook' && (!editableSubjects || editableSubjects.length === 0) && !isSectionAdviser) return false;
+            if ((tab.id === 'attendance' || tab.id === 'sf2') && !hasCalendarMatch) return false;
 
-          if (userProfile?.role === 'system_admin' || userProfile?.role === 'admin') {
-            const allowedTabsList = [
-              'dashboard', 'enroll', 'subjects', 'sf8', 'guide', 'sys-docs', 'gradebook', 'summary', 'attendance', 'observed-values', 'sf2', 'transfers', 'sf10', 'sf4', 'anecdotes'
-            ];
-            if (userProfile?.role === 'system_admin') {
-              return allowedTabsList.filter(id => {
-                if (id === 'summary' && !isSectionAdviser) return false;
-                if (id === 'gradebook' && !isSectionAdviser && (!editableSubjects || editableSubjects.length === 0)) return false;
-                return true;
-              }).includes(tab.id);
+            if (userProfile?.role === 'system_admin' || userProfile?.role === 'admin') return true;
+            if (userProfile?.role === 'school_head') return ['sf8', 'sf10', 'anecdotes'].includes(tab.id);
+            if (userProfile?.role === 'guidance_designate') return ['anecdotes'].includes(tab.id);
+            if (userProfile?.role === 'teacher') {
+              if (isSectionAdviser) return true;
+              return ['gradebook', 'dashboard', 'anecdotes', 'pta'].includes(tab.id);
             }
-            return allowedTabsList.filter(id => id !== 'sf4').includes(tab.id);
-          }
-          if (userProfile?.role === 'teacher') {
-            if (isSectionAdviser) return true;
-            return tab.id === 'gradebook' || tab.id === 'dashboard' || tab.id === 'anecdotes';
-          }
-          return true;
-        }).map(tab => (
-          <button
-            key={'mobile-' + tab.id}
-            onClick={() => setActiveTab(tab.id as any)}
-            className={`p-3 shrink-0 rounded-2xl transition-all ${activeTab === tab.id ? 'bg-indigo-50 text-indigo-600' : 'text-slate-400'}`}
-          >
-            {tab.icon}
-          </button>
-        ))}
+            return true;
+          }).map(tab => (
+            <button
+              key={'sub-bar-' + tab.id}
+              onClick={() => setActiveTab(tab.id as any)}
+              className={`px-3 py-1.5 shrink-0 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 snap-start ${
+                activeTab === tab.id 
+                  ? 'bg-indigo-50 text-indigo-700 border border-indigo-200/80 shadow-2xs font-extrabold' 
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 border border-transparent'
+              }`}
+            >
+              {tab.icon}
+              <span className="whitespace-nowrap">{tab.label}</span>
+            </button>
+          ));
+        })()}
       </div>
+
+      {/* Complete Mobile & Tablet Section Menu Sheet Drawer (xl:hidden) */}
+      <AnimatePresence>
+        {isMobileNavOpen && (
+          <div className="fixed inset-0 z-[250] flex flex-col justify-end xl:hidden">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsMobileNavOpen(false)}
+              className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs"
+            />
+
+            {/* Slide-Up Sheet Container */}
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 220 }}
+              className="relative w-full max-h-[85vh] bg-white dark:bg-slate-900 rounded-t-3xl shadow-2xl flex flex-col overflow-hidden border-t border-slate-200 dark:border-slate-800 z-10"
+            >
+              {/* Drawer Top Drag Indicator & Header */}
+              <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0 bg-slate-50/50 dark:bg-slate-900/50">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                    <BookOpen size={20} />
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <h2 className="text-base font-black text-slate-900 dark:text-white truncate">Section Navigation</h2>
+                    <p className="text-xs font-bold text-indigo-600 dark:text-indigo-400 truncate">
+                      {selectedSection?.name} • Grade {selectedSection?.gradeLevel}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setIsMobileNavOpen(false)}
+                  className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
+                  title="Close Menu"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* Drawer Content Body with Categorized Menus */}
+              <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-6">
+                {(() => {
+                  const categories = [
+                    {
+                      name: "Overview",
+                      icon: <LayoutDashboard size={16} className="text-indigo-600" />,
+                      tabs: [
+                        { id: 'dashboard', label: 'Section Dashboard', desc: 'Overview & key metrics', icon: <LayoutDashboard size={18} /> },
+                      ]
+                    },
+                    {
+                      name: "Student Management",
+                      icon: <Users size={16} className="text-emerald-600" />,
+                      tabs: [
+                        { id: 'enroll', label: 'Learner Roster', desc: 'Enrolled students & profiles', icon: <UserPlus size={18} /> },
+                        { id: 'transfers', label: 'Transfer Facility', desc: 'Process learner transfers', icon: <Share2 size={18} /> },
+                        { id: 'sf8', label: 'School Form 8 (Health)', desc: 'BMI & physical assessment', icon: <Activity size={18} /> },
+                        { id: 'pta', label: 'PTA Fees', desc: 'PTA collection & records', icon: <CreditCard size={18} /> },
+                      ]
+                    },
+                    {
+                      name: "Attendance & Behavior",
+                      icon: <Calendar size={16} className="text-amber-600" />,
+                      tabs: [
+                        { id: 'attendance', label: 'Daily Attendance', desc: 'Track daily attendance', icon: <Calendar size={18} /> },
+                        { id: 'sf2', label: 'School Form 2 (SF2)', desc: 'Monthly attendance summary', icon: <FileText size={18} /> },
+                        { id: 'observed-values', label: 'Teacher Remarks', desc: 'Core values & character', icon: <Heart size={18} /> },
+                        { id: 'anecdotes', label: 'Anecdotal Records', desc: 'Behavioral logs & notes', icon: <MessageSquare size={18} /> },
+                      ]
+                    },
+                    {
+                      name: "Academic Records",
+                      icon: <BookOpen size={16} className="text-sky-600" />,
+                      tabs: [
+                        { id: 'subjects', label: 'Section Subjects', desc: 'Subject assignments', icon: <BookOpen size={18} /> },
+                        { id: 'gradebook', label: 'eClass Records', desc: 'Input grades & exam scores', icon: <TableIcon size={18} /> },
+                        { id: 'summary', label: 'Grading Sheet', desc: 'Quarterly summary sheet', icon: <ClipboardCheck size={18} /> },
+                        { id: 'sf10', label: 'Learner Record (SF10)', desc: 'Permanent transcript', icon: <HistoryIcon size={18} /> },
+                        { id: 'sf4', label: 'School Form 4 (SF4)', desc: 'Monthly movement summary', icon: <FileText size={18} /> },
+                        { id: 'sf7', label: 'School Form 7 (SF7)', desc: 'Personnel assignments', icon: <FileText size={18} /> },
+                        { id: 'aral', label: 'ARAL Program', desc: 'Intervention program', icon: <Sparkles size={18} /> },
+                      ]
+                    },
+                    {
+                      name: "Support & Help",
+                      icon: <HelpCircle size={16} className="text-purple-600" />,
+                      tabs: [
+                        { id: 'guide', label: 'User Guide', desc: 'Help & instructions', icon: <HelpCircle size={18} /> },
+                        { id: 'sys-docs', label: 'System Documentation', desc: 'Features & specs', icon: <Terminal size={18} /> },
+                      ]
+                    }
+                  ];
+
+                  // Filter allowed tabs for mobile
+                  const filterAllowed = (tabId: string) => {
+                    if (tabId === 'subjects' && userProfile?.role !== 'system_admin' && userProfile?.role !== 'admin' && !isSectionAdviser) return false;
+                    if (tabId === 'summary' && !isSectionAdviser) return false;
+                    if (tabId === 'pta' && !(userProfile?.role === 'teacher' && isSectionAdviser)) return false;
+                    if (tabId === 'gradebook' && (!editableSubjects || editableSubjects.length === 0) && !isSectionAdviser) return false;
+                    if ((tabId === 'attendance' || tabId === 'sf2') && !hasCalendarMatch) return false;
+                    if (tabId === 'sf4' && userProfile?.role !== 'system_admin' && userProfile?.role !== 'school_head' && !isAuthorizedCashier) return false;
+                    if (tabId === 'sf7' && userProfile?.role !== 'system_admin' && userProfile?.role !== 'admin') return false;
+
+                    if (userProfile?.role === 'system_admin' || userProfile?.role === 'admin' || isAuthorizedCashier) return true;
+                    if (userProfile?.role === 'school_head') return ['sf8', 'sf4', 'sf10', 'anecdotes', 'aral'].includes(tabId);
+                    if (userProfile?.role === 'guidance_designate') return ['anecdotes', 'aral'].includes(tabId);
+                    if (userProfile?.role === 'teacher') {
+                      if (isSectionAdviser) return true;
+                      return ['gradebook', 'dashboard', 'anecdotes', 'pta', 'aral'].includes(tabId);
+                    }
+                    return true;
+                  };
+
+                  return (
+                    <>
+                      {categories.map(cat => {
+                        const validTabs = cat.tabs.filter(t => filterAllowed(t.id));
+                        if (validTabs.length === 0) return null;
+
+                        return (
+                          <div key={cat.name} className="space-y-2">
+                            <div className="flex items-center gap-2 px-1">
+                              {cat.icon}
+                              <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">{cat.name}</h3>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              {validTabs.map(t => {
+                                const isActive = activeTab === t.id;
+                                return (
+                                  <button
+                                    key={'drawer-tab-' + t.id}
+                                    onClick={() => {
+                                      setActiveTab(t.id as any);
+                                      setIsMobileNavOpen(false);
+                                    }}
+                                    className={`flex items-start gap-3 p-3 rounded-2xl transition-all text-left border cursor-pointer ${
+                                      isActive 
+                                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' 
+                                        : 'bg-slate-50 dark:bg-slate-800/60 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 border-slate-200/60 dark:border-slate-700/60'
+                                    }`}
+                                  >
+                                    <div className={`p-2 rounded-xl shrink-0 ${
+                                      isActive ? 'bg-white/20 text-white' : 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-2xs'
+                                    }`}>
+                                      {t.icon}
+                                    </div>
+                                    <div className="flex flex-col min-w-0 flex-1">
+                                      <span className="text-xs font-bold leading-snug truncate">{t.label}</span>
+                                      <span className={`text-[10px] mt-0.5 truncate ${isActive ? 'text-indigo-100' : 'text-slate-400 dark:text-slate-400'}`}>
+                                        {t.desc}
+                                      </span>
+                                    </div>
+                                    {isActive && <CheckCircle size={16} className="text-white shrink-0 mt-0.5" />}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {/* Admin Settings Section inside Mobile/Tablet Drawer */}
+                      {(userProfile?.role === 'admin' || userProfile?.role === 'system_admin') && (
+                        <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                          <div className="flex items-center gap-2 px-1">
+                            <Settings size={16} className="text-slate-500" />
+                            <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">Settings Menu</h3>
+                          </div>
+
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                            <button
+                              onClick={() => { setShowAdminUsers(true); setIsMobileNavOpen(false); }}
+                              className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 hover:bg-indigo-50 text-slate-700 dark:text-slate-200 text-xs font-bold border border-slate-200/60 dark:border-slate-700"
+                            >
+                              <Users size={14} className="text-slate-400" />
+                              <span className="truncate">Manage Users</span>
+                            </button>
+                            <button
+                              onClick={() => { setShowGlobalScanner(true); setGlobalRecentScan(null); setGlobalScannerError(null); setIsMobileNavOpen(false); }}
+                              className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 hover:bg-indigo-50 text-slate-700 dark:text-slate-200 text-xs font-bold border border-slate-200/60 dark:border-slate-700"
+                            >
+                              <QrCode size={14} className="text-indigo-600" />
+                              <span className="truncate">Scan ID</span>
+                            </button>
+                            {userProfile?.role === 'system_admin' && (
+                              <button
+                                onClick={() => { setActiveTab('subjects'); setIsMobileNavOpen(false); }}
+                                className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 hover:bg-indigo-50 text-slate-700 dark:text-slate-200 text-xs font-bold border border-slate-200/60 dark:border-slate-700"
+                              >
+                                <BookOpen size={14} className="text-slate-400" />
+                                <span className="truncate">Subject Menu</span>
+                              </button>
+                            )}
+                            <button
+                              onClick={() => { setShowAdminSchools(true); setIsMobileNavOpen(false); }}
+                              className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 hover:bg-indigo-50 text-slate-700 dark:text-slate-200 text-xs font-bold border border-slate-200/60 dark:border-slate-700"
+                            >
+                              <Building size={14} className="text-slate-400" />
+                              <span className="truncate">Manage School</span>
+                            </button>
+                            <button
+                              onClick={() => { setShowAdminSchoolYear(true); setIsMobileNavOpen(false); }}
+                              className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 hover:bg-indigo-50 text-slate-700 dark:text-slate-200 text-xs font-bold border border-slate-200/60 dark:border-slate-700"
+                            >
+                              <Calendar size={14} className="text-slate-400" />
+                              <span className="truncate">School Year</span>
+                            </button>
+                            <button
+                              onClick={() => { setShowAdminSchoolCalendar(true); setIsMobileNavOpen(false); }}
+                              className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 hover:bg-indigo-50 text-slate-700 dark:text-slate-200 text-xs font-bold border border-slate-200/60 dark:border-slate-700"
+                            >
+                              <Calendar size={14} className="text-slate-400" />
+                              <span className="truncate">School Calendar</span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Workspace Area */}
       <main className={`flex-1 overflow-x-hidden overflow-y-auto bg-[#fcfdfe] scroll-smooth custom-scrollbar ${['gradebook', 'summary', 'dashboard', 'subjects', 'enroll', 'guide', 'sf8', 'transfers', 'sf10', 'observed-values', 'pta', 'tle-dashboard'].includes(activeTab) ? 'p-0' : 'p-6 md:p-12'}`}>
@@ -8138,15 +8443,18 @@ function SectionsView({
           </div>
         </div>
         <div className="flex items-center gap-3 md:gap-4 shrink-0">
-          <button
-            type="button"
-            onClick={onOpenThemeModal}
-            className="flex items-center gap-1.5 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-extrabold text-xs px-3 py-2 rounded-lg transition-all shadow-xs cursor-pointer"
-            title="System Theme Customizer"
-          >
-            <Palette size={15} className="text-indigo-600 dark:text-indigo-400" />
-            <span className="hidden sm:inline">Theme</span>
-          </button>
+          {onOpenThemeModal && (
+            <button
+              type="button"
+              onClick={onOpenThemeModal}
+              className="flex items-center gap-2 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-extrabold text-xs px-3 py-2 rounded-lg transition-all shadow-2xs cursor-pointer"
+              title="System Theme Customizer"
+            >
+              <Palette size={15} className="text-indigo-600 dark:text-indigo-400 shrink-0" />
+              <span className="hidden sm:inline">Theme</span>
+            </button>
+          )}
+
            {(isMainAdmin || user?.role === 'system_admin') && !!globalSettings?.finalizationDeadline && (
              <button
                onClick={() => setShowRequestsModal(true)}

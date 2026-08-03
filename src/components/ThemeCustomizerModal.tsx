@@ -95,6 +95,27 @@ const PRESETS: { id: string; name: string; desc: string; icon: string; settings:
     desc: 'Spacious amber theme with soft corners and warm highlights.',
     icon: '🌅',
     settings: { color: 'amber', mode: 'light', density: 'spacious', radius: 'pill', font: 'sans' }
+  },
+  {
+    id: 'ocean',
+    name: 'Ocean Breeze',
+    desc: 'Refreshing teal theme with balanced spacing and modern curves.',
+    icon: '🌊',
+    settings: { color: 'teal', mode: 'light', density: 'comfortable', radius: 'modern', font: 'sans' }
+  },
+  {
+    id: 'rose',
+    name: 'Crimson Luxe',
+    desc: 'Vibrant crimson theme with sharp technical typography.',
+    icon: '🌹',
+    settings: { color: 'rose', mode: 'light', density: 'compact', radius: 'sharp', font: 'sans' }
+  },
+  {
+    id: 'gold',
+    name: 'Imperial Gold',
+    desc: 'Prestige gold theme with spacious luxury layout.',
+    icon: '👑',
+    settings: { color: 'gold', mode: 'light', density: 'spacious', radius: 'modern', font: 'serif' }
   }
 ];
 
@@ -169,12 +190,14 @@ export function ThemeCustomizerModal({
                 <Sparkles size={14} className="text-amber-500" /> Quick Theme Presets
               </span>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-2.5">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
               {PRESETS.map((preset) => {
                 const isActive = 
                   settings.color === preset.settings.color &&
                   settings.mode === preset.settings.mode &&
-                  settings.font === preset.settings.font;
+                  settings.font === preset.settings.font &&
+                  settings.radius === preset.settings.radius &&
+                  settings.density === preset.settings.density;
 
                 return (
                   <button
