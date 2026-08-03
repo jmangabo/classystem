@@ -62,7 +62,7 @@ export function SystemDocumentationView() {
               {[
                 { title: 'Student Management', items: ['Learner Enrollment', 'Permanent Records', 'Transfer Management'], color: 'indigo' },
                 { title: 'Attendance & Behavior', items: ['Daily Tracking', 'Class Reports (SF2)', 'Monthly Summary (SF4)', 'Teacher Comments/Remarks'], color: 'rose' },
-                { title: 'Academic Engine', items: ['Subject Weighting', 'Gradebook (Record Assessment)', 'Grading Summaries'], color: 'amber' }
+                { title: 'Academic Engine', items: ['Subject Weighting', 'eClass Records', 'Grading Summaries'], color: 'amber' }
               ].map((group, i) => (
                 <div key={i} className={`p-6 rounded-3xl border border-${group.color}-100 bg-${group.color}-50/30`}>
                   <h4 className={`font-black text-${group.color}-600 uppercase tracking-widest text-[10px] mb-4`}>{group.title}</h4>

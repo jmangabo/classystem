@@ -162,8 +162,9 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
           </td>
           ${attendanceCells}
           ${emptyCells}
-          <td class="text-center font-bold">${absentCount > 0 ? absentCount : ''}</td>
-          <td></td> <!-- TAR -->
+          <td class="text-center font-bold" style="color: #b91c1c;">${absentCount > 0 ? absentCount : 0}</td>
+          <td class="text-center font-bold" style="color: #15803d;">${presentCount}</td>
+          <td class="text-center font-bold bg-slate-50">${absentCount + presentCount}</td>
           <td class="remarks-cell" style="width: 130px; font-weight: 600; font-size: 7.5px;">${remarksText}</td>
         </tr>
       `;
@@ -217,8 +218,9 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
           </td>
           ${attendanceCells}
           ${emptyCells}
-          <td class="text-center font-bold">${absentCount > 0 ? absentCount : ''}</td>
-          <td></td> <!-- TAR -->
+          <td class="text-center font-bold" style="color: #b91c1c;">${absentCount > 0 ? absentCount : 0}</td>
+          <td class="text-center font-bold" style="color: #15803d;">${presentCount}</td>
+          <td class="text-center font-bold bg-slate-50">${absentCount + presentCount}</td>
           <td class="remarks-cell" style="width: 130px; font-weight: 600; font-size: 7.5px;">${remarksText}</td>
         </tr>
       `;
@@ -539,13 +541,14 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
                 <th colspan="${maxDays}" style="text-align: center; font-size: 7.5px; height: 12px;">
                   <span style="font-size: 6px; font-weight: normal;">(1st row for date, 2nd row for Day: M,T,W,TH,F)</span>
                 </th>
-                <th colspan="2" style="text-align: center; width: 60px;">Total Month</th>
+                <th colspan="3" style="text-align: center; width: 90px;">Total Month</th>
                 <th rowspan="3" style="width: 140px; text-align: left; padding-left: 6px;">REMARKS <br><span style="font-weight: normal; font-size: 5.5px;">(If D/O state reason. If T/I/O name of school)</span></th>
               </tr>
               <tr>
                 ${datesHeaderHtml}
-                <th rowspan="2" style="width: 30px; text-align: center; font-weight: 700;">ABS</th>
-                <th rowspan="2" style="width: 30px; text-align: center; font-weight: 700;">TAR</th>
+                <th rowspan="2" style="width: 28px; text-align: center; font-weight: 700;">ABS</th>
+                <th rowspan="2" style="width: 28px; text-align: center; font-weight: 700;">PRS</th>
+                <th rowspan="2" style="width: 28px; text-align: center; font-weight: 700;">TOT</th>
               </tr>
               <tr>
                 ${dowHeaderHtml}
@@ -554,7 +557,7 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
             <tbody>
               <!-- MALE SECTION -->
               <tr>
-                <td colspan="${maxDays + 5}" class="gender-row-header">MALE</td>
+                <td colspan="${maxDays + 6}" class="gender-row-header">MALE</td>
               </tr>
               ${maleRowsHtml}
               
@@ -563,14 +566,15 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
                 <td></td>
                 <td class="text-right font-bold uppercase" style="padding-right: 6px; font-size: 7.5px;">Total Male</td>
                 ${totalMaleAbsentHtml}
-                <td class="bg-white"></td>
-                <td class="bg-white"></td>
+                <td class="text-center font-bold bg-white" style="color: #b91c1c;">${monthlyTotals.maleAbsent || ''}</td>
+                <td class="text-center font-bold bg-white" style="color: #15803d;">${monthlyTotals.malePresent || ''}</td>
+                <td class="text-center font-bold bg-slate-100">${monthlyTotals.maleTotal || ''}</td>
                 <td></td>
               </tr>
 
               <!-- FEMALE SECTION -->
               <tr>
-                <td colspan="${maxDays + 5}" class="gender-row-header">FEMALE</td>
+                <td colspan="${maxDays + 6}" class="gender-row-header">FEMALE</td>
               </tr>
               ${femaleRowsHtml}
 
@@ -579,8 +583,9 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
                 <td></td>
                 <td class="text-right font-bold uppercase" style="padding-right: 6px; font-size: 7.5px;">Total Female</td>
                 ${totalFemaleAbsentHtml}
-                <td class="bg-white"></td>
-                <td class="bg-white"></td>
+                <td class="text-center font-bold bg-white" style="color: #b91c1c;">${monthlyTotals.femaleAbsent || ''}</td>
+                <td class="text-center font-bold bg-white" style="color: #15803d;">${monthlyTotals.femalePresent || ''}</td>
+                <td class="text-center font-bold bg-slate-100">${monthlyTotals.femaleTotal || ''}</td>
                 <td></td>
               </tr>
 
@@ -589,8 +594,9 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
                 <td></td>
                 <td class="text-right font-extrabold uppercase" style="padding-right: 6px; font-size: 7.5px;">Combined Total</td>
                 ${combinedTotalHtml}
-                <td class="bg-slate-100"></td>
-                <td class="bg-slate-100"></td>
+                <td class="text-center font-black bg-slate-100" style="color: #b91c1c;">${monthlyTotals.combinedAbsent || ''}</td>
+                <td class="text-center font-black bg-slate-100" style="color: #15803d;">${monthlyTotals.combinedPresent || ''}</td>
+                <td class="text-center font-black bg-slate-200">${monthlyTotals.combinedTotal || ''}</td>
                 <td></td>
               </tr>
             </tbody>
@@ -1129,11 +1135,59 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
     };
   }, [currentMonthData, schoolDaysInMonth, sortedStudents, selectedMonthKey, allSchoolDaysOfYear, students]);
 
+  const monthlyTotals = useMemo(() => {
+    if (!currentMonthData || !schoolDaysInMonth.length) {
+      return {
+        maleAbsent: 0, malePresent: 0, maleTotal: 0,
+        femaleAbsent: 0, femalePresent: 0, femaleTotal: 0,
+        combinedAbsent: 0, combinedPresent: 0, combinedTotal: 0
+      };
+    }
+
+    let maleAbsent = 0;
+    let malePresent = 0;
+    sortedStudents.male.forEach(s => {
+      const dailyData = s.dailyAttendance?.[selectedMonthKey] || s.dailyAttendance?.[currentMonthData.month] || {};
+      let p = 0;
+      schoolDaysInMonth.forEach(d => {
+        if (dailyData[d.day]) p++;
+      });
+      const a = Math.max(0, schoolDaysInMonth.length - p);
+      maleAbsent += a;
+      malePresent += p;
+    });
+
+    let femaleAbsent = 0;
+    let femalePresent = 0;
+    sortedStudents.female.forEach(s => {
+      const dailyData = s.dailyAttendance?.[selectedMonthKey] || s.dailyAttendance?.[currentMonthData.month] || {};
+      let p = 0;
+      schoolDaysInMonth.forEach(d => {
+        if (dailyData[d.day]) p++;
+      });
+      const a = Math.max(0, schoolDaysInMonth.length - p);
+      femaleAbsent += a;
+      femalePresent += p;
+    });
+
+    return {
+      maleAbsent,
+      malePresent,
+      maleTotal: maleAbsent + malePresent,
+      femaleAbsent,
+      femalePresent,
+      femaleTotal: femaleAbsent + femalePresent,
+      combinedAbsent: maleAbsent + femaleAbsent,
+      combinedPresent: malePresent + femalePresent,
+      combinedTotal: maleAbsent + malePresent + femaleAbsent + femalePresent
+    };
+  }, [currentMonthData, schoolDaysInMonth, sortedStudents, selectedMonthKey]);
+
   const handleExport = () => {
     if (!currentMonthData || !schoolDaysInMonth.length) return;
 
     // Calculate table width
-    const tableWidth = 2 + schoolDaysInMonth.length + 3;
+    const tableWidth = 2 + schoolDaysInMonth.length + 4;
 
     const xlData: any[][] = [];
     const rowTypes: string[] = [];
@@ -1190,7 +1244,7 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
     // Column Headers 1 (Dates)
     const headerRow1 = ["No.", "Learner's Name"];
     schoolDaysInMonth.forEach(d => headerRow1.push(d.day.toString()));
-    headerRow1.push("Absent", "Tardy", "Remarks");
+    headerRow1.push("Absent", "Present", "Total", "Remarks");
     xlData.push(headerRow1);
     rowTypes.push("headers");
 
@@ -1201,7 +1255,7 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
       const dow = ['S', 'M', 'T', 'W', 'Th', 'F', 'S'][date.getDay()];
       headerRow2.push(dow);
     });
-    headerRow2.push("", "", "");
+    headerRow2.push("", "", "", "");
     xlData.push(headerRow2);
     rowTypes.push("headersSub");
 
@@ -1220,14 +1274,36 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
         if (isPresent) presentCount++;
       });
       const absentCount = Math.max(0, schoolDaysInMonth.length - presentCount);
-      row.push(absentCount > 0 ? absentCount : 0, "", "");
+      const totalCount = absentCount + presentCount;
+
+      let remarksText = "";
+      if (s.status === 'Dropped Out') {
+        const dParts = s.dropoutDate?.split('-');
+        if (dParts?.length === 3) {
+          const dropYear = parseInt(dParts[0]);
+          const dropMonth = parseInt(dParts[1]) - 1;
+          if (currentMonthData!.year === dropYear && monthIndices[currentMonthData!.month] === dropMonth) {
+            remarksText = `D/O: ${new Date(s.dropoutDate!).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+          }
+        }
+      } else if (s.status === 'Transferred Out') {
+        const dParts = s.dropoutDate?.split('-');
+        if (dParts?.length === 3) {
+          const dropYear = parseInt(dParts[0]);
+          const dropMonth = parseInt(dParts[1]) - 1;
+          if (currentMonthData!.year === dropYear && monthIndices[currentMonthData!.month] === dropMonth) {
+            remarksText = `T/O to: ${s.transferredTo || ''}`;
+          }
+        }
+      }
+
+      row.push(absentCount > 0 ? absentCount : 0, presentCount, totalCount, remarksText);
       xlData.push(row);
       rowTypes.push("studentRow");
     });
 
     // Total Male row
     const totalMaleRow: any[] = ["", "TOTAL MALE"];
-    let totalMaleMonthlyAbsent = 0;
     schoolDaysInMonth.forEach(dayInfo => {
       let dailyAbsentCount = 0;
       sortedStudents.male.forEach(s => {
@@ -1236,10 +1312,9 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
           dailyAbsentCount++;
         }
       });
-      totalMaleMonthlyAbsent += dailyAbsentCount;
       totalMaleRow.push(dailyAbsentCount > 0 ? dailyAbsentCount : 0);
     });
-    totalMaleRow.push(totalMaleMonthlyAbsent, "", "");
+    totalMaleRow.push(monthlyTotals.maleAbsent, monthlyTotals.malePresent, monthlyTotals.maleTotal, "");
     xlData.push(totalMaleRow);
     rowTypes.push("totalRow");
 
@@ -1262,14 +1337,36 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
         if (isPresent) presentCount++;
       });
       const absentCount = Math.max(0, schoolDaysInMonth.length - presentCount);
-      row.push(absentCount > 0 ? absentCount : 0, "", "");
+      const totalCount = absentCount + presentCount;
+
+      let remarksText = "";
+      if (s.status === 'Dropped Out') {
+        const dParts = s.dropoutDate?.split('-');
+        if (dParts?.length === 3) {
+          const dropYear = parseInt(dParts[0]);
+          const dropMonth = parseInt(dParts[1]) - 1;
+          if (currentMonthData!.year === dropYear && monthIndices[currentMonthData!.month] === dropMonth) {
+            remarksText = `D/O: ${new Date(s.dropoutDate!).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+          }
+        }
+      } else if (s.status === 'Transferred Out') {
+        const dParts = s.dropoutDate?.split('-');
+        if (dParts?.length === 3) {
+          const dropYear = parseInt(dParts[0]);
+          const dropMonth = parseInt(dParts[1]) - 1;
+          if (currentMonthData!.year === dropYear && monthIndices[currentMonthData!.month] === dropMonth) {
+            remarksText = `T/O to: ${s.transferredTo || ''}`;
+          }
+        }
+      }
+
+      row.push(absentCount > 0 ? absentCount : 0, presentCount, totalCount, remarksText);
       xlData.push(row);
       rowTypes.push("studentRow");
     });
 
     // Total Female row
     const totalFemaleRow: any[] = ["", "TOTAL FEMALE"];
-    let totalFemaleMonthlyAbsent = 0;
     schoolDaysInMonth.forEach(dayInfo => {
       let dailyAbsentCount = 0;
       sortedStudents.female.forEach(s => {
@@ -1278,16 +1375,14 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
           dailyAbsentCount++;
         }
       });
-      totalFemaleMonthlyAbsent += dailyAbsentCount;
       totalFemaleRow.push(dailyAbsentCount > 0 ? dailyAbsentCount : 0);
     });
-    totalFemaleRow.push(totalFemaleMonthlyAbsent, "", "");
+    totalFemaleRow.push(monthlyTotals.femaleAbsent, monthlyTotals.femalePresent, monthlyTotals.femaleTotal, "");
     xlData.push(totalFemaleRow);
     rowTypes.push("totalRow");
 
     // Combined Total row
     const totalCombinedRow: any[] = ["", "COMBINED TOTAL"];
-    let totalCombinedMonthlyAbsent = 0;
     schoolDaysInMonth.forEach(dayInfo => {
       let dailyAbsentCount = 0;
       students.forEach(s => {
@@ -1296,10 +1391,9 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
           dailyAbsentCount++;
         }
       });
-      totalCombinedMonthlyAbsent += dailyAbsentCount;
       totalCombinedRow.push(dailyAbsentCount > 0 ? dailyAbsentCount : 0);
     });
-    totalCombinedRow.push(totalCombinedMonthlyAbsent, "", "");
+    totalCombinedRow.push(monthlyTotals.combinedAbsent, monthlyTotals.combinedPresent, monthlyTotals.combinedTotal, "");
     xlData.push(totalCombinedRow);
     rowTypes.push("combinedTotalRow");
 
@@ -1384,8 +1478,9 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
         // Table Header vertical merges across Dates + Days-of-week rows
         { s: { r: R_headers, c: 0 }, e: { r: R_headers + 1, c: 0 } }, // No
         { s: { r: R_headers, c: 1 }, e: { r: R_headers + 1, c: 1 } }, // Name
-        { s: { r: R_headers, c: tableWidth - 3 }, e: { r: R_headers + 1, c: tableWidth - 3 } }, // Absent
-        { s: { r: R_headers, c: tableWidth - 2 }, e: { r: R_headers + 1, c: tableWidth - 2 } }, // Tardy
+        { s: { r: R_headers, c: tableWidth - 4 }, e: { r: R_headers + 1, c: tableWidth - 4 } }, // Absent
+        { s: { r: R_headers, c: tableWidth - 3 }, e: { r: R_headers + 1, c: tableWidth - 3 } }, // Present
+        { s: { r: R_headers, c: tableWidth - 2 }, e: { r: R_headers + 1, c: tableWidth - 2 } }, // Total
         { s: { r: R_headers, c: tableWidth - 1 }, e: { r: R_headers + 1, c: tableWidth - 1 } }, // Remarks
 
         // Male / Female dividers
@@ -1613,7 +1708,7 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
                 cell.s = styleNoCell;
               } else if (C === 1) {
                 cell.s = styleNameCell;
-              } else if (C >= 2 && C < tableWidth - 3) {
+              } else if (C >= 2 && C < tableWidth - 4) {
                 // Presence/Absence marker
                 if (cell.v === "X") {
                   cell.s = {
@@ -1629,7 +1724,7 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
                 } else {
                   cell.s = cellBaseStyle;
                 }
-              } else if (C === tableWidth - 3) {
+              } else if (C === tableWidth - 4) {
                 // Absent Column
                 const numVal = Number(cell.v);
                 if (numVal > 0) {
@@ -1644,9 +1739,19 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
                     font: { name: "Arial", sz: 9, color: { rgb: "CBD5E1" } }
                   };
                 }
+              } else if (C === tableWidth - 3) {
+                // Present Column
+                cell.s = {
+                  ...cellBaseStyle,
+                  font: { name: "Arial", sz: 9.5, bold: true, color: { rgb: "15803D" } }
+                };
               } else if (C === tableWidth - 2) {
-                // Tardy Column
-                cell.s = cellBaseStyle;
+                // Total Column
+                cell.s = {
+                  ...cellBaseStyle,
+                  font: { name: "Arial", sz: 9.5, bold: true },
+                  fill: { fgColor: { rgb: "F1F5F9" } }
+                };
               } else if (C === tableWidth - 1) {
                 // Remarks Column
                 cell.s = {
@@ -1709,9 +1814,10 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
     const colWidths = [
       { wch: 6 }, // No.
       { wch: 32 }, // Names
-      ...Array(tableWidth - 5).fill({ wch: 4.5 }), // Attendance Days
+      ...Array(tableWidth - 6).fill({ wch: 4.5 }), // Attendance Days
       { wch: 8 }, // Absent
-      { wch: 8 }, // Tardy
+      { wch: 8 }, // Present
+      { wch: 8 }, // Total
       { wch: 22 }, // Remarks
     ];
     worksheet['!cols'] = colWidths;
@@ -1760,8 +1866,9 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
         {Array.from({ length: Math.max(0, 25 - schoolDaysInMonth.length) }).map((_, i) => (
            <td key={`m-empty-${student.id}-${i}`} className="border border-black p-0 h-[22px] bg-slate-50" />
         ))}
-        <td className="border border-black p-0.5 text-center font-bold bg-white leading-none h-[22px] text-[8.5px]">{absentCount > 0 ? absentCount : ''}</td>
-        <td className="border border-black p-0.5 text-center bg-white h-[22px]" />
+        <td className="border border-black p-0.5 text-center font-bold bg-white leading-none h-[22px] text-[8.5px] text-red-700">{absentCount > 0 ? absentCount : 0}</td>
+        <td className="border border-black p-0.5 text-center font-bold bg-white leading-none h-[22px] text-[8.5px] text-emerald-700">{presentCount}</td>
+        <td className="border border-black p-0.5 text-center font-bold bg-slate-50 leading-none h-[22px] text-[8.5px]">{absentCount + presentCount}</td>
         <td className="border border-black px-1 py-0.5 truncate max-w-[160px] text-[7.5px] h-[22px] leading-none font-semibold">
           {student.status === 'Dropped Out' && (() => {
             const dParts = student.dropoutDate?.split('-');
@@ -1840,8 +1947,9 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
         {Array.from({ length: Math.max(0, 25 - schoolDaysInMonth.length) }).map((_, i) => (
            <td key={`empty-${i}`} className="border border-black p-0 h-[30px] bg-slate-50" />
         ))}
-        <td className="border border-black p-1 text-center font-bold bg-white leading-none h-[30px]">{absentCount > 0 ? absentCount : ''}</td>
-        <td className="border border-black p-1 text-center bg-white h-[30px]" />
+        <td className="border border-black p-1 text-center font-bold bg-white leading-none h-[30px] text-red-700">{absentCount > 0 ? absentCount : 0}</td>
+        <td className="border border-black p-1 text-center font-bold bg-white leading-none h-[30px] text-emerald-700">{presentCount}</td>
+        <td className="border border-black p-1 text-center font-bold bg-slate-100 leading-none h-[30px]">{absentCount + presentCount}</td>
         <td className="border border-black p-1 truncate max-w-[150px] text-[8px] h-[30px] leading-tight font-medium">
           {student.status === 'Dropped Out' && (() => {
             const dParts = student.dropoutDate?.split('-');
@@ -2004,7 +2112,7 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
                      <th colSpan={Math.max(25, schoolDaysInMonth.length)} className="border border-black p-1 text-center h-4">
                         <div className="text-[9px] leading-none">(1st row for date, 2nd row for Day: M,T,W,TH,F)</div>
                      </th>
-                     <th colSpan={2} className="border border-black p-1 text-center w-[100px] h-4">Total for the Month</th>
+                     <th colSpan={3} className="border border-black p-1 text-center w-[120px] h-4">Total for the Month</th>
                      <th rowSpan={3} className="border border-black p-1 w-[150px] leading-tight">REMARKS<br/><span className="font-normal text-[8px]">(If DROPPED OUT, state reason, please refer to legend number. If TRANSFERRED IN/OUT, write the name of School.)</span></th>
                    </tr>
                    <tr className="h-6">
@@ -2018,7 +2126,8 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
                         <th key={`date-empty-${i}`} className="border border-black p-0 bg-slate-100 h-6"></th>
                      ))}
                      <th rowSpan={2} className="border border-black p-1 h-6">ABSENT</th>
-                     <th rowSpan={2} className="border border-black p-1 h-6">TARDY</th>
+                     <th rowSpan={2} className="border border-black p-1 h-6">PRESENT</th>
+                     <th rowSpan={2} className="border border-black p-1 h-6">TOTAL</th>
                    </tr>
                    <tr className="h-6">
                      {/* Row for Days of the Week */}
@@ -2038,7 +2147,7 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
                  </thead>
                  <tbody>
                     <tr className="bg-slate-200">
-                      <td colSpan={Math.max(25, schoolDaysInMonth.length) + 5} className="border border-black p-1 font-bold">MALE</td>
+                      <td colSpan={Math.max(25, schoolDaysInMonth.length) + 6} className="border border-black p-1 font-bold">MALE</td>
                     </tr>
                     {sortedStudents.male.map((student, i) => renderStudentRow(student, i))}
                     <tr>
@@ -2055,11 +2164,14 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
                       {Array.from({ length: Math.max(0, 25 - schoolDaysInMonth.length) }).map((_, i) => (
                          <td key={`male-tot-empty-${i}`} className="border border-black p-1 bg-slate-100"></td>
                       ))}
-                      <td className="border border-black p-1 bg-slate-50"></td><td className="border border-black p-1 bg-slate-50"></td><td className="border border-black p-1"></td>
+                      <td className="border border-black p-1 text-center font-bold bg-white text-[9px] text-red-700">{monthlyTotals.maleAbsent || ''}</td>
+                      <td className="border border-black p-1 text-center font-bold bg-white text-[9px] text-emerald-700">{monthlyTotals.malePresent || ''}</td>
+                      <td className="border border-black p-1 text-center font-bold bg-slate-100 text-[9px]">{monthlyTotals.maleTotal || ''}</td>
+                      <td className="border border-black p-1"></td>
                     </tr>
 
                     <tr className="bg-slate-200">
-                      <td colSpan={Math.max(25, schoolDaysInMonth.length) + 5} className="border border-black p-1 font-bold">FEMALE</td>
+                      <td colSpan={Math.max(25, schoolDaysInMonth.length) + 6} className="border border-black p-1 font-bold">FEMALE</td>
                     </tr>
                     {sortedStudents.female.map((student, i) => renderStudentRow(student, i))}
                     <tr>
@@ -2076,7 +2188,10 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
                       {Array.from({ length: Math.max(0, 25 - schoolDaysInMonth.length) }).map((_, i) => (
                          <td key={`female-tot-empty-${i}`} className="border border-black p-1 bg-slate-100"></td>
                       ))}
-                      <td className="border border-black p-1 bg-slate-50"></td><td className="border border-black p-1 bg-slate-50"></td><td className="border border-black p-1"></td>
+                      <td className="border border-black p-1 text-center font-bold bg-white text-[9px] text-red-700">{monthlyTotals.femaleAbsent || ''}</td>
+                      <td className="border border-black p-1 text-center font-bold bg-white text-[9px] text-emerald-700">{monthlyTotals.femalePresent || ''}</td>
+                      <td className="border border-black p-1 text-center font-bold bg-slate-100 text-[9px]">{monthlyTotals.femaleTotal || ''}</td>
+                      <td className="border border-black p-1"></td>
                     </tr>
 
                     <tr>
@@ -2093,7 +2208,10 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
                       {Array.from({ length: Math.max(0, 25 - schoolDaysInMonth.length) }).map((_, i) => (
                          <td key={`total-empty-${i}`} className="border border-black p-1 bg-slate-100"></td>
                       ))}
-                      <td className="border border-black p-1 bg-slate-200"></td><td className="border border-black p-1 bg-slate-200"></td><td className="border border-black p-1"></td>
+                      <td className="border border-black p-1 text-center font-black bg-slate-200 text-[9px] text-red-700">{monthlyTotals.combinedAbsent || ''}</td>
+                      <td className="border border-black p-1 text-center font-black bg-slate-200 text-[9px] text-emerald-700">{monthlyTotals.combinedPresent || ''}</td>
+                      <td className="border border-black p-1 text-center font-black bg-slate-300 text-[9px]">{monthlyTotals.combinedTotal || ''}</td>
+                      <td className="border border-black p-1"></td>
                     </tr>
                  </tbody>
                </table>
@@ -2266,7 +2384,7 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
                           <th colSpan={Math.max(25, schoolDaysInMonth.length)} className="border border-black p-0.5 text-center font-bold text-[7.5px] h-3">
                              <div className="text-[6.5px] leading-none">(1st row for date, 2nd row for Day: M,T,W,TH,F)</div>
                           </th>
-                          <th colSpan={2} className="border border-black p-0.5 text-center w-[60px] h-3 font-bold">Total Month</th>
+                          <th colSpan={3} className="border border-black p-0.5 text-center w-[80px] h-3 font-bold">Total Month</th>
                           <th rowSpan={3} className="border border-black p-0.5 w-[140px] leading-tight text-left pl-1 font-bold">REMARKS<br/><span className="font-normal text-[6px] uppercase">(If D/O state reason. If T/I/O name of school)</span></th>
                         </tr>
                         <tr className="h-5">
@@ -2280,7 +2398,8 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
                              <th key={`m-date-empty-${i}`} className="border border-black p-0 bg-slate-50 h-5"></th>
                           ))}
                           <th rowSpan={2} className="border border-black p-0.5 h-5 text-center font-bold">ABS</th>
-                          <th rowSpan={2} className="border border-black p-0.5 h-5 text-center font-bold">TAR</th>
+                          <th rowSpan={2} className="border border-black p-0.5 h-5 text-center font-bold">PRS</th>
+                          <th rowSpan={2} className="border border-black p-0.5 h-5 text-center font-bold">TOT</th>
                         </tr>
                         <tr className="h-5">
                           {/* Days of week */}
@@ -2300,7 +2419,7 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
                       </thead>
                       <tbody>
                         <tr className="bg-slate-200 h-4">
-                          <td colSpan={Math.max(25, schoolDaysInMonth.length) + 5} className="border border-black px-1 py-0.5 font-bold uppercase text-[8px] h-4 leading-none align-middle">MALE</td>
+                          <td colSpan={Math.max(25, schoolDaysInMonth.length) + 6} className="border border-black px-1 py-0.5 font-bold uppercase text-[8px] h-4 leading-none align-middle">MALE</td>
                         </tr>
                         {sortedStudents.male.map((student, i) => renderStudentRowModal(student, i))}
                         <tr className="h-4 font-bold col-span-full">
@@ -2317,13 +2436,14 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
                           {Array.from({ length: Math.max(0, 25 - schoolDaysInMonth.length) }).map((_, i) => (
                              <td key={`m-male-tot-empty-${i}`} className="border border-black p-0.5 bg-slate-50 h-4 font-normal"></td>
                           ))}
-                          <td className="border border-black p-0.5 bg-white h-4"></td>
-                          <td className="border border-black p-0.5 bg-white h-4"></td>
+                          <td className="border border-black p-0.5 bg-white text-center font-bold text-red-700 h-4">{monthlyTotals.maleAbsent || ''}</td>
+                          <td className="border border-black p-0.5 bg-white text-center font-bold text-emerald-700 h-4">{monthlyTotals.malePresent || ''}</td>
+                          <td className="border border-black p-0.5 bg-slate-100 text-center font-bold h-4">{monthlyTotals.maleTotal || ''}</td>
                           <td className="border border-black p-0.5 h-4"></td>
                         </tr>
 
                         <tr className="bg-slate-200 h-4">
-                          <td colSpan={Math.max(25, schoolDaysInMonth.length) + 5} className="border border-black px-1 py-0.5 font-bold uppercase text-[8px] h-4 leading-none align-middle">FEMALE</td>
+                          <td colSpan={Math.max(25, schoolDaysInMonth.length) + 6} className="border border-black px-1 py-0.5 font-bold uppercase text-[8px] h-4 leading-none align-middle">FEMALE</td>
                         </tr>
                         {sortedStudents.female.map((student, i) => renderStudentRowModal(student, i))}
                         <tr className="h-4 font-bold col-span-full">
@@ -2340,8 +2460,9 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
                           {Array.from({ length: Math.max(0, 25 - schoolDaysInMonth.length) }).map((_, i) => (
                              <td key={`m-female-tot-empty-${i}`} className="border border-black p-0.5 bg-slate-50 h-4 font-normal"></td>
                           ))}
-                          <td className="border border-black p-0.5 bg-white h-4"></td>
-                          <td className="border border-black p-0.5 bg-white h-4"></td>
+                          <td className="border border-black p-0.5 bg-white text-center font-bold text-red-700 h-4">{monthlyTotals.femaleAbsent || ''}</td>
+                          <td className="border border-black p-0.5 bg-white text-center font-bold text-emerald-700 h-4">{monthlyTotals.femalePresent || ''}</td>
+                          <td className="border border-black p-0.5 bg-slate-100 text-center font-bold h-4">{monthlyTotals.femaleTotal || ''}</td>
                           <td className="border border-black p-0.5 h-4"></td>
                         </tr>
 
@@ -2359,8 +2480,9 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
                           {Array.from({ length: Math.max(0, 25 - schoolDaysInMonth.length) }).map((_, i) => (
                              <td key={`m-total-empty-${i}`} className="border border-black p-0.5 bg-slate-50 h-4 font-normal"></td>
                           ))}
-                          <td className="border border-black p-0.5 bg-slate-100 h-4"></td>
-                          <td className="border border-black p-0.5 bg-slate-100 h-4"></td>
+                          <td className="border border-black p-0.5 bg-slate-100 text-center font-black text-red-700 h-4">{monthlyTotals.combinedAbsent || ''}</td>
+                          <td className="border border-black p-0.5 bg-slate-100 text-center font-black text-emerald-700 h-4">{monthlyTotals.combinedPresent || ''}</td>
+                          <td className="border border-black p-0.5 bg-slate-200 text-center font-black h-4">{monthlyTotals.combinedTotal || ''}</td>
                           <td className="border border-black p-0.5 h-4"></td>
                         </tr>
                       </tbody>

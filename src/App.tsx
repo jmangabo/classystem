@@ -17910,8 +17910,10 @@ function GradebookView({
             {/* Written Works Inputs */}
             {[0, 1, 2, 3, 4].map(i => {
               const hps = refData.writtenWorks?.maxScores?.[i] || 0;
+              const name = refData.writtenWorks?.names?.[i] || "";
               const hasHps = hps > 0;
               const isDisabled = !hasHps || isInactive || isNotOffered || isSubjectTermFinalized || isTermLocked;
+              const cellTitle = `WW${i+1}${name ? `: ${name}` : ''}${hasHps ? ` (HPS: ${hps})` : ' (No HPS set)'}`;
               return (
                 <td key={`ww-${i}`} className={`p-1 border-r border-slate-100 text-center w-12 ${isNotOffered ? '!bg-black' : !hasHps ? 'bg-slate-50/20' : 'bg-transparent'}`}>
                   <input 
@@ -17920,6 +17922,7 @@ function GradebookView({
                     disabled={isDisabled}
                     value={data.writtenWorks?.scores?.[i] ?? ''}
                     placeholder={hasHps ? "0" : ""}
+                    title={cellTitle}
                     onChange={(e) => handleScoreChange(student.id, 'written', i, e.target.value)}
                     className={`w-full text-center text-xs text-slate-700 font-medium p-1 outline-none transition-all h-7 ${
                       hasHps 
@@ -17937,8 +17940,10 @@ function GradebookView({
       {/* Performance Tasks Inputs */}
       {[0, 1, 2, 3, 4].map(i => {
         const hps = refData.performanceTasks?.maxScores?.[i] || 0;
+        const name = refData.performanceTasks?.names?.[i] || "";
         const hasHps = hps > 0;
         const isDisabled = !hasHps || isInactive || isNotOffered || isSubjectTermFinalized || isTermLocked;
+        const cellTitle = `PT${i+1}${name ? `: ${name}` : ''}${hasHps ? ` (HPS: ${hps})` : ' (No HPS set)'}`;
         return (
           <td key={`pt-${i}`} className={`p-1 border-r border-slate-100 text-center w-12 ${isNotOffered ? '!bg-black' : !hasHps ? 'bg-slate-50/20' : 'bg-transparent'}`}>
             <input 
@@ -17947,6 +17952,7 @@ function GradebookView({
               disabled={isDisabled}
               value={data.performanceTasks?.scores?.[i] ?? ''}
               placeholder={hasHps ? "0" : ""}
+              title={cellTitle}
               onChange={(e) => handleScoreChange(student.id, 'performance', i, e.target.value)}
               className={`w-full text-center text-xs text-slate-700 font-medium p-1 outline-none transition-all h-7 ${
                 hasHps 
@@ -18097,11 +18103,11 @@ function GradebookView({
             <Lock size={28} />
           </div>
           <h3 className="text-xl font-black text-slate-900 uppercase italic tracking-tight leading-none mb-3">
-            Assessment Record Locked
+            eClass Record Locked
           </h3>
           <p className="text-sm text-slate-500 leading-relaxed mb-6">
             We noticed you do not have any assigned academic subject loads in this classroom section. 
-            Therefore, the class record and subject assessments are currently hidden. 
+            Therefore, the eClass Record and subject assessments are currently hidden. 
             Please consult your principal or school administrator to assign subject loads to your account.
           </p>
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-slate-50 border border-slate-150 rounded-2xl">
@@ -21854,7 +21860,7 @@ function MATATAGReportCardModal({
       return -1; // Not offered this term
     }
     if (!s.finalizedTerms?.includes(term)) {
-      return 0; // Not finalized/released in Record Assessment
+      return 0; // Not finalized/released in eClass Records
     }
     return calculateGrade(student, s, term).final;
   };
@@ -24344,7 +24350,7 @@ function SummarySheetView({
       return -1; // Not offered this term
     }
     if (!subject.finalizedTerms?.includes(term)) {
-      return 0; // Not finalized/released in Record Assessment
+      return 0; // Not finalized/released in eClass Records
     }
     return calculateGrade(student, subject, term).final;
   };
