@@ -834,20 +834,41 @@ export default function App() {
 
   const [isMasterDataOpen, setIsMasterDataOpen] = useState(true);
 
-  // System Theme Settings State & Live Dynamic Engine
+  // Helper for per-user storage key
+  const activeUserId = currentUser?.uid || userProfile?.uid || (userProfile?.email ? userProfile.email.toLowerCase().trim() : null);
+
+  // System Theme Settings State & Live Dynamic Engine (Per-User Preferences)
   const [systemThemeSettings, setSystemThemeSettings] = useState<SystemThemeSettings>(() => {
     try {
-      const saved = localStorage.getItem('class_enterprise_system_theme');
-      return saved ? JSON.parse(saved) : DEFAULT_THEME_SETTINGS;
+      const saved = activeUserId ? localStorage.getItem(`class_enterprise_system_theme_${activeUserId}`) : null;
+      if (saved) return JSON.parse(saved);
+      const legacySaved = localStorage.getItem('class_enterprise_system_theme');
+      return legacySaved ? JSON.parse(legacySaved) : DEFAULT_THEME_SETTINGS;
     } catch {
       return DEFAULT_THEME_SETTINGS;
     }
   });
   const [isThemeModalOpen, setIsThemeModalOpen] = useState(false);
 
+  // Automatically update active theme state when user changes or logs in/out
   useEffect(() => {
     try {
-      localStorage.setItem('class_enterprise_system_theme', JSON.stringify(systemThemeSettings));
+      const userKey = activeUserId ? `class_enterprise_system_theme_${activeUserId}` : 'class_enterprise_system_theme_guest';
+      const saved = localStorage.getItem(userKey);
+      if (saved) {
+        setSystemThemeSettings(JSON.parse(saved));
+      } else if (!activeUserId) {
+        setSystemThemeSettings(DEFAULT_THEME_SETTINGS);
+      }
+    } catch (err) {
+      console.error('Error loading per-user theme:', err);
+    }
+  }, [activeUserId]);
+
+  useEffect(() => {
+    try {
+      const userKey = activeUserId ? `class_enterprise_system_theme_${activeUserId}` : 'class_enterprise_system_theme_guest';
+      localStorage.setItem(userKey, JSON.stringify(systemThemeSettings));
     } catch (err) {
       console.error('Failed to save system theme settings:', err);
     }
@@ -870,7 +891,7 @@ export default function App() {
     root.setAttribute('data-theme-density', systemThemeSettings.density);
     root.setAttribute('data-theme-font', systemThemeSettings.font);
     root.setAttribute('data-theme-radius', systemThemeSettings.radius);
-  }, [systemThemeSettings]);
+  }, [systemThemeSettings, activeUserId]);
 
   const mapUserRoleToAralRole = (role?: string, email?: string): AralRole => {
     if (email && aralSchoolInfo?.coordinatorEmails?.some(e => e.trim().toLowerCase() === email.trim().toLowerCase())) {
