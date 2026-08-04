@@ -8464,17 +8464,7 @@ function SectionsView({
           </div>
         </div>
         <div className="flex items-center gap-3 md:gap-4 shrink-0">
-          {onOpenThemeModal && (
-            <button
-              type="button"
-              onClick={onOpenThemeModal}
-              className="flex items-center gap-2 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-extrabold text-xs px-3 py-2 rounded-lg transition-all shadow-2xs cursor-pointer"
-              title="System Theme Customizer"
-            >
-              <Palette size={15} className="text-indigo-600 dark:text-indigo-400 shrink-0" />
-              <span className="hidden sm:inline">Theme</span>
-            </button>
-          )}
+          {/* Theme button hidden from section header per user request */}
 
            {(isMainAdmin || user?.role === 'system_admin') && !!globalSettings?.finalizationDeadline && (
              <button
@@ -8599,6 +8589,14 @@ function SectionsView({
                           <Sparkles size={14} className="text-indigo-400" /> Feedback Dashboard
                         </button>
                       )}
+                      {onOpenThemeModal && (
+                        <button 
+                          onClick={() => { onOpenThemeModal(); setIsSettingsOpen(false); }} 
+                          className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 transition-colors cursor-pointer"
+                        >
+                          <Palette size={14} className="text-indigo-500" /> Appearance & Themes
+                        </button>
+                      )}
                    </div>
                  </>
                )}
@@ -8651,6 +8649,7 @@ function SectionsView({
                  onUpdateUser?.(p);
                }} 
                onBack={() => setShowProfile(false)}
+               onOpenThemeModal={onOpenThemeModal}
             />
           ) : showSOA ? (
             <StatementOfAccountView 
@@ -18182,9 +18181,9 @@ function GradebookView({
     if (validStudents.length === 0) return null;
     return (
       <>
-        <tr className={`bg-slate-50/50 border-b border-slate-200`}>
-          <td colSpan={25} className={`px-4 py-2 text-[10px] font-black text-slate-500 uppercase tracking-widest border-r border-b border-slate-200 bg-slate-50/50 backdrop-blur-sm`}>
-            {label} Students
+        <tr className="bg-slate-100/90 dark:bg-slate-800/90 border-b border-slate-200 dark:border-slate-700">
+          <td colSpan={25} className="sticky left-0 px-4 py-2 text-[11px] font-black text-slate-700 dark:text-slate-200 uppercase tracking-widest border-r border-b border-slate-200 dark:border-slate-700 bg-slate-100/90 dark:bg-slate-800/90 backdrop-blur-sm z-20">
+            {label} Students ({validStudents.length})
           </td>
         </tr>
         {validStudents.map(student => {
@@ -18203,33 +18202,33 @@ function GradebookView({
                                     (data.termExam?.score && Number(data.termExam.score) > 0);
         const showManualDropdown = student.isTransferredIn && (activeTerm < systemCurrentTerm || data.manualFinalGrade > 0);
         return (
-          <tr key={student.id} className={`hover:bg-slate-50 transition-colors group ${isInactive ? 'opacity-60 bg-slate-50' : 'border-b border-slate-100'}`}>
-            <td className="sticky left-0 bg-white group-hover:bg-slate-50 z-10 px-4 py-2.5 text-xs font-medium text-slate-900 border-r border-slate-200 border-b-0 min-w-[220px]">
+          <tr key={student.id} className={`hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors group ${isInactive ? 'opacity-60 bg-slate-50 dark:bg-slate-850' : 'border-b border-slate-200 dark:border-slate-800'}`}>
+            <td className="sticky left-0 bg-white dark:bg-slate-900 group-hover:bg-slate-50 dark:group-hover:bg-slate-800 z-20 px-4 py-2.5 text-xs font-bold text-slate-900 dark:text-slate-100 border-r border-slate-200 dark:border-slate-700 border-b border-slate-100 dark:border-slate-800 min-w-[220px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]">
               <div className="flex items-center justify-between gap-1">
                 <div className="flex flex-col gap-1">
-                  <span className={isDroppedOrTransferred ? 'line-through text-slate-400' : ''}>{formatStudentName(student)}</span>
+                  <span className={isDroppedOrTransferred ? 'line-through text-slate-400 dark:text-slate-500' : 'text-slate-900 dark:text-slate-100 font-bold'}>{formatStudentName(student)}</span>
                   {student.sectionName && (
-                    <span className="text-[9px] text-slate-500 font-medium">
+                    <span className="text-[9px] text-slate-500 dark:text-slate-400 font-medium">
                       {(student as any).sectionName}
                     </span>
                   )}
                   {isTransferredOut && (
-                    <span className="text-[8px] bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded-full w-fit font-black uppercase tracking-widest">
+                    <span className="text-[8px] bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 px-1.5 py-0.5 rounded-full w-fit font-black uppercase tracking-widest border border-rose-200 dark:border-rose-800">
                       Transferred {student.dropoutDate ? `(${new Date(student.dropoutDate).toLocaleDateString(undefined, { month: 'short' })})` : ''}{student.dropoutReason ? ` - ${student.dropoutReason}` : ''}
                     </span>
                   )}
                   {isDroppedOut && (
-                    <span className="text-[8px] bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded-full w-fit font-black uppercase tracking-widest">
+                    <span className="text-[8px] bg-orange-100 dark:bg-orange-950/80 text-orange-700 dark:text-orange-300 px-1.5 py-0.5 rounded-full w-fit font-black uppercase tracking-widest border border-orange-200 dark:border-orange-800">
                       Dropped {student.dropoutDate ? `(${new Date(student.dropoutDate).toLocaleDateString(undefined, { month: 'short' })})` : ''}{student.dropoutReason ? ` - ${student.dropoutReason}` : ''}
                     </span>
                   )}
                   {isPromoted && (
-                    <span className="text-[8px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full w-fit font-bold uppercase tracking-widest flex items-center justify-center gap-1">
+                    <span className="text-[8px] bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 px-1.5 py-0.5 rounded-full w-fit font-bold uppercase tracking-widest flex items-center justify-center gap-1 border border-emerald-200 dark:border-emerald-800">
                       Promoted
                     </span>
                   )}
                   {isRetained && (
-                    <span className="text-[8px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-full w-fit font-bold uppercase tracking-widest flex items-center justify-center gap-1">
+                    <span className="text-[8px] bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 px-1.5 py-0.5 rounded-full w-fit font-bold uppercase tracking-widest flex items-center justify-center gap-1 border border-amber-200 dark:border-amber-800">
                       Retained
                     </span>
                   )}
@@ -18244,7 +18243,7 @@ function GradebookView({
               const isDisabled = !hasHps || isInactive || isNotOffered || isSubjectTermFinalized || isTermLocked;
               const cellTitle = `WW${i+1}${name ? `: ${name}` : ''}${hasHps ? ` (HPS: ${hps})` : ' (No HPS set)'}`;
               return (
-                <td key={`ww-${i}`} className={`p-1 border-r border-slate-100 text-center w-12 ${isNotOffered ? '!bg-black' : !hasHps ? 'bg-slate-50/20' : 'bg-transparent'}`}>
+                <td key={`ww-${i}`} className={`p-1 border-r border-slate-200 dark:border-slate-800 text-center w-12 ${isNotOffered ? '!bg-black' : !hasHps ? 'bg-slate-50/20 dark:bg-slate-900/40' : 'bg-transparent'}`}>
                   <input 
                     type="text"
                     inputMode="numeric"
@@ -18253,18 +18252,18 @@ function GradebookView({
                     placeholder={hasHps ? "0" : ""}
                     title={cellTitle}
                     onChange={(e) => handleScoreChange(student.id, 'written', i, e.target.value)}
-                    className={`w-full text-center text-xs text-slate-700 font-medium p-1 outline-none transition-all h-7 ${
+                    className={`w-full text-center text-xs font-bold p-1 outline-none transition-all h-8 ${
                       hasHps 
-                        ? 'bg-transparent hover:bg-slate-100 focus:bg-white focus:ring-1 focus:ring-slate-300 rounded' 
+                        ? 'bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-indigo-500 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded shadow-2xs' 
                         : 'opacity-0 cursor-not-allowed'
-                    } ${(isInactive || isSubjectTermFinalized || isTermLocked) ? 'cursor-not-allowed text-slate-400 bg-transparent' : ''}`}
+                    } ${(isInactive || isSubjectTermFinalized || isTermLocked) ? 'cursor-not-allowed text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-850' : ''}`}
                   />
                 </td>
               );
             })}
-      <td className={`bg-transparent text-center text-xs font-medium border-r border-slate-200 w-12 text-slate-800 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>{grades.ww.total}</td>
-      <td className={`bg-transparent text-center text-[10px] border-r border-slate-200 w-10 text-slate-500 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>{grades.ww.ps.toFixed(1)}</td>
-      <td className={`bg-slate-50/30 text-center text-xs font-bold border-r border-slate-200 w-12 text-slate-800 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>{grades.ww.ws.toFixed(2)}</td>
+      <td className={`bg-slate-50/50 dark:bg-slate-800/50 text-center text-xs font-extrabold border-r border-slate-200 dark:border-slate-700 w-12 text-slate-900 dark:text-slate-100 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>{grades.ww.total}</td>
+      <td className={`bg-slate-50/30 dark:bg-slate-850/50 text-center text-[11px] font-semibold border-r border-slate-200 dark:border-slate-700 w-11 text-slate-700 dark:text-slate-300 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>{grades.ww.ps.toFixed(1)}</td>
+      <td className={`bg-indigo-50/30 dark:bg-indigo-950/40 text-center text-xs font-black border-r border-slate-200 dark:border-slate-700 w-12 text-indigo-950 dark:text-indigo-200 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>{grades.ww.ws.toFixed(2)}</td>
 
       {/* Performance Tasks Inputs */}
       {[0, 1, 2, 3, 4].map(i => {
@@ -18274,7 +18273,7 @@ function GradebookView({
         const isDisabled = !hasHps || isInactive || isNotOffered || isSubjectTermFinalized || isTermLocked;
         const cellTitle = `PT${i+1}${name ? `: ${name}` : ''}${hasHps ? ` (HPS: ${hps})` : ' (No HPS set)'}`;
         return (
-          <td key={`pt-${i}`} className={`p-1 border-r border-slate-100 text-center w-12 ${isNotOffered ? '!bg-black' : !hasHps ? 'bg-slate-50/20' : 'bg-transparent'}`}>
+          <td key={`pt-${i}`} className={`p-1 border-r border-slate-200 dark:border-slate-800 text-center w-12 ${isNotOffered ? '!bg-black' : !hasHps ? 'bg-slate-50/20 dark:bg-slate-900/40' : 'bg-transparent'}`}>
             <input 
               type="text"
               inputMode="numeric"
@@ -18283,18 +18282,18 @@ function GradebookView({
               placeholder={hasHps ? "0" : ""}
               title={cellTitle}
               onChange={(e) => handleScoreChange(student.id, 'performance', i, e.target.value)}
-              className={`w-full text-center text-xs text-slate-700 font-medium p-1 outline-none transition-all h-7 ${
+              className={`w-full text-center text-xs font-bold p-1 outline-none transition-all h-8 ${
                 hasHps 
-                  ? 'bg-transparent hover:bg-slate-100 focus:bg-white focus:ring-1 focus:ring-slate-300 rounded' 
+                  ? 'bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-emerald-500 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded shadow-2xs' 
                   : 'opacity-0 cursor-not-allowed'
-              } ${(isInactive || isSubjectTermFinalized || isTermLocked) ? 'cursor-not-allowed text-slate-400 bg-transparent' : ''}`}
+              } ${(isInactive || isSubjectTermFinalized || isTermLocked) ? 'cursor-not-allowed text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-850' : ''}`}
             />
           </td>
         );
       })}
-      <td className={`bg-transparent text-center text-xs font-medium border-r border-slate-200 w-12 text-slate-800 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>{grades.pt.total}</td>
-      <td className={`bg-transparent text-center text-[10px] border-r border-slate-200 w-10 text-slate-500 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>{grades.pt.ps.toFixed(1)}</td>
-      <td className={`bg-slate-50/30 text-center text-xs font-bold border-r border-slate-200 w-12 text-slate-800 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>{grades.pt.ws.toFixed(2)}</td>
+      <td className={`bg-slate-50/50 dark:bg-slate-800/50 text-center text-xs font-extrabold border-r border-slate-200 dark:border-slate-700 w-12 text-slate-900 dark:text-slate-100 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>{grades.pt.total}</td>
+      <td className={`bg-slate-50/30 dark:bg-slate-850/50 text-center text-[11px] font-semibold border-r border-slate-200 dark:border-slate-700 w-11 text-slate-700 dark:text-slate-300 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>{grades.pt.ps.toFixed(1)}</td>
+      <td className={`bg-emerald-50/30 dark:bg-emerald-950/40 text-center text-xs font-black border-r border-slate-200 dark:border-slate-700 w-12 text-emerald-950 dark:text-emerald-200 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>{grades.pt.ws.toFixed(2)}</td>
 
       {/* Summative + Exam Inputs */}
       {[0, 1].map(i => {
@@ -18302,7 +18301,7 @@ function GradebookView({
         const hasHps = hps > 0;
         const isDisabled = !hasHps || isInactive || isNotOffered || isSubjectTermFinalized || isTermLocked;
         return (
-          <td key={`st-${i}`} className={`p-1 border-r border-slate-100 text-center w-12 ${isNotOffered ? '!bg-black' : !hasHps ? 'bg-slate-50/20' : 'bg-transparent'}`}>
+          <td key={`st-${i}`} className={`p-1 border-r border-slate-200 dark:border-slate-800 text-center w-12 ${isNotOffered ? '!bg-black' : !hasHps ? 'bg-slate-50/20 dark:bg-slate-900/40' : 'bg-transparent'}`}>
             <div className="flex flex-col items-center justify-center">
               <input 
                 type="text"
@@ -18311,14 +18310,14 @@ function GradebookView({
                 value={data.summativeTests?.scores?.[i] ?? ''}
                 placeholder={hasHps ? "0" : ""}
                 onChange={(e) => handleScoreChange(student.id, 'summative', i, e.target.value)}
-                className={`w-full text-center text-xs text-slate-700 font-medium p-1 outline-none transition-all h-7 ${
+                className={`w-full text-center text-xs font-bold p-1 outline-none transition-all h-8 ${
                   hasHps 
-                    ? 'bg-transparent hover:bg-slate-100 focus:bg-white focus:ring-1 focus:ring-slate-300 rounded' 
+                    ? 'bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-amber-500 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded shadow-2xs' 
                     : 'opacity-0 cursor-not-allowed'
-                } ${(isInactive || isSubjectTermFinalized || isTermLocked) ? 'cursor-not-allowed text-slate-400 bg-transparent' : ''}`}
+                } ${(isInactive || isSubjectTermFinalized || isTermLocked) ? 'cursor-not-allowed text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-850' : ''}`}
               />
               {hasHps && (
-                <span className="text-[9px] text-indigo-600 font-bold tracking-tight select-none mt-px" title="Weighted score (30% of category)">
+                <span className="text-[9px] text-amber-700 dark:text-amber-400 font-bold tracking-tight select-none mt-px" title="Weighted score (30% of category)">
                   {(((Number(data.summativeTests?.scores?.[i]) || 0) / hps) * 30).toFixed(1)}
                 </span>
               )}
@@ -18326,7 +18325,7 @@ function GradebookView({
           </td>
         );
       })}
-      <td className={`p-1 border-r border-slate-100 text-center w-16 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>
+      <td className={`p-1 border-r border-slate-200 dark:border-slate-800 text-center w-16 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>
         {(() => {
           const hps = (refData.termExam?.maxScore || 0);
           const hasHps = hps > 0;
@@ -18342,14 +18341,14 @@ function GradebookView({
                 value={data.termExam?.score ?? ''}
                 placeholder={hasHps ? "0" : ""}
                 onChange={(e) => handleExamChange(student.id, e.target.value)}
-                className={`w-full text-center text-xs text-slate-700 font-medium p-1 outline-none transition-all h-7 ${
+                className={`w-full text-center text-xs font-bold p-1 outline-none transition-all h-8 ${
                   hasHps 
-                    ? 'bg-transparent hover:bg-slate-100 focus:bg-white focus:ring-1 focus:ring-slate-300 rounded' 
+                    ? 'bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-amber-500 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded shadow-2xs' 
                     : 'opacity-0 cursor-not-allowed'
-                } ${(isInactive || isNotOffered || isSubjectTermFinalized || isTermLocked) ? 'cursor-not-allowed text-slate-400 bg-transparent' : ''}`}
+                } ${(isInactive || isNotOffered || isSubjectTermFinalized || isTermLocked) ? 'cursor-not-allowed text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-850' : ''}`}
               />
               {hasHps && (
-                <span className="text-[9px] text-indigo-600 font-bold tracking-tight select-none mt-px" title="Weighted score (40% of category)">
+                <span className="text-[9px] text-amber-700 dark:text-amber-400 font-bold tracking-tight select-none mt-px" title="Weighted score (40% of category)">
                   {wsValue.toFixed(1)}
                 </span>
               )}
@@ -18357,19 +18356,19 @@ function GradebookView({
           );
         })()}
       </td>
-            <td className={`bg-transparent text-center text-xs font-medium border-r border-slate-200 w-12 text-slate-800 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>{grades.ta.total}</td>
-            <td className={`bg-transparent text-center text-[10px] border-r border-slate-200 w-10 text-slate-500 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>{grades.ta.ps.toFixed(1)}</td>
-            <td className={`bg-slate-50/30 text-center text-xs font-bold border-r border-slate-200 w-12 text-slate-800 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>{grades.ta.ws.toFixed(2)}</td>
+            <td className={`bg-slate-50/50 dark:bg-slate-800/50 text-center text-xs font-extrabold border-r border-slate-200 dark:border-slate-700 w-12 text-slate-900 dark:text-slate-100 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>{grades.ta.total}</td>
+            <td className={`bg-slate-50/30 dark:bg-slate-850/50 text-center text-[11px] font-semibold border-r border-slate-200 dark:border-slate-700 w-11 text-slate-700 dark:text-slate-300 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>{grades.ta.ps.toFixed(1)}</td>
+            <td className={`bg-amber-50/30 dark:bg-amber-950/40 text-center text-xs font-black border-r border-slate-200 dark:border-slate-700 w-12 text-amber-950 dark:text-amber-200 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>{grades.ta.ws.toFixed(2)}</td>
 
-            <td className={`px-2 text-center text-[10px] font-bold border-r border-slate-200 w-12 text-slate-500 bg-slate-50 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>
+            <td className={`px-2 text-center text-xs font-bold border-r border-slate-200 dark:border-slate-700 w-14 text-slate-800 dark:text-slate-200 bg-slate-100/60 dark:bg-slate-800/60 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>
               {grades.initial.toFixed(2)}
             </td>
 
-            <td className={`px-4 py-2.5 text-center font-bold text-xs border border-slate-200 border-l-0 relative group/manual ${isNotOffered ? '!bg-black !text-black' : 'bg-white text-slate-900 group-hover:bg-slate-50 shadow-sm'}`}>
+            <td className={`px-4 py-2.5 text-center font-black text-xs border border-slate-200 dark:border-slate-700 border-l-0 relative group/manual ${isNotOffered ? '!bg-black !text-black' : 'bg-indigo-50/60 dark:bg-indigo-950/60 text-indigo-950 dark:text-indigo-200 group-hover:bg-indigo-100/80 dark:group-hover:bg-indigo-900/80 shadow-2xs'}`}>
               {showManualDropdown ? (
                 <div className="relative flex items-center justify-center">
                    <select
-                     className={`w-14 bg-slate-100 border border-slate-200 text-slate-800 text-center outline-none focus:ring-1 focus:ring-indigo-500 rounded px-1 py-0.5 cursor-pointer text-xs ${isInactive ? 'cursor-not-allowed text-slate-400 bg-slate-50 border-transparent' : ''}`}
+                     className={`w-16 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-slate-900 dark:text-slate-100 font-bold text-center outline-none focus:ring-2 focus:ring-indigo-500 rounded px-1 py-1 cursor-pointer text-xs ${isInactive ? 'cursor-not-allowed text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800 border-transparent' : ''}`}
                      value={data.manualFinalGrade || ''}
                      onChange={(e) => handleManualFinalGradeChange(student.id, e.target.value)}
                      disabled={isInactive || isTermLocked}
@@ -18808,34 +18807,34 @@ function GradebookView({
           )}
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-lg shadow-sm">
-          <div className="overflow-x-auto relative">
-            <table className="w-full border-collapse text-xs border border-slate-200">
-               <thead className="sticky top-0 z-30 bg-white ring-1 ring-slate-200 shadow-sm">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm overflow-hidden">
+          <div className="overflow-x-auto relative max-h-[75vh] custom-scrollbar">
+            <table className="w-full border-collapse text-xs border border-slate-200 dark:border-slate-800 min-w-[1400px]">
+               <thead className="sticky top-0 z-30 bg-slate-50 dark:bg-slate-900 shadow-sm border-b border-slate-200 dark:border-slate-800">
                  {/* Visual Header Grouping */}
-                 <tr className="bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                   <th className="sticky left-0 bg-slate-50 z-30 px-4 py-3 border border-slate-200 text-left min-w-[200px]" rowSpan={2}>Learner Name</th>
-                  <th className="px-2 py-1.5 border border-slate-200 border-b border-b-slate-200 text-slate-700 bg-slate-50" colSpan={8}>
+                 <tr className="bg-slate-100 dark:bg-slate-850 text-[10px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                   <th className="sticky left-0 bg-slate-100 dark:bg-slate-900 z-40 px-4 py-3 border border-slate-200 dark:border-slate-800 text-left min-w-[220px] text-slate-900 dark:text-slate-100 font-extrabold shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]" rowSpan={2}>Learner Name</th>
+                  <th className="px-2 py-2 border border-slate-200 dark:border-slate-800 text-indigo-950 dark:text-indigo-200 bg-indigo-50/90 dark:bg-indigo-950/80 font-black uppercase text-[11px] tracking-wider" colSpan={8}>
                     Written Works ({selectedSubject.wwWeight}%)
                   </th>
-                  <th className="px-2 py-1.5 border border-slate-200 border-b border-b-slate-200 text-slate-700 bg-slate-50" colSpan={8}>
+                  <th className="px-2 py-2 border border-slate-200 dark:border-slate-800 text-emerald-950 dark:text-emerald-200 bg-emerald-50/90 dark:bg-emerald-950/80 font-black uppercase text-[11px] tracking-wider" colSpan={8}>
                     Performance Tasks ({selectedSubject.ptWeight}%)
                   </th>
-                  <th className="px-2 py-1.5 border border-slate-200 border-b border-b-slate-200 text-slate-700 bg-slate-50" colSpan={6}>
+                  <th className="px-2 py-2 border border-slate-200 dark:border-slate-800 text-amber-950 dark:text-amber-200 bg-amber-50/90 dark:bg-amber-950/80 font-black uppercase text-[11px] tracking-wider" colSpan={6}>
                     Summative Test and Term Exam ({selectedSubject.taWeight}%)
                   </th>
-                  <th className="px-2 py-2 border border-slate-200 border-b border-b-slate-200 bg-slate-50 text-slate-600 min-w-[60px] text-[9px]" rowSpan={2}>Initial Grade</th>
-                  <th className="px-4 py-2 border border-slate-200 border-b border-b-slate-200 bg-slate-100 text-slate-800 min-w-[80px]" rowSpan={2}>Term Grade</th>
+                  <th className="px-2 py-2 border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 min-w-[70px] text-[10px] font-bold" rowSpan={2}>Initial Grade</th>
+                  <th className="px-4 py-2 border border-slate-200 dark:border-slate-800 bg-indigo-100 dark:bg-indigo-900/90 text-indigo-950 dark:text-indigo-100 min-w-[90px] font-black text-xs" rowSpan={2}>Term Grade</th>
                 </tr>
-                <tr className="bg-slate-50 text-[10px] font-bold text-slate-500 border-b border-slate-200">
+                <tr className="bg-slate-50 dark:bg-slate-900 text-[10px] font-bold text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800">
                   {/* WW sub-headers */}
                   {[0, 1, 2, 3, 4].map(i => {
                     const name = refData.writtenWorks?.names?.[i] || "";
                     const hps = refData.writtenWorks?.maxScores?.[i] || 0;
                     return (
-                      <th key={`wwh-${i}`} className="p-1 border border-slate-200 min-w-[75px]" title={`Written Work ${i+1}${name ? `: ${name}` : ''} (HPS: ${hps})`}>
+                      <th key={`wwh-${i}`} className="p-1 border border-slate-200 dark:border-slate-800 min-w-[75px]" title={`Written Work ${i+1}${name ? `: ${name}` : ''} (HPS: ${hps})`}>
                         <div className="flex flex-col items-center gap-0.5 py-0.5">
-                          <span className="text-[9px] font-black text-indigo-700 bg-indigo-50 px-1.5 py-0.2 rounded border border-indigo-100 uppercase tracking-wider">
+                          <span className="text-[9px] font-black text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/80 px-1.5 py-0.2 rounded border border-indigo-200 dark:border-indigo-800 uppercase tracking-wider">
                             WW{i+1}
                           </span>
                           <input 
@@ -18845,24 +18844,24 @@ function GradebookView({
                             onChange={(e) => handleMassUpdate('written', 'names', i, e.target.value)}
                             placeholder="Activity title"
                             title={`WW${i+1} Activity Title / Topic Description`}
-                            className={`w-full text-center bg-white border border-slate-200 focus:border-indigo-400 outline-none py-1 px-1 text-[9px] font-medium text-slate-800 placeholder:text-slate-300 rounded shadow-2xs transition-all ${(isNotOffered || isYearEndFinalized || isSubjectTermFinalized) ? 'cursor-not-allowed opacity-50' : ''}`}
+                            className={`w-full text-center bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-1 focus:ring-indigo-500 outline-none py-1 px-1 text-[10px] font-semibold text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded shadow-2xs transition-all ${(isNotOffered || isYearEndFinalized || isSubjectTermFinalized) ? 'cursor-not-allowed opacity-50 bg-slate-100 dark:bg-slate-850' : ''}`}
                           />
                         </div>
                       </th>
                     );
                   })}
-                  <th className="bg-slate-50 text-slate-700 border-r border-slate-200 w-12 text-center">Total</th>
-                  <th className="bg-slate-50 text-slate-700 border-r border-slate-200 w-10 text-center">PS</th>
-                  <th className="bg-slate-50/80 text-slate-700 border-r border-slate-200 w-12 font-bold text-center">WS</th>
+                  <th className="bg-slate-100/80 dark:bg-slate-800/80 text-slate-800 dark:text-slate-200 border-r border-slate-200 dark:border-slate-700 w-12 text-center font-bold">Total</th>
+                  <th className="bg-slate-100/80 dark:bg-slate-800/80 text-slate-800 dark:text-slate-200 border-r border-slate-200 dark:border-slate-700 w-10 text-center font-bold">PS</th>
+                  <th className="bg-indigo-50/80 dark:bg-indigo-950/60 text-indigo-950 dark:text-indigo-200 border-r border-slate-200 dark:border-slate-700 w-12 font-black text-center">WS</th>
                   
                   {/* PT sub-headers */}
                   {[0, 1, 2, 3, 4].map(i => {
                     const name = refData.performanceTasks?.names?.[i] || "";
                     const hps = refData.performanceTasks?.maxScores?.[i] || 0;
                     return (
-                      <th key={`pth-${i}`} className="p-1 border-r border-slate-200 min-w-[75px]" title={`Performance Task ${i+1}${name ? `: ${name}` : ''} (HPS: ${hps})`}>
+                      <th key={`pth-${i}`} className="p-1 border-r border-slate-200 dark:border-slate-800 min-w-[75px]" title={`Performance Task ${i+1}${name ? `: ${name}` : ''} (HPS: ${hps})`}>
                         <div className="flex flex-col items-center gap-0.5 py-0.5">
-                          <span className="text-[9px] font-black text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-100 uppercase tracking-wider">
+                          <span className="text-[9px] font-black text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/80 px-1.5 py-0.2 rounded border border-emerald-200 dark:border-emerald-800 uppercase tracking-wider">
                             PT{i+1}
                           </span>
                           <input 
@@ -18872,24 +18871,24 @@ function GradebookView({
                             onChange={(e) => handleMassUpdate('performance', 'names', i, e.target.value)}
                             placeholder="Activity title"
                             title={`PT${i+1} Activity Title / Topic Description`}
-                            className={`w-full text-center bg-white border border-slate-200 focus:border-emerald-400 outline-none py-1 px-1 text-[9px] font-medium text-slate-800 placeholder:text-slate-300 rounded shadow-2xs transition-all ${(isNotOffered || isYearEndFinalized || isSubjectTermFinalized) ? 'cursor-not-allowed opacity-50' : ''}`}
+                            className={`w-full text-center bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 focus:border-emerald-500 dark:focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500 outline-none py-1 px-1 text-[10px] font-semibold text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded shadow-2xs transition-all ${(isNotOffered || isYearEndFinalized || isSubjectTermFinalized) ? 'cursor-not-allowed opacity-50 bg-slate-100 dark:bg-slate-850' : ''}`}
                           />
                         </div>
                       </th>
                     );
                   })}
-                  <th className="bg-slate-50 text-slate-700 border-r border-slate-200 w-12 text-center">Total</th>
-                  <th className="bg-slate-50 text-slate-700 border-r border-slate-200 w-10 text-center">PS</th>
-                  <th className="bg-slate-50/80 text-slate-700 border-r border-slate-200 w-12 font-bold text-center">WS</th>
+                  <th className="bg-slate-100/80 dark:bg-slate-800/80 text-slate-800 dark:text-slate-200 border-r border-slate-200 dark:border-slate-700 w-12 text-center font-bold">Total</th>
+                  <th className="bg-slate-100/80 dark:bg-slate-800/80 text-slate-800 dark:text-slate-200 border-r border-slate-200 dark:border-slate-700 w-10 text-center font-bold">PS</th>
+                  <th className="bg-emerald-50/80 dark:bg-emerald-950/60 text-emerald-950 dark:text-emerald-200 border-r border-slate-200 dark:border-slate-700 w-12 font-black text-center">WS</th>
 
                   {/* ST sub-headers */}
                   {[0, 1].map(i => {
                     const name = refData.summativeTests?.names?.[i] || "";
                     const hps = refData.summativeTests?.maxScores?.[i] || 0;
                     return (
-                      <th key={`sth-${i}`} className="p-1 border-r border-slate-200 min-w-[75px]" title={`Summative Test ${i+1}${name ? `: ${name}` : ''} (HPS: ${hps})`}>
+                      <th key={`sth-${i}`} className="p-1 border-r border-slate-200 dark:border-slate-800 min-w-[75px]" title={`Summative Test ${i+1}${name ? `: ${name}` : ''} (HPS: ${hps})`}>
                         <div className="flex flex-col items-center gap-0.5 py-0.5">
-                          <span className="text-[9px] font-black text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-100 uppercase tracking-wider">
+                          <span className="text-[9px] font-black text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/80 px-1.5 py-0.2 rounded border border-amber-200 dark:border-amber-800 uppercase tracking-wider">
                             ST{i+1}
                           </span>
                           <input 
@@ -18899,29 +18898,29 @@ function GradebookView({
                             onChange={(e) => handleMassUpdate('summative', 'names', i, e.target.value)}
                             placeholder="Activity title"
                             title={`ST${i+1} Activity Title / Topic Description`}
-                            className={`w-full text-center bg-white border border-slate-200 focus:border-amber-400 outline-none py-1 px-1 text-[9px] font-medium text-slate-800 placeholder:text-slate-300 rounded shadow-2xs transition-all ${(isNotOffered || isYearEndFinalized || isSubjectTermFinalized) ? 'cursor-not-allowed opacity-50' : ''}`}
+                            className={`w-full text-center bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 focus:border-amber-500 dark:focus:border-amber-400 focus:ring-1 focus:ring-amber-500 outline-none py-1 px-1 text-[10px] font-semibold text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded shadow-2xs transition-all ${(isNotOffered || isYearEndFinalized || isSubjectTermFinalized) ? 'cursor-not-allowed opacity-50 bg-slate-100 dark:bg-slate-850' : ''}`}
                           />
-                          <div className="text-[8px] text-slate-400 font-bold text-center select-none leading-none mt-0.5">30% WS</div>
+                          <div className="text-[8px] text-amber-700 dark:text-amber-400 font-bold text-center select-none leading-none mt-0.5">30% WS</div>
                         </div>
                       </th>
                     );
                   })}
-                  <th className="bg-slate-50 text-slate-700 border-r border-slate-200 w-16 text-center py-1">
+                  <th className="bg-slate-100/80 dark:bg-slate-800/80 text-slate-800 dark:text-slate-200 border-r border-slate-200 dark:border-slate-700 w-16 text-center py-1">
                     <div className="font-bold">Term Exam</div>
-                    <div className="text-[8px] text-slate-400 font-bold select-none leading-none mt-0.5">40% WS</div>
+                    <div className="text-[8px] text-amber-700 dark:text-amber-400 font-bold select-none leading-none mt-0.5">40% WS</div>
                   </th>
-                  <th className="bg-slate-50 text-slate-700 border-r border-slate-200 w-12 text-center">Total</th>
-                  <th className="bg-slate-50 text-slate-700 border-r border-slate-200 w-10 text-center">PS</th>
-                  <th className="bg-slate-50/80 text-slate-700 border-r border-slate-200 w-12 font-bold text-center">WS</th>
+                  <th className="bg-slate-100/80 dark:bg-slate-800/80 text-slate-800 dark:text-slate-200 border-r border-slate-200 dark:border-slate-700 w-12 text-center font-bold">Total</th>
+                  <th className="bg-slate-100/80 dark:bg-slate-800/80 text-slate-800 dark:text-slate-200 border-r border-slate-200 dark:border-slate-700 w-10 text-center font-bold">PS</th>
+                  <th className="bg-amber-50/80 dark:bg-amber-950/60 text-amber-950 dark:text-amber-200 border-r border-slate-200 dark:border-slate-700 w-12 font-black text-center">WS</th>
                 </tr>
                 {/* HIGHEST POSSIBLE SCORE ROW */}
-                <tr className="bg-slate-50 border-b border-slate-200 shadow-sm">
-                  <td className="sticky left-0 bg-slate-50 z-20 px-4 py-3 border-r border-b border-slate-200">
-                    <div className="text-[9px] font-bold text-slate-700 uppercase tracking-widest">Baseline (HPS)</div>
+                <tr className="bg-slate-100/90 dark:bg-slate-800/90 border-b border-slate-200 dark:border-slate-700 shadow-xs">
+                  <td className="sticky left-0 bg-slate-100 dark:bg-slate-800 z-30 px-4 py-3 border-r border-b border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                    <div className="text-[10px] font-black text-slate-800 dark:text-slate-100 uppercase tracking-widest">Baseline (HPS)</div>
                   </td>
                   {/* WW HPS */}
                   {[0, 1, 2, 3, 4].map(i => (
-                    <td key={`wwhps-${i}`} className="p-1 border-r border-slate-200 bg-transparent text-center w-12">
+                    <td key={`wwhps-${i}`} className="p-1 border-r border-slate-200 dark:border-slate-700 bg-transparent text-center w-12">
                       <input 
                         type="text"
                         inputMode="numeric"
@@ -18929,19 +18928,19 @@ function GradebookView({
                         value={refData.writtenWorks?.maxScores?.[i] === 0 ? "" : (refData.writtenWorks?.maxScores?.[i] || "")}
                         onChange={(e) => handleMassUpdate('written', 'maxScores', i, e.target.value)}
                         placeholder="--"
-                        className={`w-full text-center text-xs font-bold p-1 outline-none bg-transparent hover:bg-slate-100 focus:bg-white border text-slate-700 border-transparent focus:border-slate-300 rounded transition-all ${(isNotOffered || isYearEndFinalized || isSubjectTermFinalized) ? 'cursor-not-allowed text-slate-400 bg-transparent' : ''}`}
+                        className={`w-full text-center text-xs font-bold py-1 px-1 outline-none bg-white dark:bg-slate-800 focus:bg-white dark:focus:bg-slate-800 border border-slate-300 dark:border-slate-600 focus:border-indigo-500 text-slate-900 dark:text-slate-100 rounded transition-all ${(isNotOffered || isYearEndFinalized || isSubjectTermFinalized) ? 'cursor-not-allowed text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800 border-transparent' : ''}`}
                       />
                     </td>
                   ))}
-                  <td className="bg-slate-50/50 text-slate-800 font-bold text-center border-r border-slate-200 py-2">
+                  <td className="bg-slate-200/60 dark:bg-slate-700/60 text-slate-900 dark:text-slate-100 font-extrabold text-center border-r border-slate-200 dark:border-slate-700 py-2">
                     {(refData.writtenWorks?.maxScores || []).reduce((a: number, b: any) => a + (Number(b) || 0), 0) || ""}
                   </td>
-                  <td className="bg-slate-50 border-r border-slate-200"></td>
-                  <td className="bg-slate-50 border-r border-slate-200"></td>
+                  <td className="bg-slate-100/50 dark:bg-slate-800/50 border-r border-slate-200 dark:border-slate-700"></td>
+                  <td className="bg-slate-100/50 dark:bg-slate-800/50 border-r border-slate-200 dark:border-slate-700"></td>
 
                   {/* PT HPS */}
                   {[0, 1, 2, 3, 4].map(i => (
-                    <td key={`pthps-${i}`} className="p-1 border-r border-slate-200 bg-transparent text-center w-12">
+                    <td key={`pthps-${i}`} className="p-1 border-r border-slate-200 dark:border-slate-700 bg-transparent text-center w-12">
                       <input 
                         type="text"
                         inputMode="numeric"
@@ -18949,19 +18948,19 @@ function GradebookView({
                         value={refData.performanceTasks?.maxScores?.[i] === 0 ? "" : (refData.performanceTasks?.maxScores?.[i] || "")}
                         onChange={(e) => handleMassUpdate('performance', 'maxScores', i, e.target.value)}
                         placeholder="--"
-                        className={`w-full text-center text-xs font-bold p-1 outline-none bg-transparent hover:bg-slate-100 focus:bg-white border text-slate-700 border-transparent focus:border-slate-300 rounded transition-all ${(isNotOffered || isYearEndFinalized || isSubjectTermFinalized) ? 'cursor-not-allowed text-slate-400 bg-transparent' : ''}`}
+                        className={`w-full text-center text-xs font-bold py-1 px-1 outline-none bg-white dark:bg-slate-800 focus:bg-white dark:focus:bg-slate-800 border border-slate-300 dark:border-slate-600 focus:border-emerald-500 text-slate-900 dark:text-slate-100 rounded transition-all ${(isNotOffered || isYearEndFinalized || isSubjectTermFinalized) ? 'cursor-not-allowed text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800 border-transparent' : ''}`}
                       />
                     </td>
                   ))}
-                  <td className="bg-slate-50/50 text-slate-800 font-bold text-center border-r border-slate-200 py-2">
+                  <td className="bg-slate-200/60 dark:bg-slate-700/60 text-slate-900 dark:text-slate-100 font-extrabold text-center border-r border-slate-200 dark:border-slate-700 py-2">
                     {(refData.performanceTasks?.maxScores || []).reduce((a: number, b: any) => a + (Number(b) || 0), 0) || ""}
                   </td>
-                  <td className="bg-slate-50 border-r border-slate-200"></td>
-                  <td className="bg-slate-50 border-r border-slate-200"></td>
+                  <td className="bg-slate-100/50 dark:bg-slate-800/50 border-r border-slate-200 dark:border-slate-700"></td>
+                  <td className="bg-slate-100/50 dark:bg-slate-800/50 border-r border-slate-200 dark:border-slate-700"></td>
 
                   {/* ST HPS */}
                   {[0, 1].map(i => (
-                    <td key={`sthps-${i}`} className="p-1 border-r border-slate-200 bg-transparent text-center w-12">
+                    <td key={`sthps-${i}`} className="p-1 border-r border-slate-200 dark:border-slate-700 bg-transparent text-center w-12">
                       <div className="flex flex-col items-center justify-center">
                         <input 
                           type="text"
@@ -18970,17 +18969,17 @@ function GradebookView({
                           value={refData.summativeTests?.maxScores?.[i] === 0 ? "" : (refData.summativeTests?.maxScores?.[i] || "")}
                           onChange={(e) => handleMassUpdate('summative', 'maxScores', i, e.target.value)}
                           placeholder="--"
-                          className={`w-full text-center text-xs font-bold p-1 outline-none bg-transparent hover:bg-slate-100 focus:bg-white border text-slate-700 border-transparent focus:border-slate-300 rounded transition-all ${(isNotOffered || isYearEndFinalized || isSubjectTermFinalized) ? 'cursor-not-allowed text-slate-400 bg-transparent' : ''}`}
+                          className={`w-full text-center text-xs font-bold py-1 px-1 outline-none bg-white dark:bg-slate-800 focus:bg-white dark:focus:bg-slate-800 border border-slate-300 dark:border-slate-600 focus:border-amber-500 text-slate-900 dark:text-slate-100 rounded transition-all ${(isNotOffered || isYearEndFinalized || isSubjectTermFinalized) ? 'cursor-not-allowed text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800 border-transparent' : ''}`}
                         />
                         {(refData.summativeTests?.maxScores?.[i] || 0) > 0 && (
-                          <span className="text-[8px] text-slate-400 font-bold select-none mt-px" title="Max Weight Score">
+                          <span className="text-[8px] text-amber-700 dark:text-amber-400 font-bold select-none mt-px" title="Max Weight Score">
                             Max: 30.0
                           </span>
                         )}
                       </div>
                     </td>
                   ))}
-                  <td className="p-1 border-r border-slate-200 bg-transparent text-center w-16">
+                  <td className="p-1 border-r border-slate-200 dark:border-slate-700 bg-transparent text-center w-16">
                     <div className="flex flex-col items-center justify-center">
                       <input 
                         type="text"
@@ -18989,25 +18988,25 @@ function GradebookView({
                         value={refData.termExam?.maxScore === 0 ? "" : (refData.termExam?.maxScore || "")}
                         onChange={(e) => handleExamMaxChange(e.target.value)}
                         placeholder="--"
-                        className={`w-full text-center text-xs font-bold p-1 outline-none bg-transparent hover:bg-slate-100 focus:bg-white border text-slate-700 border-transparent focus:border-slate-300 rounded transition-all ${(isNotOffered || isYearEndFinalized || isSubjectTermFinalized) ? 'cursor-not-allowed text-slate-400 bg-transparent' : ''}`}
+                        className={`w-full text-center text-xs font-bold py-1 px-1 outline-none bg-white dark:bg-slate-800 focus:bg-white dark:focus:bg-slate-800 border border-slate-300 dark:border-slate-600 focus:border-amber-500 text-slate-900 dark:text-slate-100 rounded transition-all ${(isNotOffered || isYearEndFinalized || isSubjectTermFinalized) ? 'cursor-not-allowed text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800 border-transparent' : ''}`}
                       />
                       {(refData.termExam?.maxScore || 0) > 0 && (
-                        <span className="text-[8px] text-slate-400 font-bold select-none mt-px" title="Max Weight Score">
+                        <span className="text-[8px] text-amber-700 dark:text-amber-400 font-bold select-none mt-px" title="Max Weight Score">
                           Max: 40.0
                         </span>
                       )}
                     </div>
                   </td>
-                  <td className="bg-slate-50/50 text-slate-800 font-bold text-center border-r border-slate-200 py-2">
+                  <td className="bg-slate-200/60 dark:bg-slate-700/60 text-slate-900 dark:text-slate-100 font-extrabold text-center border-r border-slate-200 dark:border-slate-700 py-2">
                     {((refData.summativeTests?.maxScores || []).reduce((a: number, b: any) => a + (Number(b) || 0), 0) + Number(refData.termExam?.maxScore || 0)) || ""}
                   </td>
-                  <td className="bg-slate-50 border-r border-slate-200"></td>
-                  <td className="bg-slate-50 border-r border-slate-200"></td>
-                  <td className="bg-slate-50 border-r border-slate-200"></td>
-                  <td className="bg-slate-100 border-r border-slate-200"></td>
+                  <td className="bg-slate-100/50 dark:bg-slate-800/50 border-r border-slate-200 dark:border-slate-700"></td>
+                  <td className="bg-slate-100/50 dark:bg-slate-800/50 border-r border-slate-200 dark:border-slate-700"></td>
+                  <td className="bg-slate-100/50 dark:bg-slate-800/50 border-r border-slate-200 dark:border-slate-700"></td>
+                  <td className="bg-slate-200/50 dark:bg-slate-750 border-r border-slate-200 dark:border-slate-700"></td>
                 </tr>
               </thead>
-              <tbody className="bg-white">
+              <tbody className="bg-white dark:bg-slate-900 divide-y divide-slate-100 dark:divide-slate-800">
 
                 {renderGroup('Male', studentsMale, 'blue')}
                 {renderGroup('Female', studentsFemale, 'rose')}
@@ -30006,7 +30005,7 @@ function UserGuideView() {
   );
 }
 
-function ProfileView({ userProfile, onUpdate, onBack }: { userProfile: UserProfile, onUpdate: (p: UserProfile) => void, onBack?: () => void }) {
+function ProfileView({ userProfile, onUpdate, onBack, onOpenThemeModal }: { userProfile: UserProfile, onUpdate: (p: UserProfile) => void, onBack?: () => void, onOpenThemeModal?: () => void }) {
   const [school, setSchool] = useState<School | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({
@@ -30058,17 +30057,27 @@ function ProfileView({ userProfile, onUpdate, onBack }: { userProfile: UserProfi
           <p className="text-sm font-medium text-slate-500 mt-1">View your personal and school information</p>
         </div>
         <div className="flex items-center gap-3">
+          {onOpenThemeModal && (
+            <button
+              type="button"
+              onClick={onOpenThemeModal}
+              className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-100 px-4 py-2.5 rounded-xl font-bold text-xs transition-all shadow-xs cursor-pointer border border-slate-200 dark:border-slate-700"
+            >
+              <Palette size={15} className="text-indigo-600 dark:text-indigo-400 shrink-0" />
+              <span>System Appearance & Themes</span>
+            </button>
+          )}
           {onBack && (
             <button 
               onClick={onBack}
-              className="flex items-center gap-2 bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 px-5 py-2.5 rounded-xl font-semibold text-xs transition-all shadow-sm active:scale-95"
+              className="flex items-center gap-2 bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 px-5 py-2.5 rounded-xl font-semibold text-xs transition-all shadow-sm active:scale-95 cursor-pointer"
             >
               Go to Home
             </button>
           )}
           <button
             onClick={() => setIsEditing(true)}
-            className="flex items-center gap-2 bg-indigo-600 text-white hover:bg-indigo-700 px-5 py-2.5 rounded-xl font-bold text-xs transition-all shadow-sm active:scale-95"
+            className="flex items-center gap-2 bg-indigo-600 text-white hover:bg-indigo-700 px-5 py-2.5 rounded-xl font-bold text-xs transition-all shadow-sm active:scale-95 cursor-pointer"
           >
             <Edit size={14} /> Edit Profile
           </button>
