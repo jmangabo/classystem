@@ -18243,7 +18243,7 @@ function GradebookView({
               const isDisabled = !hasHps || isInactive || isNotOffered || isSubjectTermFinalized || isTermLocked;
               const cellTitle = `WW${i+1}${name ? `: ${name}` : ''}${hasHps ? ` (HPS: ${hps})` : ' (No HPS set)'}`;
               return (
-                <td key={`ww-${i}`} className={`p-1 border-r border-slate-200 dark:border-slate-800 text-center w-12 ${isNotOffered ? '!bg-black' : !hasHps ? 'bg-slate-50/20 dark:bg-slate-900/40' : 'bg-transparent'}`}>
+                <td key={`ww-${i}`} className={`p-1 border-r border-slate-200 dark:border-slate-800 text-center w-20 min-w-[80px] ${isNotOffered ? '!bg-black' : !hasHps ? 'bg-slate-50/20 dark:bg-slate-900/40' : 'bg-transparent'}`}>
                   <input 
                     type="text"
                     inputMode="numeric"
@@ -18261,9 +18261,9 @@ function GradebookView({
                 </td>
               );
             })}
-      <td className={`bg-slate-50/50 dark:bg-slate-800/50 text-center text-xs font-extrabold border-r border-slate-200 dark:border-slate-700 w-12 text-slate-900 dark:text-slate-100 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>{grades.ww.total}</td>
-      <td className={`bg-slate-50/30 dark:bg-slate-850/50 text-center text-[11px] font-semibold border-r border-slate-200 dark:border-slate-700 w-11 text-slate-700 dark:text-slate-300 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>{grades.ww.ps.toFixed(1)}</td>
-      <td className={`bg-indigo-50/30 dark:bg-indigo-950/40 text-center text-xs font-black border-r border-slate-200 dark:border-slate-700 w-12 text-indigo-950 dark:text-indigo-200 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>{grades.ww.ws.toFixed(2)}</td>
+      <td className={`bg-slate-50/50 dark:bg-slate-800/50 text-center text-xs font-extrabold border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px] text-slate-900 dark:text-slate-100 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>{grades.ww.total}</td>
+      <td className={`bg-slate-50/30 dark:bg-slate-850/50 text-center text-[11px] font-semibold border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px] text-slate-700 dark:text-slate-300 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>{grades.ww.ps.toFixed(1)}</td>
+      <td className={`bg-indigo-50/30 dark:bg-indigo-950/40 text-center text-xs font-black border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px] text-indigo-950 dark:text-indigo-200 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>{grades.ww.ws.toFixed(2)}</td>
 
       {/* Performance Tasks Inputs */}
       {[0, 1, 2, 3, 4].map(i => {
@@ -18273,7 +18273,7 @@ function GradebookView({
         const isDisabled = !hasHps || isInactive || isNotOffered || isSubjectTermFinalized || isTermLocked;
         const cellTitle = `PT${i+1}${name ? `: ${name}` : ''}${hasHps ? ` (HPS: ${hps})` : ' (No HPS set)'}`;
         return (
-          <td key={`pt-${i}`} className={`p-1 border-r border-slate-200 dark:border-slate-800 text-center w-12 ${isNotOffered ? '!bg-black' : !hasHps ? 'bg-slate-50/20 dark:bg-slate-900/40' : 'bg-transparent'}`}>
+          <td key={`pt-${i}`} className={`p-1 border-r border-slate-200 dark:border-slate-800 text-center w-20 min-w-[80px] ${isNotOffered ? '!bg-black' : !hasHps ? 'bg-slate-50/20 dark:bg-slate-900/40' : 'bg-transparent'}`}>
             <input 
               type="text"
               inputMode="numeric"
@@ -18291,9 +18291,9 @@ function GradebookView({
           </td>
         );
       })}
-      <td className={`bg-slate-50/50 dark:bg-slate-800/50 text-center text-xs font-extrabold border-r border-slate-200 dark:border-slate-700 w-12 text-slate-900 dark:text-slate-100 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>{grades.pt.total}</td>
-      <td className={`bg-slate-50/30 dark:bg-slate-850/50 text-center text-[11px] font-semibold border-r border-slate-200 dark:border-slate-700 w-11 text-slate-700 dark:text-slate-300 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>{grades.pt.ps.toFixed(1)}</td>
-      <td className={`bg-emerald-50/30 dark:bg-emerald-950/40 text-center text-xs font-black border-r border-slate-200 dark:border-slate-700 w-12 text-emerald-950 dark:text-emerald-200 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>{grades.pt.ws.toFixed(2)}</td>
+      <td className={`bg-slate-50/50 dark:bg-slate-800/50 text-center text-xs font-extrabold border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px] text-slate-900 dark:text-slate-100 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>{grades.pt.total}</td>
+      <td className={`bg-slate-50/30 dark:bg-slate-850/50 text-center text-[11px] font-semibold border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px] text-slate-700 dark:text-slate-300 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>{grades.pt.ps.toFixed(1)}</td>
+      <td className={`bg-emerald-50/30 dark:bg-emerald-950/40 text-center text-xs font-black border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px] text-emerald-950 dark:text-emerald-200 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>{grades.pt.ws.toFixed(2)}</td>
 
       {/* Summative + Exam Inputs */}
       {[0, 1].map(i => {
@@ -18301,7 +18301,7 @@ function GradebookView({
         const hasHps = hps > 0;
         const isDisabled = !hasHps || isInactive || isNotOffered || isSubjectTermFinalized || isTermLocked;
         return (
-          <td key={`st-${i}`} className={`p-1 border-r border-slate-200 dark:border-slate-800 text-center w-12 ${isNotOffered ? '!bg-black' : !hasHps ? 'bg-slate-50/20 dark:bg-slate-900/40' : 'bg-transparent'}`}>
+          <td key={`st-${i}`} className={`p-1 border-r border-slate-200 dark:border-slate-800 text-center w-20 min-w-[80px] ${isNotOffered ? '!bg-black' : !hasHps ? 'bg-slate-50/20 dark:bg-slate-900/40' : 'bg-transparent'}`}>
             <div className="flex flex-col items-center justify-center">
               <input 
                 type="text"
@@ -18325,7 +18325,7 @@ function GradebookView({
           </td>
         );
       })}
-      <td className={`p-1 border-r border-slate-200 dark:border-slate-800 text-center w-16 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>
+      <td className={`p-1 border-r border-slate-200 dark:border-slate-800 text-center w-24 min-w-[96px] ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>
         {(() => {
           const hps = (refData.termExam?.maxScore || 0);
           const hasHps = hps > 0;
@@ -18356,15 +18356,15 @@ function GradebookView({
           );
         })()}
       </td>
-            <td className={`bg-slate-50/50 dark:bg-slate-800/50 text-center text-xs font-extrabold border-r border-slate-200 dark:border-slate-700 w-12 text-slate-900 dark:text-slate-100 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>{grades.ta.total}</td>
-            <td className={`bg-slate-50/30 dark:bg-slate-850/50 text-center text-[11px] font-semibold border-r border-slate-200 dark:border-slate-700 w-11 text-slate-700 dark:text-slate-300 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>{grades.ta.ps.toFixed(1)}</td>
-            <td className={`bg-amber-50/30 dark:bg-amber-950/40 text-center text-xs font-black border-r border-slate-200 dark:border-slate-700 w-12 text-amber-950 dark:text-amber-200 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>{grades.ta.ws.toFixed(2)}</td>
+            <td className={`bg-slate-50/50 dark:bg-slate-800/50 text-center text-xs font-extrabold border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px] text-slate-900 dark:text-slate-100 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>{grades.ta.total}</td>
+            <td className={`bg-slate-50/30 dark:bg-slate-850/50 text-center text-[11px] font-semibold border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px] text-slate-700 dark:text-slate-300 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>{grades.ta.ps.toFixed(1)}</td>
+            <td className={`bg-amber-50/30 dark:bg-amber-950/40 text-center text-xs font-black border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px] text-amber-950 dark:text-amber-200 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>{grades.ta.ws.toFixed(2)}</td>
 
-            <td className={`px-2 text-center text-xs font-bold border-r border-slate-200 dark:border-slate-700 w-14 text-slate-800 dark:text-slate-200 bg-slate-100/60 dark:bg-slate-800/60 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>
+            <td className={`px-2 text-center text-xs font-bold border-r border-slate-200 dark:border-slate-700 w-22 min-w-[88px] text-slate-800 dark:text-slate-200 bg-slate-100/60 dark:bg-slate-800/60 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>
               {grades.initial.toFixed(2)}
             </td>
 
-            <td className={`px-4 py-2.5 text-center font-black text-xs border border-slate-200 dark:border-slate-700 border-l-0 relative group/manual ${isNotOffered ? '!bg-black !text-black' : 'bg-indigo-50/60 dark:bg-indigo-950/60 text-indigo-950 dark:text-indigo-200 group-hover:bg-indigo-100/80 dark:group-hover:bg-indigo-900/80 shadow-2xs'}`}>
+            <td className={`px-4 py-2.5 text-center font-black text-xs border border-slate-200 dark:border-slate-700 border-l-0 relative group/manual w-24 min-w-[96px] ${isNotOffered ? '!bg-black !text-black' : 'bg-indigo-50/60 dark:bg-indigo-950/60 text-indigo-950 dark:text-indigo-200 group-hover:bg-indigo-100/80 dark:group-hover:bg-indigo-900/80 shadow-2xs'}`}>
               {showManualDropdown ? (
                 <div className="relative flex items-center justify-center">
                    <select
@@ -18809,7 +18809,7 @@ function GradebookView({
 
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm overflow-hidden">
           <div className="overflow-x-auto relative max-h-[75vh] custom-scrollbar">
-            <table className="w-full border-collapse text-xs border border-slate-200 dark:border-slate-800 min-w-[1400px]">
+            <table className="w-full border-collapse text-xs border border-slate-200 dark:border-slate-800 min-w-[1800px]">
                <thead className="sticky top-0 z-30 bg-slate-50 dark:bg-slate-900 shadow-sm border-b border-slate-200 dark:border-slate-800">
                  {/* Visual Header Grouping */}
                  <tr className="bg-slate-100 dark:bg-slate-850 text-[10px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
@@ -18823,8 +18823,8 @@ function GradebookView({
                   <th className="px-2 py-2 border border-slate-200 dark:border-slate-800 text-amber-950 dark:text-amber-200 bg-amber-50/90 dark:bg-amber-950/80 font-black uppercase text-[11px] tracking-wider" colSpan={6}>
                     Summative Test and Term Exam ({selectedSubject.taWeight}%)
                   </th>
-                  <th className="px-2 py-2 border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 min-w-[70px] text-[10px] font-bold" rowSpan={2}>Initial Grade</th>
-                  <th className="px-4 py-2 border border-slate-200 dark:border-slate-800 bg-indigo-100 dark:bg-indigo-900/90 text-indigo-950 dark:text-indigo-100 min-w-[90px] font-black text-xs" rowSpan={2}>Term Grade</th>
+                  <th className="px-2 py-2 border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 w-22 min-w-[88px] text-[10px] font-bold" rowSpan={2}>Initial Grade</th>
+                  <th className="px-4 py-2 border border-slate-200 dark:border-slate-800 bg-indigo-100 dark:bg-indigo-900/90 text-indigo-950 dark:text-indigo-100 w-24 min-w-[96px] font-black text-xs" rowSpan={2}>Term Grade</th>
                 </tr>
                 <tr className="bg-slate-50 dark:bg-slate-900 text-[10px] font-bold text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800">
                   {/* WW sub-headers */}
@@ -18832,7 +18832,7 @@ function GradebookView({
                     const name = refData.writtenWorks?.names?.[i] || "";
                     const hps = refData.writtenWorks?.maxScores?.[i] || 0;
                     return (
-                      <th key={`wwh-${i}`} className="p-1 border border-slate-200 dark:border-slate-800 min-w-[75px]" title={`Written Work ${i+1}${name ? `: ${name}` : ''} (HPS: ${hps})`}>
+                      <th key={`wwh-${i}`} className="p-1 border border-slate-200 dark:border-slate-800 w-20 min-w-[80px]" title={`Written Work ${i+1}${name ? `: ${name}` : ''} (HPS: ${hps})`}>
                         <div className="flex flex-col items-center gap-0.5 py-0.5">
                           <span className="text-[9px] font-black text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/80 px-1.5 py-0.2 rounded border border-indigo-200 dark:border-indigo-800 uppercase tracking-wider">
                             WW{i+1}
@@ -18850,16 +18850,16 @@ function GradebookView({
                       </th>
                     );
                   })}
-                  <th className="bg-slate-100/80 dark:bg-slate-800/80 text-slate-800 dark:text-slate-200 border-r border-slate-200 dark:border-slate-700 w-12 text-center font-bold">Total</th>
-                  <th className="bg-slate-100/80 dark:bg-slate-800/80 text-slate-800 dark:text-slate-200 border-r border-slate-200 dark:border-slate-700 w-10 text-center font-bold">PS</th>
-                  <th className="bg-indigo-50/80 dark:bg-indigo-950/60 text-indigo-950 dark:text-indigo-200 border-r border-slate-200 dark:border-slate-700 w-12 font-black text-center">WS</th>
+                  <th className="bg-slate-100/80 dark:bg-slate-800/80 text-slate-800 dark:text-slate-200 border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px] text-center font-bold">Total</th>
+                  <th className="bg-slate-100/80 dark:bg-slate-800/80 text-slate-800 dark:text-slate-200 border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px] text-center font-bold">PS</th>
+                  <th className="bg-indigo-50/80 dark:bg-indigo-950/60 text-indigo-950 dark:text-indigo-200 border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px] font-black text-center">WS</th>
                   
                   {/* PT sub-headers */}
                   {[0, 1, 2, 3, 4].map(i => {
                     const name = refData.performanceTasks?.names?.[i] || "";
                     const hps = refData.performanceTasks?.maxScores?.[i] || 0;
                     return (
-                      <th key={`pth-${i}`} className="p-1 border-r border-slate-200 dark:border-slate-800 min-w-[75px]" title={`Performance Task ${i+1}${name ? `: ${name}` : ''} (HPS: ${hps})`}>
+                      <th key={`pth-${i}`} className="p-1 border-r border-slate-200 dark:border-slate-800 w-20 min-w-[80px]" title={`Performance Task ${i+1}${name ? `: ${name}` : ''} (HPS: ${hps})`}>
                         <div className="flex flex-col items-center gap-0.5 py-0.5">
                           <span className="text-[9px] font-black text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/80 px-1.5 py-0.2 rounded border border-emerald-200 dark:border-emerald-800 uppercase tracking-wider">
                             PT{i+1}
@@ -18877,16 +18877,16 @@ function GradebookView({
                       </th>
                     );
                   })}
-                  <th className="bg-slate-100/80 dark:bg-slate-800/80 text-slate-800 dark:text-slate-200 border-r border-slate-200 dark:border-slate-700 w-12 text-center font-bold">Total</th>
-                  <th className="bg-slate-100/80 dark:bg-slate-800/80 text-slate-800 dark:text-slate-200 border-r border-slate-200 dark:border-slate-700 w-10 text-center font-bold">PS</th>
-                  <th className="bg-emerald-50/80 dark:bg-emerald-950/60 text-emerald-950 dark:text-emerald-200 border-r border-slate-200 dark:border-slate-700 w-12 font-black text-center">WS</th>
+                  <th className="bg-slate-100/80 dark:bg-slate-800/80 text-slate-800 dark:text-slate-200 border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px] text-center font-bold">Total</th>
+                  <th className="bg-slate-100/80 dark:bg-slate-800/80 text-slate-800 dark:text-slate-200 border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px] text-center font-bold">PS</th>
+                  <th className="bg-emerald-50/80 dark:bg-emerald-950/60 text-emerald-950 dark:text-emerald-200 border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px] font-black text-center">WS</th>
 
                   {/* ST sub-headers */}
                   {[0, 1].map(i => {
                     const name = refData.summativeTests?.names?.[i] || "";
                     const hps = refData.summativeTests?.maxScores?.[i] || 0;
                     return (
-                      <th key={`sth-${i}`} className="p-1 border-r border-slate-200 dark:border-slate-800 min-w-[75px]" title={`Summative Test ${i+1}${name ? `: ${name}` : ''} (HPS: ${hps})`}>
+                      <th key={`sth-${i}`} className="p-1 border-r border-slate-200 dark:border-slate-800 w-20 min-w-[80px]" title={`Summative Test ${i+1}${name ? `: ${name}` : ''} (HPS: ${hps})`}>
                         <div className="flex flex-col items-center gap-0.5 py-0.5">
                           <span className="text-[9px] font-black text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/80 px-1.5 py-0.2 rounded border border-amber-200 dark:border-amber-800 uppercase tracking-wider">
                             ST{i+1}
@@ -18905,13 +18905,13 @@ function GradebookView({
                       </th>
                     );
                   })}
-                  <th className="bg-slate-100/80 dark:bg-slate-800/80 text-slate-800 dark:text-slate-200 border-r border-slate-200 dark:border-slate-700 w-16 text-center py-1">
+                  <th className="bg-slate-100/80 dark:bg-slate-800/80 text-slate-800 dark:text-slate-200 border-r border-slate-200 dark:border-slate-700 w-24 min-w-[96px] text-center py-1">
                     <div className="font-bold">Term Exam</div>
                     <div className="text-[8px] text-amber-700 dark:text-amber-400 font-bold select-none leading-none mt-0.5">40% WS</div>
                   </th>
-                  <th className="bg-slate-100/80 dark:bg-slate-800/80 text-slate-800 dark:text-slate-200 border-r border-slate-200 dark:border-slate-700 w-12 text-center font-bold">Total</th>
-                  <th className="bg-slate-100/80 dark:bg-slate-800/80 text-slate-800 dark:text-slate-200 border-r border-slate-200 dark:border-slate-700 w-10 text-center font-bold">PS</th>
-                  <th className="bg-amber-50/80 dark:bg-amber-950/60 text-amber-950 dark:text-amber-200 border-r border-slate-200 dark:border-slate-700 w-12 font-black text-center">WS</th>
+                  <th className="bg-slate-100/80 dark:bg-slate-800/80 text-slate-800 dark:text-slate-200 border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px] text-center font-bold">Total</th>
+                  <th className="bg-slate-100/80 dark:bg-slate-800/80 text-slate-800 dark:text-slate-200 border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px] text-center font-bold">PS</th>
+                  <th className="bg-amber-50/80 dark:bg-amber-950/60 text-amber-950 dark:text-amber-200 border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px] font-black text-center">WS</th>
                 </tr>
                 {/* HIGHEST POSSIBLE SCORE ROW */}
                 <tr className="bg-slate-100/90 dark:bg-slate-800/90 border-b border-slate-200 dark:border-slate-700 shadow-xs">
@@ -18920,7 +18920,7 @@ function GradebookView({
                   </td>
                   {/* WW HPS */}
                   {[0, 1, 2, 3, 4].map(i => (
-                    <td key={`wwhps-${i}`} className="p-1 border-r border-slate-200 dark:border-slate-700 bg-transparent text-center w-12">
+                    <td key={`wwhps-${i}`} className="p-1 border-r border-slate-200 dark:border-slate-700 bg-transparent text-center w-20 min-w-[80px]">
                       <input 
                         type="text"
                         inputMode="numeric"
@@ -18932,15 +18932,15 @@ function GradebookView({
                       />
                     </td>
                   ))}
-                  <td className="bg-slate-200/60 dark:bg-slate-700/60 text-slate-900 dark:text-slate-100 font-extrabold text-center border-r border-slate-200 dark:border-slate-700 py-2">
+                  <td className="bg-slate-200/60 dark:bg-slate-700/60 text-slate-900 dark:text-slate-100 font-extrabold text-center border-r border-slate-200 dark:border-slate-700 py-2 w-16 min-w-[64px]">
                     {(refData.writtenWorks?.maxScores || []).reduce((a: number, b: any) => a + (Number(b) || 0), 0) || ""}
                   </td>
-                  <td className="bg-slate-100/50 dark:bg-slate-800/50 border-r border-slate-200 dark:border-slate-700"></td>
-                  <td className="bg-slate-100/50 dark:bg-slate-800/50 border-r border-slate-200 dark:border-slate-700"></td>
+                  <td className="bg-slate-100/50 dark:bg-slate-800/50 border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px]"></td>
+                  <td className="bg-slate-100/50 dark:bg-slate-800/50 border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px]"></td>
 
                   {/* PT HPS */}
                   {[0, 1, 2, 3, 4].map(i => (
-                    <td key={`pthps-${i}`} className="p-1 border-r border-slate-200 dark:border-slate-700 bg-transparent text-center w-12">
+                    <td key={`pthps-${i}`} className="p-1 border-r border-slate-200 dark:border-slate-700 bg-transparent text-center w-20 min-w-[80px]">
                       <input 
                         type="text"
                         inputMode="numeric"
@@ -18952,15 +18952,15 @@ function GradebookView({
                       />
                     </td>
                   ))}
-                  <td className="bg-slate-200/60 dark:bg-slate-700/60 text-slate-900 dark:text-slate-100 font-extrabold text-center border-r border-slate-200 dark:border-slate-700 py-2">
+                  <td className="bg-slate-200/60 dark:bg-slate-700/60 text-slate-900 dark:text-slate-100 font-extrabold text-center border-r border-slate-200 dark:border-slate-700 py-2 w-16 min-w-[64px]">
                     {(refData.performanceTasks?.maxScores || []).reduce((a: number, b: any) => a + (Number(b) || 0), 0) || ""}
                   </td>
-                  <td className="bg-slate-100/50 dark:bg-slate-800/50 border-r border-slate-200 dark:border-slate-700"></td>
-                  <td className="bg-slate-100/50 dark:bg-slate-800/50 border-r border-slate-200 dark:border-slate-700"></td>
+                  <td className="bg-slate-100/50 dark:bg-slate-800/50 border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px]"></td>
+                  <td className="bg-slate-100/50 dark:bg-slate-800/50 border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px]"></td>
 
                   {/* ST HPS */}
                   {[0, 1].map(i => (
-                    <td key={`sthps-${i}`} className="p-1 border-r border-slate-200 dark:border-slate-700 bg-transparent text-center w-12">
+                    <td key={`sthps-${i}`} className="p-1 border-r border-slate-200 dark:border-slate-700 bg-transparent text-center w-20 min-w-[80px]">
                       <div className="flex flex-col items-center justify-center">
                         <input 
                           type="text"
@@ -18979,7 +18979,7 @@ function GradebookView({
                       </div>
                     </td>
                   ))}
-                  <td className="p-1 border-r border-slate-200 dark:border-slate-700 bg-transparent text-center w-16">
+                  <td className="p-1 border-r border-slate-200 dark:border-slate-700 bg-transparent text-center w-24 min-w-[96px]">
                     <div className="flex flex-col items-center justify-center">
                       <input 
                         type="text"
@@ -18997,13 +18997,13 @@ function GradebookView({
                       )}
                     </div>
                   </td>
-                  <td className="bg-slate-200/60 dark:bg-slate-700/60 text-slate-900 dark:text-slate-100 font-extrabold text-center border-r border-slate-200 dark:border-slate-700 py-2">
+                  <td className="bg-slate-200/60 dark:bg-slate-700/60 text-slate-900 dark:text-slate-100 font-extrabold text-center border-r border-slate-200 dark:border-slate-700 py-2 w-16 min-w-[64px]">
                     {((refData.summativeTests?.maxScores || []).reduce((a: number, b: any) => a + (Number(b) || 0), 0) + Number(refData.termExam?.maxScore || 0)) || ""}
                   </td>
-                  <td className="bg-slate-100/50 dark:bg-slate-800/50 border-r border-slate-200 dark:border-slate-700"></td>
-                  <td className="bg-slate-100/50 dark:bg-slate-800/50 border-r border-slate-200 dark:border-slate-700"></td>
-                  <td className="bg-slate-100/50 dark:bg-slate-800/50 border-r border-slate-200 dark:border-slate-700"></td>
-                  <td className="bg-slate-200/50 dark:bg-slate-750 border-r border-slate-200 dark:border-slate-700"></td>
+                  <td className="bg-slate-100/50 dark:bg-slate-800/50 border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px]"></td>
+                  <td className="bg-slate-100/50 dark:bg-slate-800/50 border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px]"></td>
+                  <td className="bg-slate-100/50 dark:bg-slate-800/50 border-r border-slate-200 dark:border-slate-700 w-22 min-w-[88px]"></td>
+                  <td className="bg-slate-200/50 dark:bg-slate-750 border-r border-slate-200 dark:border-slate-700 w-24 min-w-[96px]"></td>
                 </tr>
               </thead>
               <tbody className="bg-white dark:bg-slate-900 divide-y divide-slate-100 dark:divide-slate-800">
