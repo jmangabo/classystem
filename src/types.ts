@@ -263,7 +263,7 @@ export interface PTAFee {
   id: string;
   name: string;
   amount: number;
-  description?: string;
+  description?: string; // SPTA Contribution description
   schoolYear: string;
   semester: '1st Semester' | '2nd Semester' | 'Full Year';
   status: 'active' | 'inactive';
@@ -284,12 +284,14 @@ export interface PTAPayment {
   sectionName: string;
   gradeLevel: number;
   feeId: string;
-  feeName: string;
+  feeName: string; // SPTA Contribution Name
   amountPaid: number;
   paymentDate: string; // YYYY-MM-DD
   orNumber: string;
-  collectorName: string;
-  collectorEmail: string;
+  treasurerName: string; // SPTA Treasurer Name
+  treasurerEmail: string; // SPTA Treasurer Email
+  collectorName?: string; // Legacy fallback
+  collectorEmail?: string; // Legacy fallback
   schoolYear: string;
   remarks?: string;
   coveredBySibling?: boolean;

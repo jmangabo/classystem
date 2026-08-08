@@ -2713,6 +2713,8 @@ export default function App() {
     }
   };
 
+  const handleShowFinancialStatement = () => {};
+
   const handleCalculateYearEnd = () => {
     if (!selectedSection) return;
     setConfirmFinalizeSection(true);
