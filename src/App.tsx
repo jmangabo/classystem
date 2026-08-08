@@ -4749,7 +4749,7 @@ export default function App() {
                   onUnfinalizeYearEnd={handleUnfinalizeYearEnd}
                   onToggleFinalizeSubjectTerm={handleToggleFinalizeSubjectTerm}
                   section={selectedSection}
-                  onShowFinancialStatement={handleShowFinancialStatement}
+                  onShowFinancialStatement={() => setActiveTab('pta')}
                   isAuthorizedCashier={isAuthorizedCashier}
                   isSectionAdviser={isSectionAdviser}
                   isEntireSchoolFinalized={isEntireSchoolFinalized}

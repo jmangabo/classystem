@@ -6,11 +6,11 @@ import {
 } from 'lucide-react';
 import { collection, query, where, onSnapshot, orderBy, doc, addDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db, safeGetDocs as getDocs } from '../firebase';
-import { User, UserProfile, Section, Student, PTAFee, PTAPayment, PTAAuditLog } from '../types';
+import { UserProfile, Section, Student, PTAFee, PTAPayment, PTAAuditLog } from '../types';
 import { formatStudentName, printHTMLContent } from '../utils';
 
 interface PTAFeesManagementViewProps {
-  currentUser: User | null;
+  currentUser: any;
   userProfile: UserProfile | null;
   selectedSection: Section | null;
   sections: Section[];
@@ -178,7 +178,7 @@ export function PTAFeesManagementView({
           actionType: 'fee_setup_update',
           details: `Updated PTA Fee: ${feeForm.name} (₱${feeForm.amount})`,
           performedByEmail: currentUser?.email || 'System',
-          performedByName: userProfile?.fullName || 'System User',
+          performedByName: userProfile?.displayName || 'System User',
           timestamp: new Date().toISOString(),
           schoolId: currentSchoolId
         });
@@ -202,7 +202,7 @@ export function PTAFeesManagementView({
           actionType: 'fee_setup_create',
           details: `Created New PTA Fee: ${feeForm.name} (₱${feeForm.amount})`,
           performedByEmail: currentUser?.email || 'System',
-          performedByName: userProfile?.fullName || 'System User',
+          performedByName: userProfile?.displayName || 'System User',
           timestamp: new Date().toISOString(),
           schoolId: currentSchoolId
         });
@@ -232,7 +232,7 @@ export function PTAFeesManagementView({
         actionType: 'fee_setup_update',
         details: `Deactivated PTA Fee: ${feeName}`,
         performedByEmail: currentUser?.email || 'System',
-        performedByName: userProfile?.fullName || 'System User',
+        performedByName: userProfile?.displayName || 'System User',
         timestamp: new Date().toISOString(),
         schoolId: currentSchoolId
       });
@@ -262,7 +262,7 @@ export function PTAFeesManagementView({
         amountPaid: payForm.coveredBySibling ? 0 : parseFloat(payForm.amountPaid),
         paymentDate: new Date().toISOString().split('T')[0],
         orNumber: payForm.orNumber || `OR-${Date.now().toString().slice(-6)}`,
-        collectorName: userProfile?.fullName || currentUser?.displayName || 'SPTA Treasurer',
+        collectorName: userProfile?.displayName || currentUser?.displayName || 'SPTA Treasurer',
         collectorEmail: currentUser?.email || '',
         schoolYear: currentSchoolYear,
         remarks: payForm.remarks,
@@ -278,7 +278,7 @@ export function PTAFeesManagementView({
         actionType: 'payment_record',
         details: `Recorded payment of ₱${paymentData.amountPaid} for ${paymentData.studentName} (${feeObj.name}, OR: ${paymentData.orNumber})`,
         performedByEmail: currentUser?.email || 'System',
-        performedByName: userProfile?.fullName || 'System User',
+        performedByName: userProfile?.displayName || 'System User',
         timestamp: new Date().toISOString(),
         schoolId: currentSchoolId
       });
@@ -309,7 +309,7 @@ export function PTAFeesManagementView({
         actionType: 'payment_void',
         details: `Voided OR #${payment.orNumber} (₱${payment.amountPaid}) for ${payment.studentName}`,
         performedByEmail: currentUser?.email || 'System',
-        performedByName: userProfile?.fullName || 'System User',
+        performedByName: userProfile?.displayName || 'System User',
         timestamp: new Date().toISOString(),
         schoolId: currentSchoolId
       });
@@ -375,7 +375,7 @@ export function PTAFeesManagementView({
         </div>
         
         <div style="margin-bottom: 30px;">
-          <div style="font-size: 10px; font-weight: bold; color: #666; text-transform: uppercase;">SPTA Treasure</div>
+          <div style="font-size: 10px; font-weight: bold; color: #666; text-transform: uppercase;">SPTA Treasurer</div>
           <div style="font-weight: bold; border-bottom: 1px solid #000; display: inline-block; padding-bottom: 2px; padding-right: 40px; margin-top: 5px;">${payment.collectorName}</div>
         </div>
         
@@ -387,7 +387,7 @@ export function PTAFeesManagementView({
       </div>
     `;
 
-    printHTMLContent(`Official PTA Receipt - ${payment.orNumber}`, receiptHTML);
+    printHTMLContent(receiptHTML);
   };
 
   // Filtered Students
@@ -756,7 +756,7 @@ export function PTAFeesManagementView({
                   <th className="px-5 py-3">Student Name</th>
                   <th className="px-5 py-3">Fee Name</th>
                   <th className="px-5 py-3">Amount</th>
-                  <th className="px-5 py-3">SPTA Treasure</th>
+                  <th className="px-5 py-3">SPTA Treasurer</th>
                   <th className="px-5 py-3 text-right">Actions</th>
                 </tr>
               </thead>
@@ -1055,7 +1055,7 @@ export function PTAFeesManagementView({
                     <span className="text-slate-800 font-bold uppercase">{showReceipt.sectionName}</span>
                   </div>
                   <div>
-                    <span className="text-slate-500 font-bold block text-[9px]">SPTA Treasure</span>
+                    <span className="text-slate-500 font-bold block text-[9px]">SPTA Treasurer</span>
                     <span className="text-slate-800 font-bold uppercase truncate max-w-[150px]" title={showReceipt.collectorName}>{showReceipt.collectorName}</span>
                   </div>
                 </div>
