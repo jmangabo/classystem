@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ArrowLeft, Users, Search, Download, ChevronLeft, ChevronRight, MessageSquare, Coins, X } from 'lucide-react';
-import { collection, onSnapshot, query } from 'firebase/firestore';
-import { motion, AnimatePresence } from 'motion/react';
+import { ArrowLeft, Users, Search, ChevronLeft, ChevronRight, MessageSquare } from 'lucide-react';
+import { collection } from 'firebase/firestore';
 import { db, safeGetDocs as getDocs } from '../firebase';
 import { Section, Student } from '../types';
 import { formatStudentName } from '../utils';
@@ -10,15 +9,6 @@ interface AdminStudentListViewProps {
   onBack: () => void;
   sections: Section[];
   onViewAnecdotals?: (studentLrn: string, sectionId: string) => void;
-}
-
-interface PTAPayment {
-  id: string;
-  studentName: string;
-  lrn: string;
-  amountPaid: number;
-  orNumber: string;
-  feeName: string;
 }
 
 interface StudentSummary {
@@ -33,13 +23,11 @@ interface StudentSummary {
     status?: string;
     isTransferredIn?: boolean;
   }[];
-  ptaPayments: PTAPayment[];
 }
 
 export function AdminStudentListView({ onBack, sections, onNavigateToSection, onViewAnecdotals }: AdminStudentListViewProps & { onNavigateToSection?: (sectionId: string) => void }) {
   const [loading, setLoading] = useState(true);
   const [studentsByLrn, setStudentsByLrn] = useState<Map<string, StudentSummary>>(new Map());
-  const [viewingPayments, setViewingPayments] = useState<StudentSummary | null>(null);
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -67,8 +55,7 @@ export function AdminStudentListView({ onBack, sections, onNavigateToSection, on
                 lrn: data.lrn || 'N/A',
                 name: formatStudentName(data),
                 lastName: data.lastName || '',
-                records: [],
-                ptaPayments: []
+                records: []
               });
             }
             
@@ -89,15 +76,6 @@ export function AdminStudentListView({ onBack, sections, onNavigateToSection, on
         });
 
         await Promise.all(fetchPromises);
-
-        // Fetch payments
-        const paymentsSnap = await getDocs(collection(db, 'pta_payments'));
-        paymentsSnap.docs.forEach(doc => {
-           const p = doc.data() as PTAPayment;
-           if (studentMap.has(p.lrn)) {
-             studentMap.get(p.lrn)!.ptaPayments.push({ id: doc.id, ...p });
-           }
-        });
         
         // Sort records by school year ascending
         studentMap.forEach(summary => {
@@ -199,7 +177,6 @@ export function AdminStudentListView({ onBack, sections, onNavigateToSection, on
                       <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest w-16 text-center">No.</th>
                       <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Name</th>
                       <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">LRN</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">PTA Contributions</th>
                       <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Grade Levels & Academic Years</th>
                       <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest w-32">Actions</th>
                     </tr>
@@ -215,19 +192,6 @@ export function AdminStudentListView({ onBack, sections, onNavigateToSection, on
                         </td>
                         <td className="px-6 py-4">
                           <code className="text-xs font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-md">{s.lrn}</code>
-                        </td>
-                        <td className="px-6 py-4">
-                          {s.ptaPayments.length > 0 ? (
-                            <button
-                              onClick={() => setViewingPayments(s)}
-                              className="text-xs font-bold text-indigo-700 bg-indigo-50 px-3 py-1.5 rounded-lg hover:bg-indigo-100 transition-colors flex items-center gap-2"
-                            >
-                              <Coins size={14} />
-                              View {s.ptaPayments.length} Payments
-                            </button>
-                          ) : (
-                            <span className="text-[10px] font-bold text-slate-400 italic">No payments</span>
-                          )}
                         </td>
                         <td className="px-6 py-4">
                           <div className="flex flex-wrap gap-2">
@@ -312,45 +276,6 @@ export function AdminStudentListView({ onBack, sections, onNavigateToSection, on
           </div>
         </div>
       </main>
-
-      <AnimatePresence>
-        {viewingPayments && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
-          >
-            <motion.div
-              initial={{ scale: 0.95, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.95, y: 20 }}
-              className="bg-white rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl border border-slate-100 max-h-[80vh] flex flex-col"
-            >
-              <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                <h3 className="text-lg font-black text-slate-900">Payments: {viewingPayments.name}</h3>
-                <button
-                  onClick={() => setViewingPayments(null)}
-                  className="text-slate-400 hover:text-slate-600 bg-white p-2 rounded-full border border-slate-200"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-              <div className="p-6 space-y-3 overflow-y-auto custom-scrollbar">
-                {viewingPayments.ptaPayments.map(p => (
-                  <div key={p.id} className="p-4 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-bold text-indigo-700">{p.feeName}</p>
-                      <p className="text-[10px] font-semibold text-slate-500">OR# {p.orNumber}</p>
-                    </div>
-                    <p className="text-sm font-black text-emerald-700">₱{p.amountPaid.toLocaleString()}</p>
-                  </div>
-                ))}
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }

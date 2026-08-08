@@ -99,6 +99,7 @@ import {
 
 import { ThemeCustomizerModal, DEFAULT_THEME_SETTINGS, SystemThemeSettings } from "./components/ThemeCustomizerModal";
 import { SystemDocumentationView } from "./components/SystemDocumentationView";
+import { PTAFeesManagementView } from "./components/PTAFeesManagementView";
 import { SF8View } from "./components/SF8View";
 import { ManualSiblingSelector } from "./components/ManualSiblingSelector";
 import { PhotoCropModal } from "./components/PhotoCropModal";
@@ -543,7 +544,6 @@ import { FeedbackModal } from "./components/FeedbackModal";
 import { AdminFeedbackDashboard } from "./components/AdminFeedbackDashboard";
 import { AdminStudentListView } from "./components/AdminStudentListView";
 import { AnecdotalRecordsView, getOffensePenalty } from "./components/AnecdotalRecordsView";
-import { PTAFeesManagementView } from "./components/PTAFeesManagementView";
 import { TleDashboardView } from "./components/TleDashboardView";
 
 const transmuteGrade = (initial: number): number => {
@@ -1123,8 +1123,7 @@ export default function App() {
   const [activeSchool, setActiveSchool] = useState<School | null>(null);
   const [teacherCount, setTeacherCount] = useState<number>(0);
   
-  const [activeTab, setActiveTab ] = useState<"dashboard" | "gradebook" | "enroll" | "subjects" | "summary" | "guide" | "sys-docs" | "attendance" | "sf2" | "observed-values" | "sf10" | "transfers" | "sf8" | "sf4" | "sf7" | "anecdotes" | "pta" | "tle-dashboard">("dashboard");
-  const [ptaInitialTab, setPtaInitialTab] = useState<'collection' | 'setup' | 'reports' | 'audit'>('collection');
+  const [activeTab, setActiveTab ] = useState<"dashboard" | "gradebook" | "enroll" | "subjects" | "summary" | "guide" | "sys-docs" | "attendance" | "sf2" | "observed-values" | "sf10" | "transfers" | "sf8" | "sf4" | "sf7" | "anecdotes" | "tle-dashboard" | "pta">("dashboard");
   const [preselectedStudentForAnecdotal, setPreselectedStudentForAnecdotal] = useState<Student | null>(null);
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [isSettingsDropdownOpen, setIsSettingsDropdownOpen] = useState(false);
@@ -1137,7 +1136,6 @@ export default function App() {
   const [showAdminSchoolYear, setShowAdminSchoolYear] = useState(false);
   const [showAdminFeedback, setShowAdminFeedback] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
-  const [showAdminPTA, setShowAdminPTA] = useState(false);
   const [showAdminSF4, setShowAdminSF4] = useState(false);
   const [showAdminSF7, setShowAdminSF7] = useState(false);
   const [pendingUsersCount, setPendingUsersCount] = useState(0);
@@ -2756,10 +2754,6 @@ export default function App() {
     }
   };
 
-  const handleShowFinancialStatement = () => {
-    setShowAdminPTA(true);
-  };
-
   const handleUnfinalizeYearEnd = async () => {
     if (!selectedSection) return;
     setConfirmYearEndUnfinalize(true);
@@ -3359,39 +3353,6 @@ export default function App() {
     );
   }
 
-  if (showAdminPTA && (userProfile?.role === 'system_admin' || userProfile?.role === 'school_head' || isAuthorizedCashier)) {
-    return (
-      <div className="flex flex-col h-screen bg-slate-50">
-        <div className="p-4 bg-white border-b border-slate-200 flex justify-between items-center shadow-sm z-10 shrink-0">
-          <div className="flex items-center gap-3">
-            <button 
-              onClick={() => setShowAdminPTA(false)}
-              className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-500"
-            >
-              <ArrowLeft size={18} />
-            </button>
-            <div>
-              <h1 className="text-lg font-black text-slate-900 tracking-tight flex items-center gap-2">
-                <CreditCard className="text-emerald-600" size={20} />
-                School Financial Statement
-              </h1>
-              <p className="text-xs font-bold text-slate-500">PTA Fees & Contributions (School Year Wide)</p>
-            </div>
-          </div>
-        </div>
-        <div className="flex-1 overflow-auto">
-          <PTAFeesManagementView
-            currentUser={currentUser}
-            userProfile={userProfile}
-            selectedSection={null}
-            sections={sections}
-            initialTab={ptaInitialTab}
-          />
-        </div>
-      </div>
-    );
-  }
-
   if (showAdminStudentList && (userProfile?.role === 'admin' || userProfile?.role === 'system_admin')) {
     return <AdminStudentListView 
       onBack={() => setShowAdminStudentList(false)}
@@ -3698,9 +3659,6 @@ export default function App() {
           onLogout={handleLogout}
           onManageUsers={() => setShowAdminUsers(true)}
           onManageStudentList={() => setShowAdminStudentList(true)}
-          onShowFinancialStatement={() => {
-            setShowAdminPTA(true);
-          }}
           onShowSF4={() => setShowAdminSF4(true)}
           onShowSF7={() => setShowAdminSF7(true)}
           pendingUsersCount={pendingUsersCount}
@@ -4204,13 +4162,13 @@ export default function App() {
                 { id: 'gradebook', label: 'eClass Records', shortLabel: 'eClass Records', icon: <TableIcon size={14} /> },
                 { id: 'summary', label: 'Grading Sheet', shortLabel: 'Grading Sheet', icon: <ClipboardCheck size={14} /> },
                 { id: 'transfers', label: 'Transfer Facility', shortLabel: 'Transfers', icon: <Share2 size={14} /> },
-                { id: 'pta', label: 'PTA Fees', shortLabel: 'PTA Fees', icon: <CreditCard size={14} /> },
                 { id: 'sf2', label: 'School Form 2', shortLabel: 'SF2 Report', icon: <FileText size={14} /> },
                 { id: 'sf10', label: 'Learners Records', shortLabel: 'SF10 Record', icon: <HistoryIcon size={14} /> },
                 { id: 'attendance', label: 'Daily Attendance', shortLabel: 'Attendance', icon: <Calendar size={14} /> },
                 { id: 'observed-values', label: 'Teacher Comments/Remarks', shortLabel: 'Remarks', icon: <Heart size={14} /> },
                 { id: 'anecdotes', label: 'Anecdotal Records', shortLabel: 'Anecdotes', icon: <MessageSquare size={14} /> },
                 { id: 'sf8', label: 'School Form 8', shortLabel: 'SF8 Health', icon: <Activity size={14} /> },
+                { id: 'pta', label: 'PTA Fees', shortLabel: 'PTA Fees', icon: <CreditCard size={14} /> },
                 { id: 'sf4', label: 'School Form 4', shortLabel: 'SF4 Report', icon: <FileText size={14} /> },
                 { id: 'sf7', label: 'School Form 7', shortLabel: 'SF7 Profile', icon: <FileText size={14} /> },
                 { id: 'guide', label: 'Guide', shortLabel: 'Guide', icon: <HelpCircle size={14} /> },
@@ -4225,7 +4183,6 @@ export default function App() {
                 if (tab.id === 'subjects' && userProfile?.role !== 'system_admin' && userProfile?.role !== 'admin' && !isSectionAdviser) return false;
                 if (tab.id === 'logs' || tab.id === 'logs-clear') return currentUser?.email === 'jessiemangabo@gmail.com';
                 if (tab.id === 'summary' && !isSectionAdviser) return false;
-                if (tab.id === 'pta' && !(userProfile?.role === 'teacher' && isSectionAdviser)) return false;
                 if (tab.id === 'gradebook' && (!editableSubjects || editableSubjects.length === 0) && !isSectionAdviser) return false;
                 if ((tab.id === 'attendance' || tab.id === 'sf2') && !hasCalendarMatch) return false;
                 if (tab.id === 'sf4' && userProfile?.role !== 'system_admin' && userProfile?.role !== 'school_head' && !isAuthorizedCashier) return false;
@@ -4233,7 +4190,7 @@ export default function App() {
 
                 if (userProfile?.role === 'system_admin' || userProfile?.role === 'admin' || isAuthorizedCashier) {
                   const allowedTabsList = [
-                    'dashboard', 'enroll', 'subjects', 'pta', 'sf8', 'guide', 'sys-docs', 'gradebook', 'summary', 'attendance', 'observed-values', 'sf2', 'transfers', 'sf10', 'sf4', 'sf7', 'anecdotes', 'logs', 'logs-clear', 'aral'
+                    'dashboard', 'enroll', 'subjects', 'sf8', 'pta', 'guide', 'sys-docs', 'gradebook', 'summary', 'attendance', 'observed-values', 'sf2', 'transfers', 'sf10', 'sf4', 'sf7', 'anecdotes', 'logs', 'logs-clear', 'aral'
                   ];
                   if (userProfile?.role === 'system_admin') {
                     return allowedTabsList.filter(id => {
@@ -4246,14 +4203,14 @@ export default function App() {
                   return allowedTabsList.filter(id => id !== 'sf4').includes(tab.id);
                 }
                 if (userProfile?.role === 'school_head') {
-                   return ['sf8', 'sf4', 'sf10', 'anecdotes', 'aral'].includes(tab.id);
+                   return ['sf8', 'sf4', 'sf10', 'anecdotes', 'pta', 'aral'].includes(tab.id);
                 }
                 if (userProfile?.role === 'guidance_designate') {
                    return ['anecdotes', 'aral'].includes(tab.id);
                 }
                 if (userProfile?.role === 'teacher') {
                   if (isSectionAdviser) {
-                    return ['dashboard', 'enroll', 'subjects', 'pta', 'sf8', 'sf10', 'attendance', 'observed-values', 'sf2', 'transfers', 'anecdotes', 'guide', 'gradebook', 'summary', 'aral'].includes(tab.id);
+                    return ['dashboard', 'enroll', 'subjects', 'sf8', 'pta', 'sf10', 'attendance', 'observed-values', 'sf2', 'transfers', 'anecdotes', 'guide', 'gradebook', 'summary', 'aral'].includes(tab.id);
                   }
                   return tab.id === 'gradebook' || tab.id === 'dashboard' || tab.id === 'anecdotes' || tab.id === 'pta' || tab.id === 'aral';
                 }
@@ -4486,14 +4443,12 @@ export default function App() {
             { id: 'observed-values', label: 'Remarks', icon: <Heart size={14} /> },
             { id: 'anecdotes', label: 'Anecdotes', icon: <MessageSquare size={14} /> },
             { id: 'sf10', label: 'SF10 Record', icon: <HistoryIcon size={14} /> },
-            { id: 'pta', label: 'PTA Fees', icon: <CreditCard size={14} /> },
             { id: 'guide', label: 'Guide', icon: <HelpCircle size={14} /> },
           ];
 
           return allTabs.filter(tab => {
             if (tab.id === 'subjects' && userProfile?.role !== 'system_admin' && userProfile?.role !== 'admin' && !isSectionAdviser) return false;
             if (tab.id === 'summary' && !isSectionAdviser) return false;
-            if (tab.id === 'pta' && !(userProfile?.role === 'teacher' && isSectionAdviser)) return false;
             if (tab.id === 'gradebook' && (!editableSubjects || editableSubjects.length === 0) && !isSectionAdviser) return false;
             if ((tab.id === 'attendance' || tab.id === 'sf2') && !hasCalendarMatch) return false;
 
@@ -4502,7 +4457,7 @@ export default function App() {
             if (userProfile?.role === 'guidance_designate') return ['anecdotes'].includes(tab.id);
             if (userProfile?.role === 'teacher') {
               if (isSectionAdviser) return true;
-              return ['gradebook', 'dashboard', 'anecdotes', 'pta'].includes(tab.id);
+              return ['gradebook', 'dashboard', 'anecdotes'].includes(tab.id);
             }
             return true;
           }).map(tab => (
@@ -4584,7 +4539,6 @@ export default function App() {
                         { id: 'enroll', label: 'Learner Roster', desc: 'Enrolled students & profiles', icon: <UserPlus size={18} /> },
                         { id: 'transfers', label: 'Transfer Facility', desc: 'Process learner transfers', icon: <Share2 size={18} /> },
                         { id: 'sf8', label: 'School Form 8 (Health)', desc: 'BMI & physical assessment', icon: <Activity size={18} /> },
-                        { id: 'pta', label: 'PTA Fees', desc: 'PTA collection & records', icon: <CreditCard size={18} /> },
                       ]
                     },
                     {
@@ -4624,7 +4578,6 @@ export default function App() {
                   const filterAllowed = (tabId: string) => {
                     if (tabId === 'subjects' && userProfile?.role !== 'system_admin' && userProfile?.role !== 'admin' && !isSectionAdviser) return false;
                     if (tabId === 'summary' && !isSectionAdviser) return false;
-                    if (tabId === 'pta' && !(userProfile?.role === 'teacher' && isSectionAdviser)) return false;
                     if (tabId === 'gradebook' && (!editableSubjects || editableSubjects.length === 0) && !isSectionAdviser) return false;
                     if ((tabId === 'attendance' || tabId === 'sf2') && !hasCalendarMatch) return false;
                     if (tabId === 'sf4' && userProfile?.role !== 'system_admin' && userProfile?.role !== 'school_head' && !isAuthorizedCashier) return false;
@@ -4635,7 +4588,7 @@ export default function App() {
                     if (userProfile?.role === 'guidance_designate') return ['anecdotes', 'aral'].includes(tabId);
                     if (userProfile?.role === 'teacher') {
                       if (isSectionAdviser) return true;
-                      return ['gradebook', 'dashboard', 'anecdotes', 'pta', 'aral'].includes(tabId);
+                      return ['gradebook', 'dashboard', 'anecdotes', 'aral'].includes(tabId);
                     }
                     return true;
                   };
@@ -4755,8 +4708,8 @@ export default function App() {
       </AnimatePresence>
 
       {/* Workspace Area */}
-      <main className={`flex-1 overflow-x-hidden overflow-y-auto bg-[#fcfdfe] scroll-smooth custom-scrollbar ${['gradebook', 'summary', 'dashboard', 'subjects', 'enroll', 'guide', 'sf8', 'transfers', 'sf10', 'observed-values', 'pta', 'tle-dashboard'].includes(activeTab) ? 'p-0' : 'p-6 md:p-12'}`}>
-        <div className={`${['gradebook', 'summary', 'dashboard', 'subjects', 'enroll', 'guide', 'sf8', 'transfers', 'sf10', 'observed-values', 'pta', 'tle-dashboard'].includes(activeTab) ? 'w-full' : 'max-w-full 2xl:max-w-[1600px] mx-auto w-full'}`}>
+      <main className={`flex-1 overflow-x-hidden overflow-y-auto bg-[#fcfdfe] scroll-smooth custom-scrollbar ${['gradebook', 'summary', 'dashboard', 'subjects', 'enroll', 'guide', 'sf8', 'transfers', 'sf10', 'observed-values', 'tle-dashboard'].includes(activeTab) ? 'p-0' : 'p-6 md:p-12'}`}>
+        <div className={`${['gradebook', 'summary', 'dashboard', 'subjects', 'enroll', 'guide', 'sf8', 'transfers', 'sf10', 'observed-values', 'tle-dashboard'].includes(activeTab) ? 'w-full' : 'max-w-full 2xl:max-w-[1600px] mx-auto w-full'}`}>
           <AnimatePresence mode="wait">
             {activeTab === 'tle-dashboard' && (
               <motion.div
@@ -5028,14 +4981,12 @@ export default function App() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.2 }}
-                className="h-full"
               >
                 <PTAFeesManagementView
                   currentUser={currentUser}
                   userProfile={userProfile}
                   selectedSection={selectedSection}
                   sections={sections}
-                  initialTab={ptaInitialTab}
                 />
               </motion.div>
             )}
@@ -8766,20 +8717,6 @@ function SectionsView({
 
               {(user?.role === 'admin' || user?.role === 'system_admin' || user?.role === 'school_head' || isAuthorizedCashier) && (
                 <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto shrink-0 mt-6 xl:mt-0 mb-8">
-                  {renderAdminDropdown(
-                    'financials', 
-                    'Financials', 
-                    <BarChart2 size={16} className="text-emerald-600" />,
-                    [
-                      {
-                        label: 'Financial Statement',
-                        icon: <BarChart2 size={15} className="text-emerald-600" />,
-                        onClick: onShowFinancialStatement,
-                        visible: !!(onShowFinancialStatement && (user?.role === 'system_admin' || user?.role === 'school_head' || isAuthorizedCashier)),
-                        textClass: 'text-emerald-700 hover:bg-emerald-50'
-                      }
-                    ]
-                  )}
 
                   {renderAdminDropdown(
                     'school-forms', 
@@ -19887,15 +19824,6 @@ function DashboardView({
                 <span>Scan QR ID</span>
               </button>
             )}
-            {(currentUser?.role === 'system_admin' || currentUser?.role === 'school_head' || isAuthorizedCashier) && onShowFinancialStatement && (
-              <button 
-                onClick={onShowFinancialStatement}
-                className="flex items-center justify-center gap-2 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 font-bold text-sm px-5 py-2.5 rounded-xl transition-all shadow-sm w-full sm:w-auto"
-              >
-                <BarChart2 size={16} className="text-emerald-600" />
-                <span>Financial Statement</span>
-              </button>
-            )}
           </div>
         </div>
       </div>
@@ -25985,14 +25913,9 @@ function StudentPortal({
   sections: Section[],
   students: Student[]
 }) { 
-  const [activeTab, setActiveTab] = useState<'grades' | 'profile' | 'attendance' | 'contributions' | 'anecdotal'>('grades');
+  const [activeTab, setActiveTab] = useState<'grades' | 'profile' | 'attendance' | 'anecdotal'>('grades');
   const [showReportCard, setShowReportCard] = useState(false);
   const [selectedTermDetail, setSelectedTermDetail] = useState<{ subject: Subject, term: TermNumber } | null>(null);
-
-  const [ptaFees, setPtaFees] = useState<any[]>([]);
-  const [ptaPayments, setPtaPayments] = useState<any[]>([]);
-  const [loadingConts, setLoadingConts] = useState(true);
-  const [portalShowReceipt, setPortalShowReceipt] = useState<any | null>(null);
 
   const [anecdotalRecords, setAnecdotalRecords] = useState<AnecdotalRecord[]>([]);
   const [loadingAnecdotes, setLoadingAnecdotes] = useState(true);
@@ -26062,50 +25985,6 @@ function StudentPortal({
       if (unsubFallback) unsubFallback();
     };
   }, [student.id, allEnrollments]);
-
-  useEffect(() => {
-    if (!section?.schoolId) return;
-
-    setLoadingConts(true);
-    // Listen to pta_fees for this school name/id and school year
-    const feesRef = collection(db, 'pta_fees');
-    const feesQ = query(
-      feesRef,
-      where('schoolId', '==', section.schoolId),
-      where('schoolYear', '==', section.schoolYear),
-      where('status', '==', 'active')
-    );
-
-    const unsubFees = onSnapshot(feesQ, (snap) => {
-      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      setPtaFees(list);
-    }, (err) => {
-      console.error("Error loading student portal pta fees:", err);
-    });
-
-    // Listen to pta_payments for this student, school, and school year
-    const paymentsRef = collection(db, 'pta_payments');
-    const paymentsQ = query(
-      paymentsRef,
-      where('schoolId', '==', section.schoolId),
-      where('studentId', '==', student.id),
-      where('schoolYear', '==', section.schoolYear)
-    );
-
-    const unsubPayments = onSnapshot(paymentsQ, (snap) => {
-      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      setPtaPayments(list);
-      setLoadingConts(false);
-    }, (err) => {
-      console.error("Error loading student portal pta payments:", err);
-      setLoadingConts(false);
-    });
-
-    return () => {
-      unsubFees();
-      unsubPayments();
-    };
-  }, [section.schoolId, section.schoolYear, student.id]);
 
   const numTerms = useMemo(() => {
     if (!schoolCalendar || schoolCalendar.length === 0) return 3;
@@ -26271,12 +26150,7 @@ function StudentPortal({
                       Attendance
                     </button>
                   )}
-                  <button 
-                    onClick={() => setActiveTab('contributions')}
-                    className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'contributions' ? 'bg-white text-slate-900 shadow-sm border border-slate-200/20' : 'text-slate-400 hover:text-slate-600'}`}
-                  >
-                    Contributions
-                  </button>
+
                   <button 
                     onClick={() => setActiveTab('anecdotal')}
                     className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'anecdotal' ? 'bg-white text-slate-900 shadow-sm border border-slate-200/20' : 'text-slate-400 hover:text-slate-600'}`}
@@ -26600,180 +26474,7 @@ function StudentPortal({
                 </div>
              )}
 
-             {activeTab === 'contributions' && (
-                <div className="space-y-6 animate-in fade-in duration-200">
-                   {/* Compliance Alert Statement */}
-                   <div className="bg-emerald-50 border border-emerald-200/60 rounded-2xl p-5 flex gap-3.5 text-emerald-800 shadow-sm">
-                     <ShieldCheck className="text-emerald-500 shrink-0 mt-0.5" size={20} />
-                     <div className="space-y-1.5 text-xs">
-                       <p className="font-extrabold uppercase tracking-wider">DepEd Order Compliance on PTA School Year Collections</p>
-                       <p className="font-medium text-emerald-700 leading-relaxed">
-                         All Parent-Teacher Association (PTA) contributions are strictly **voluntary**. School services, learner enrollment, MATATAG assessment reviews, and the release or distribution of grading report cards (SF9) will **NEVER** be withheld, delayed, or conditioned due to non-contribution.
-                       </p>
-                     </div>
-                   </div>
 
-                   {/* Metrics Grid */}
-                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                     <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm">
-                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Voluntary Fee Targets</span>
-                       <div className="flex items-baseline gap-1.5">
-                         <span className="text-2xl font-black text-slate-900">₱{ptaFees.reduce((sum, f) => {
-                           const isSibCovered = ptaPayments.some(p => p.feeId === f.id && p.coveredBySibling);
-                           return isSibCovered ? sum : sum + (f.amount || 0);
-                         }, 0).toFixed(2)}</span>
-                       </div>
-                       <p className="text-[10px] text-slate-500 mt-2 font-medium">For {ptaFees.length} active contribution programs</p>
-                     </div>
-
-                     <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm">
-                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Your Total Contributions</span>
-                       <div className="flex items-baseline gap-1.5 text-indigo-600">
-                         <span className="text-2xl font-black">₱{ptaPayments.reduce((sum, p) => sum + (p.amountPaid || 0), 0).toFixed(2)}</span>
-                       </div>
-                       <p className="text-[10px] text-slate-500 mt-2 font-medium">Thank you for supporting student programs</p>
-                     </div>
-
-                     <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm">
-                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Receipts Logged</span>
-                       <div className="flex items-baseline gap-1.5 text-emerald-600">
-                         <span className="text-2xl font-black">{ptaPayments.length}</span>
-                       </div>
-                       <p className="text-[10px] text-slate-500 mt-2 font-medium">Official receipts registered this year</p>
-                     </div>
-                   </div>
-
-                   {/* Live Contribution Item Templates */}
-                   <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
-                     <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                        <h3 className="font-semibold text-slate-800 text-sm">Active School Year PTA Programs</h3>
-                        <p className="text-xs text-slate-400 font-medium tracking-wide">School Year {section.schoolYear}</p>
-                     </div>
-
-                     {loadingConts ? (
-                       <div className="flex justify-center py-10">
-                         <Loader2 className="animate-spin text-indigo-500" size={24} />
-                       </div>
-                     ) : ptaFees.length === 0 ? (
-                       <div className="text-center py-12">
-                         <p className="text-xs text-slate-400 font-bold">No active PTA Contribution requests found for this school year.</p>
-                       </div>
-                     ) : (
-                       <div className="divide-y divide-slate-100">
-                         {ptaFees.map((fee) => {
-                           const isSibCovered = ptaPayments.some(p => p.feeId === fee.id && p.coveredBySibling);
-                           const paidForThisFee = ptaPayments
-                             .filter(p => p.feeId === fee.id && !p.coveredBySibling)
-                             .reduce((sum, p) => sum + (p.amountPaid || 0), 0);
-                           const isFullySettled = paidForThisFee >= fee.amount || isSibCovered;
-                           
-                           return (
-                             <div key={fee.id} className={`py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 ${isSibCovered ? 'opacity-60' : ''}`}>
-                               <div className="space-y-1">
-                                 <div className="flex items-center gap-2">
-                                   <h4 className="font-bold text-slate-900 text-xs">{fee.name}</h4>
-                                   {fee.isVoluntary && !isSibCovered && (
-                                     <span className="bg-amber-100 text-amber-800 text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded tracking-widest">
-                                       Voluntary
-                                     </span>
-                                   )}
-                                   {isSibCovered && (
-                                     <span className="bg-purple-100 text-purple-800 text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded tracking-widest">
-                                       Sibling Covered Disabled
-                                     </span>
-                                   )}
-                                 </div>
-                                 <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">{fee.semester}</p>
-                                 {fee.description && <p className="text-[11px] text-slate-500">{fee.description}</p>}
-                               </div>
-
-                               <div className="flex items-center gap-6 self-stretch sm:self-auto justify-between">
-                                 <div className="text-left sm:text-right">
-                                   <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">Contributions Paid</label>
-                                   <span className="text-xs font-black text-slate-900">₱{paidForThisFee.toFixed(2)}</span>
-                                   <span className="text-[10px] text-slate-400"> of ₱{isSibCovered ? '0.00' : (fee.amount ? fee.amount.toFixed(2) : '0.00')}</span>
-                                 </div>
-
-                                 <div>
-                                   {isSibCovered ? (
-                                     <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-purple-50 text-purple-700 text-[10px] font-extrabold rounded-full uppercase border border-purple-100">
-                                       <CheckCircle size={10} /> Sibling Covered
-                                     </span>
-                                   ) : isFullySettled ? (
-                                     <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-700 text-[10px] font-extrabold rounded-full uppercase border border-emerald-100">
-                                       <CheckCircle size={10} /> Compliant
-                                     </span>
-                                   ) : paidForThisFee > 0 ? (
-                                     <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-50 text-indigo-700 text-[10px] font-extrabold rounded-full uppercase border border-indigo-100">
-                                       Partial Support
-                                     </span>
-                                   ) : (
-                                     <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-50 text-slate-400 text-[10px] font-extrabold rounded-full uppercase border border-slate-200">
-                                       Voluntary Pending
-                                     </span>
-                                   )}
-                                 </div>
-                               </div>
-                             </div>
-                           );
-                         })}
-                       </div>
-                     )}
-                   </div>
-
-                   {/* Payment and Receipt log list */}
-                   <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
-                     <div className="border-b border-slate-100 pb-3">
-                        <h3 className="font-semibold text-slate-800 text-sm">Official Contributions Payments Log</h3>
-                        <p className="text-xs text-slate-400 font-medium font-bold">Verify your registered receipts and transaction numbers</p>
-                     </div>
-
-                     {loadingConts ? (
-                       <div className="flex justify-center py-10">
-                         <Loader2 className="animate-spin text-slate-400" size={24} />
-                       </div>
-                     ) : ptaPayments.length === 0 ? (
-                       <div className="text-center py-12 text-slate-400 italic text-xs font-bold">
-                         You have not made any recorded parent association contributions for this school year yet.
-                       </div>
-                     ) : (
-                       <div className="overflow-x-auto">
-                         <table className="w-full text-xs text-left">
-                           <thead>
-                             <tr className="border-b border-slate-100 text-slate-400 uppercase text-[9px] font-black tracking-wider">
-                               <th className="py-2 pb-3">Date</th>
-                               <th className="py-2 pb-3">OR Number</th>
-                               <th className="py-2 pb-3">Particular Program</th>
-                               <th className="py-2 pb-3">Amount Paid</th>
-                               <th className="py-2 pb-3">Collector</th>
-                               <th className="py-2 pb-3 text-right">Action</th>
-                             </tr>
-                           </thead>
-                           <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
-                             {ptaPayments.map((p) => (
-                               <tr key={p.id}>
-                                 <td className="py-3 whitespace-nowrap">{p.paymentDate}</td>
-                                 <td className="py-3 font-mono font-bold text-slate-950">{p.orNumber}</td>
-                                 <td className="py-3 font-bold text-slate-900">{p.feeName}</td>
-                                 <td className="py-3 text-indigo-600 font-black">₱{p.amountPaid.toFixed(2)}</td>
-                                 <td className="py-3 truncate max-w-[120px]">{p.collectorName}</td>
-                                 <td className="py-3 text-right">
-                                   <button 
-                                     onClick={() => setPortalShowReceipt(p)}
-                                     className="px-2.5 py-1 text-[10px] font-extrabold uppercase bg-slate-900 text-white rounded hover:bg-slate-800 transition-all font-black"
-                                   >
-                                     View Receipt
-                                   </button>
-                                 </td>
-                               </tr>
-                             ))}
-                           </tbody>
-                         </table>
-                       </div>
-                     )}
-                   </div>
-                </div>
-             )}
 
              {activeTab === 'anecdotal' && (
                 <div className="space-y-6 animate-in fade-in duration-200">
@@ -27154,170 +26855,7 @@ function StudentPortal({
           user={user}
        />
 
-       {portalShowReceipt && (
-         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[250] flex items-center justify-center p-4 overflow-y-auto">
-           <div className="bg-white border rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 flex flex-col my-8">
-             <div className="bg-slate-900 text-white px-5 py-4 flex justify-between items-center shrink-0">
-               <div className="flex items-center space-x-2">
-                 <Coins className="text-indigo-400" size={16} />
-                 <span className="text-xs font-black uppercase tracking-wider font-bold">Official Contribution Receipt</span>
-               </div>
-               <button 
-                 onClick={() => setPortalShowReceipt(null)}
-                 className="text-slate-400 hover:text-white transition-colors"
-               >
-                 <X size={18} />
-               </button>
-             </div>
 
-             <div className="p-8 space-y-6 flex-1 text-slate-800" id="receipt-portal-print">
-               <div className="text-center space-y-1 border-b border-dashed border-slate-300 pb-4">
-                 <h2 className="text-[10px] font-black tracking-[0.25em] text-slate-400 uppercase">PARENT-TEACHER ASSOCIATION</h2>
-                 <h1 className="text-xs font-black tracking-tight text-slate-900 uppercase font-black">OFFICIAL VOLUNTARY CONTRIBUTION RECEIPT</h1>
-                 <p className="text-[10px] font-bold text-indigo-600 uppercase tracking-wide">{section.schoolName}</p>
-               </div>
-
-               <div className="grid grid-cols-2 gap-4 text-xs">
-                 <div className="space-y-1">
-                   <span className="text-[9px] font-bold text-slate-400 uppercase block">OR Number</span>
-                   <span className="font-mono font-black text-slate-900 bg-slate-100 px-2 py-0.5 rounded text-sm tracking-wide">{portalShowReceipt.orNumber}</span>
-                 </div>
-                 <div className="space-y-1 text-right">
-                   <span className="text-[9px] font-bold text-slate-400 uppercase block">Payment Date</span>
-                   <span className="font-bold text-slate-900">{portalShowReceipt.paymentDate}</span>
-                 </div>
-               </div>
-
-               <div className="border border-slate-200 rounded-xl p-4 bg-slate-50 space-y-2 text-xs">
-                 <div className="flex justify-between items-center border-b border-slate-200 pb-1.5">
-                   <span className="text-slate-400 font-bold uppercase text-[9px]">Learner Details</span>
-                   <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 bg-slate-250/50 rounded">{portalShowReceipt.schoolYear}</span>
-                 </div>
-                 <div className="flex justify-between">
-                   <span className="text-slate-500 font-bold">Full Name:</span>
-                   <span className="text-slate-900 font-black uppercase text-xs">{portalShowReceipt.studentName}</span>
-                 </div>
-                 <div className="flex justify-between">
-                   <span className="text-slate-500 font-bold">LRN:</span>
-                   <span className="text-slate-900 font-mono font-bold text-xs">{portalShowReceipt.lrn}</span>
-                 </div>
-                 <div className="grid grid-cols-2 gap-2 border-t border-slate-200 pt-1.5 mt-1.5 text-[11px]">
-                   <div>
-                     <span className="text-slate-500 font-bold block text-[9px]">Section</span>
-                     <span className="text-slate-800 font-bold uppercase">{portalShowReceipt.sectionName}</span>
-                   </div>
-                   <div>
-                     <span className="text-slate-500 font-bold block text-[9px]">Collector</span>
-                     <span className="text-slate-800 font-bold uppercase truncate max-w-[150px]" title={portalShowReceipt.collectorName}>{portalShowReceipt.collectorName}</span>
-                   </div>
-                 </div>
-               </div>
-
-               <div className="border border-slate-200 rounded-xl overflow-hidden bg-white text-xs">
-                 <div className="bg-slate-50 px-3 py-2 border-b border-slate-200 flex justify-between text-[9px] font-black text-slate-400 uppercase">
-                   <span>Particulars</span>
-                   <span>Amount Paid</span>
-                 </div>
-                 <div className="p-4 flex justify-between items-center font-bold">
-                   <div>
-                     <h4 className="text-slate-900 font-black">{portalShowReceipt.feeName}</h4>
-                     <span className="text-[10px] text-slate-400 font-normal">Strictly voluntary parent association fund</span>
-                   </div>
-                   <span className="font-mono text-slate-900 text-sm font-black">₱{portalShowReceipt.amountPaid.toFixed(2)}</span>
-                 </div>
-               </div>
-             </div>
-
-             <div className="bg-slate-50 px-5 py-4 border-t border-slate-100 flex gap-3 shrink-0">
-               <button 
-                 onClick={() => setPortalShowReceipt(null)}
-                 className="flex-1 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold uppercase rounded-lg transition-all"
-               >
-                 Close
-               </button>
-                  <button 
-                 onClick={() => {
-                   const printWindow = { document: { write: (html: string) => printHTMLContent(html), close: () => {} } };
-                   if (printWindow) {
-                     const receiptHTML = `
-                     <div style="font-family: Arial, sans-serif; max-width: 100%; margin: 0 auto; color: #111;">
-                       <div style="text-align: center; border-bottom: 2px dashed #ccc; padding-bottom: 20px; margin-bottom: 20px;">
-                         <div style="font-size: 10px; font-weight: bold; letter-spacing: 2px; color: #666; text-transform: uppercase;">Parent-Teacher Association</div>
-                         <div style="font-size: 18px; font-weight: 900; margin-top: 5px; text-transform: uppercase;">Official PTA Receipt</div>
-                         <div style="font-size: 12px; font-weight: bold; color: #333; margin-top: 5px; text-transform: uppercase;">${section.schoolName || 'PTA'}</div>
-                       </div>
-                       
-                       <div style="display: flex; justify-content: space-between; margin-bottom: 20px; font-size: 12px;">
-                         <div>
-                           <div style="font-size: 10px; color: #666; font-weight: bold; text-transform: uppercase;">OR Number</div>
-                           <div style="font-weight: bold; font-family: monospace; font-size: 14px;">${portalShowReceipt.orNumber}</div>
-                         </div>
-                         <div style="text-align: right;">
-                           <div style="font-size: 10px; color: #666; font-weight: bold; text-transform: uppercase;">Payment Date</div>
-                           <div style="font-weight: bold;">${portalShowReceipt.paymentDate}</div>
-                         </div>
-                       </div>
-                       
-                       <div style="border: 1px solid #ddd; padding: 15px; border-radius: 8px; margin-bottom: 20px; font-size: 12px; background: #f9f9f9;">
-                         <div style="font-size: 10px; font-weight: bold; color: #666; text-transform: uppercase; margin-bottom: 10px; border-bottom: 1px solid #ddd; padding-bottom: 5px;">Learner Details (${section.schoolYear})</div>
-                         <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-                           <span style="color: #666;">Full Name:</span>
-                           <span style="font-weight: bold; text-transform: uppercase;">${portalShowReceipt.studentName}</span>
-                         </div>
-                         <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-                           <span style="color: #666;">LRN:</span>
-                           <span style="font-family: monospace; font-weight: bold;">${portalShowReceipt.lrn}</span>
-                         </div>
-                         <div style="display: flex; justify-content: space-between; border-top: 1px solid #ddd; padding-top: 10px;">
-                           <div>
-                             <div style="font-size: 10px; color: #666;">Section</div>
-                             <div style="font-weight: bold; text-transform: uppercase;">${section.name}</div>
-                           </div>
-                           <div style="text-align: right;">
-                             <div style="font-size: 10px; color: #666;">Grade Level</div>
-                             <div style="font-weight: bold; text-transform: uppercase;">Grade ${section.gradeLevel}</div>
-                           </div>
-                         </div>
-                       </div>
-                       
-                       <div style="border: 1px solid #ddd; border-radius: 8px; overflow: hidden; margin-bottom: 20px;">
-                         <div style="padding: 15px; font-size: 12px;">
-                           <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-                             <span style="font-weight: bold;">${portalShowReceipt.feeName}</span>
-                             <span style="font-weight: bold; font-family: monospace;">PHP ${portalShowReceipt.amountPaid.toFixed(2)}</span>
-                           </div>
-                         </div>
-                         <div style="background: #f1f5f9; padding: 15px; border-top: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center;">
-                           <span style="font-size: 10px; font-weight: bold; text-transform: uppercase;">Total Received Amount</span>
-                           <span style="font-size: 16px; font-weight: 900; color: #1e1b4b; font-family: monospace;">PHP ${portalShowReceipt.amountPaid.toFixed(2)}</span>
-                         </div>
-                       </div>
-                       
-                       <div style="margin-bottom: 30px;">
-                         <div style="font-size: 10px; font-weight: bold; color: #666; text-transform: uppercase;">Recorded Collector</div>
-                         <div style="font-weight: bold; border-bottom: 1px solid #000; display: inline-block; padding-bottom: 2px; padding-right: 40px; margin-top: 5px;">${portalShowReceipt.collectorName}</div>
-                       </div>
-                       
-                       <div style="text-align: center; border: 1px solid #e0e7ff; background: #eef2ff; border-radius: 8px; padding: 15px;">
-                         <div style="font-size: 9px; font-weight: bold; color: #312e81; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px;">OFFICIAL PTA DISCLOSURE COMPLIANCE</div>
-                         <div style="font-size: 11px; font-weight: bold; font-style: italic; color: #3730a3; margin-bottom: 5px;">"PTA contributions are voluntary and not mandatory under DepEd policies."</div>
-                         <div style="font-size: 9px; color: #64748b;">This receipt is proof of voluntary parent support and cannot hinder school enrollment or grade processing.</div>
-                       </div>
-                     </div>
-                     `;
-                    printWindow.document.write('<html><head><title>Official PTA Receipt - ' + portalShowReceipt.orNumber + '</title><style>@page { size: A5 portrait; margin: 15mm; } body { padding: 0; margin: 0; }</style></head><body>' + receiptHTML + '<script>window.onload = function() { window.onafterprint = function() { window.close(); }; window.onfocus = function() { setTimeout(function() { window.close(); }, 800); }; setTimeout(function() { window.print(); }, 500); };</script></body></html>');
-                     printWindow.document.close();
-                   }
-                 }}
-                 className="flex-1 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold uppercase rounded-lg transition-all flex items-center justify-center gap-1.5 animate-pulse"
-               >
-                 <Printer size={12} />
-                 Print Receipt
-               </button>
-             </div>
-           </div>
-         </div>
-       )}
 
        <AnimatePresence>
           {selectedTermDetail && (
