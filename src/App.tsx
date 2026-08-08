@@ -99,7 +99,6 @@ import {
 
 import { ThemeCustomizerModal, DEFAULT_THEME_SETTINGS, SystemThemeSettings } from "./components/ThemeCustomizerModal";
 import { SystemDocumentationView } from "./components/SystemDocumentationView";
-import { PTAFeesManagementView } from "./components/PTAFeesManagementView";
 import { SF8View } from "./components/SF8View";
 import { ManualSiblingSelector } from "./components/ManualSiblingSelector";
 import { PhotoCropModal } from "./components/PhotoCropModal";
@@ -1123,7 +1122,7 @@ export default function App() {
   const [activeSchool, setActiveSchool] = useState<School | null>(null);
   const [teacherCount, setTeacherCount] = useState<number>(0);
   
-  const [activeTab, setActiveTab ] = useState<"dashboard" | "gradebook" | "enroll" | "subjects" | "summary" | "guide" | "sys-docs" | "attendance" | "sf2" | "observed-values" | "sf10" | "transfers" | "sf8" | "sf4" | "sf7" | "anecdotes" | "tle-dashboard" | "pta">("dashboard");
+  const [activeTab, setActiveTab ] = useState<"dashboard" | "gradebook" | "enroll" | "subjects" | "summary" | "guide" | "sys-docs" | "attendance" | "sf2" | "observed-values" | "sf10" | "transfers" | "sf8" | "sf4" | "sf7" | "anecdotes" | "tle-dashboard">("dashboard");
   const [preselectedStudentForAnecdotal, setPreselectedStudentForAnecdotal] = useState<Student | null>(null);
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [isSettingsDropdownOpen, setIsSettingsDropdownOpen] = useState(false);
@@ -4168,7 +4167,6 @@ export default function App() {
                 { id: 'observed-values', label: 'Teacher Comments/Remarks', shortLabel: 'Remarks', icon: <Heart size={14} /> },
                 { id: 'anecdotes', label: 'Anecdotal Records', shortLabel: 'Anecdotes', icon: <MessageSquare size={14} /> },
                 { id: 'sf8', label: 'School Form 8', shortLabel: 'SF8 Health', icon: <Activity size={14} /> },
-                { id: 'pta', label: 'PTA Fees', shortLabel: 'PTA Fees', icon: <CreditCard size={14} /> },
                 { id: 'sf4', label: 'School Form 4', shortLabel: 'SF4 Report', icon: <FileText size={14} /> },
                 { id: 'sf7', label: 'School Form 7', shortLabel: 'SF7 Profile', icon: <FileText size={14} /> },
                 { id: 'guide', label: 'Guide', shortLabel: 'Guide', icon: <HelpCircle size={14} /> },
@@ -4190,7 +4188,7 @@ export default function App() {
 
                 if (userProfile?.role === 'system_admin' || userProfile?.role === 'admin' || isAuthorizedCashier) {
                   const allowedTabsList = [
-                    'dashboard', 'enroll', 'subjects', 'sf8', 'pta', 'guide', 'sys-docs', 'gradebook', 'summary', 'attendance', 'observed-values', 'sf2', 'transfers', 'sf10', 'sf4', 'sf7', 'anecdotes', 'logs', 'logs-clear', 'aral'
+                    'dashboard', 'enroll', 'subjects', 'sf8', 'guide', 'sys-docs', 'gradebook', 'summary', 'attendance', 'observed-values', 'sf2', 'transfers', 'sf10', 'sf4', 'sf7', 'anecdotes', 'logs', 'logs-clear', 'aral'
                   ];
                   if (userProfile?.role === 'system_admin') {
                     return allowedTabsList.filter(id => {
@@ -4203,16 +4201,16 @@ export default function App() {
                   return allowedTabsList.filter(id => id !== 'sf4').includes(tab.id);
                 }
                 if (userProfile?.role === 'school_head') {
-                   return ['sf8', 'sf4', 'sf10', 'anecdotes', 'pta', 'aral'].includes(tab.id);
+                   return ['sf8', 'sf4', 'sf10', 'anecdotes', 'aral'].includes(tab.id);
                 }
                 if (userProfile?.role === 'guidance_designate') {
                    return ['anecdotes', 'aral'].includes(tab.id);
                 }
                 if (userProfile?.role === 'teacher') {
                   if (isSectionAdviser) {
-                    return ['dashboard', 'enroll', 'subjects', 'sf8', 'pta', 'sf10', 'attendance', 'observed-values', 'sf2', 'transfers', 'anecdotes', 'guide', 'gradebook', 'summary', 'aral'].includes(tab.id);
+                    return ['dashboard', 'enroll', 'subjects', 'sf8', 'sf10', 'attendance', 'observed-values', 'sf2', 'transfers', 'anecdotes', 'guide', 'gradebook', 'summary', 'aral'].includes(tab.id);
                   }
-                  return tab.id === 'gradebook' || tab.id === 'dashboard' || tab.id === 'anecdotes' || tab.id === 'pta' || tab.id === 'aral';
+                  return tab.id === 'gradebook' || tab.id === 'dashboard' || tab.id === 'anecdotes' || tab.id === 'aral';
                 }
                 return true;
               });
@@ -4237,7 +4235,7 @@ export default function App() {
                 </button>
               );
 
-              const mgmtTabs = allowedTabs.filter(t => ['enroll', 'transfers', 'sf8', 'pta'].includes(t.id));
+              const mgmtTabs = allowedTabs.filter(t => ['enroll', 'transfers', 'sf8'].includes(t.id));
               const attTabs = allowedTabs.filter(t => ['attendance', 'sf2', 'observed-values', 'anecdotes'].includes(t.id));
               const academicTabs = allowedTabs.filter(t => ['subjects', 'gradebook', 'summary', 'sf10', 'sf4', 'sf7'].includes(t.id));
               const supportTabsGroup = allowedTabs.filter(t => ['guide', 'sys-docs'].includes(t.id));
@@ -4749,7 +4747,7 @@ export default function App() {
                   onUnfinalizeYearEnd={handleUnfinalizeYearEnd}
                   onToggleFinalizeSubjectTerm={handleToggleFinalizeSubjectTerm}
                   section={selectedSection}
-                  onShowFinancialStatement={() => setActiveTab('pta')}
+                  onShowFinancialStatement={handleShowFinancialStatement}
                   isAuthorizedCashier={isAuthorizedCashier}
                   isSectionAdviser={isSectionAdviser}
                   isEntireSchoolFinalized={isEntireSchoolFinalized}
@@ -4971,22 +4969,6 @@ export default function App() {
                   sections={sections}
                   preselectedStudent={preselectedStudentForAnecdotal}
                   onClearPreselectedStudent={() => setPreselectedStudentForAnecdotal(null)}
-                />
-              </motion.div>
-            )}
-            {activeTab === 'pta' && (
-              <motion.div 
-                key="pta"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.2 }}
-              >
-                <PTAFeesManagementView
-                  currentUser={currentUser}
-                  userProfile={userProfile}
-                  selectedSection={selectedSection}
-                  sections={sections}
                 />
               </motion.div>
             )}
