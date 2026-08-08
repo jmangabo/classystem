@@ -203,8 +203,8 @@
       "required": ["studentId", "studentName", "sectionId", "sectionName", "date", "category", "observation", "createdBy", "createdAt"]
     },
     "PTAFee": {
-      "title": "SPTA Contribution",
-      "description": "Official SPTA Contribution encoded by admins",
+      "title": "PTA Fee",
+      "description": "Official PTA fee or contribution encoded by admins",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -224,8 +224,8 @@
       "required": ["name", "amount", "schoolYear", "status", "isVoluntary", "schoolId"]
     },
     "PTAPayment": {
-      "title": "SPTA Payment",
-      "description": "Payment transactions for voluntary SPTA Contributions per learner",
+      "title": "PTA Payment",
+      "description": "Payment transactions for voluntary PTA contributions per learner",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -240,8 +240,6 @@
         "amountPaid": { "type": "number" },
         "paymentDate": { "type": "string", "format": "date" },
         "orNumber": { "type": "string" },
-        "treasurerName": { "type": "string" },
-        "treasurerEmail": { "type": "string" },
         "collectorName": { "type": "string" },
         "collectorEmail": { "type": "string" },
         "schoolYear": { "type": "string" },
