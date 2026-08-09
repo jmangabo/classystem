@@ -853,17 +853,35 @@ export default function App() {
   // Automatically update active theme state when user changes or logs in/out
   useEffect(() => {
     try {
-      const userKey = activeUserId ? `class_enterprise_system_theme_${activeUserId}` : 'class_enterprise_system_theme_guest';
-      const saved = localStorage.getItem(userKey);
-      if (saved) {
-        setSystemThemeSettings(JSON.parse(saved));
-      } else if (!activeUserId) {
-        setSystemThemeSettings(DEFAULT_THEME_SETTINGS);
+      if (userProfile?.themeSettings) {
+        setSystemThemeSettings(userProfile.themeSettings);
+      } else {
+        const userKey = activeUserId ? `class_enterprise_system_theme_${activeUserId}` : 'class_enterprise_system_theme_guest';
+        const saved = localStorage.getItem(userKey);
+        if (saved) {
+          setSystemThemeSettings(JSON.parse(saved));
+        } else if (!activeUserId) {
+          setSystemThemeSettings(DEFAULT_THEME_SETTINGS);
+        }
       }
     } catch (err) {
       console.error('Error loading per-user theme:', err);
     }
-  }, [activeUserId]);
+  }, [activeUserId, userProfile?.themeSettings]);
+
+  const handleUpdateThemeSettings = async (newSettings: SystemThemeSettings) => {
+    setSystemThemeSettings(newSettings);
+    if (userProfile && userProfile.uid && !userProfile.uid.startsWith('demo-')) {
+      try {
+        await updateDoc(doc(db, "users", userProfile.uid), {
+          themeSettings: newSettings
+        });
+        setUserProfile(prev => prev ? { ...prev, themeSettings: newSettings } : null);
+      } catch (err) {
+        console.error("Failed to save theme settings to firestore:", err);
+      }
+    }
+  };
 
   useEffect(() => {
     try {
@@ -4003,8 +4021,8 @@ export default function App() {
           isOpen={isThemeModalOpen}
           onClose={() => setIsThemeModalOpen(false)}
           settings={systemThemeSettings}
-          onUpdateSettings={setSystemThemeSettings}
-          onResetSettings={() => setSystemThemeSettings(DEFAULT_THEME_SETTINGS)}
+          onUpdateSettings={handleUpdateThemeSettings}
+          onResetSettings={() => handleUpdateThemeSettings(DEFAULT_THEME_SETTINGS)}
         />
       </>
     );
@@ -5672,8 +5690,8 @@ export default function App() {
         isOpen={isThemeModalOpen}
         onClose={() => setIsThemeModalOpen(false)}
         settings={systemThemeSettings}
-        onUpdateSettings={setSystemThemeSettings}
-        onResetSettings={() => setSystemThemeSettings(DEFAULT_THEME_SETTINGS)}
+        onUpdateSettings={handleUpdateThemeSettings}
+        onResetSettings={() => handleUpdateThemeSettings(DEFAULT_THEME_SETTINGS)}
       />
     </div>
   );
@@ -9569,28 +9587,63 @@ function SectionsView({
                 
                 const { section } = item;
                 const isExpired = section.schoolId ? expiredSchoolIds.includes(section.schoolId) : false;
+                const currentUserEmail = (user?.email || "").trim().toLowerCase();
+                const isAdviserOfSection = currentUserEmail.length > 0 && (section.adviserEmail || "").trim().toLowerCase() === currentUserEmail;
+                const isSubjectTeacherOfSection = currentUserEmail.length > 0 && (
+                  subjects.some(s => s.sectionId === section.id && (s.teacherEmail || "").trim().toLowerCase() === currentUserEmail) || 
+                  (section.subjectTeachers && Object.values(section.subjectTeachers).some(tEmail => typeof tEmail === 'string' && tEmail.trim().toLowerCase() === currentUserEmail))
+                );
+
+                const cardBgClasses = isAdviserOfSection
+                  ? 'bg-emerald-50/20 border-emerald-200 hover:border-emerald-400 hover:shadow-emerald-100'
+                  : isSubjectTeacherOfSection
+                  ? 'bg-indigo-50/20 border-indigo-200 hover:border-indigo-400 hover:shadow-indigo-100'
+                  : 'bg-white border-slate-200 hover:border-indigo-300';
+
+                const iconBgClasses = isAdviserOfSection
+                  ? 'bg-emerald-100 text-emerald-700 border-emerald-200 group-hover:bg-emerald-600 group-hover:text-white group-hover:border-emerald-600'
+                  : isSubjectTeacherOfSection
+                  ? 'bg-indigo-100 text-indigo-700 border-indigo-200 group-hover:bg-indigo-600 group-hover:text-white group-hover:border-indigo-600'
+                  : 'bg-indigo-50 text-indigo-600 border-indigo-100/50 group-hover:bg-indigo-600 group-hover:text-white group-hover:border-indigo-600';
+
+                const cornerGlowClasses = isAdviserOfSection
+                  ? 'bg-emerald-100/30 group-hover:bg-emerald-200/40'
+                  : isSubjectTeacherOfSection
+                  ? 'bg-indigo-100/30 group-hover:bg-indigo-200/40'
+                  : 'bg-indigo-50/50 group-hover:bg-indigo-100/50';
+
                 return (
                 <motion.div 
                   key={section.id}
                   whileHover={isExpired ? {} : { y: -4 }}
                   onClick={(isExpired && user?.role !== 'admin') ? undefined : () => onSelect(section)}
-                  className={`flex flex-col bg-white p-6 rounded-2xl border border-slate-200 shadow-sm transition-all duration-300 group ${(isExpired && user?.role !== 'admin') ? 'opacity-50 cursor-not-allowed' : 'hover:shadow-md hover:border-indigo-300 cursor-pointer relative overflow-hidden'}`}
+                  className={`flex flex-col p-6 rounded-2xl border shadow-sm transition-all duration-300 group cursor-pointer relative overflow-hidden ${cardBgClasses} ${(isExpired && user?.role !== 'admin') ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50/50 rounded-bl-full -z-10 group-hover:bg-indigo-100/50 transition-colors"></div>
+                  <div className={`absolute top-0 right-0 w-32 h-32 rounded-bl-full -z-10 transition-colors ${cornerGlowClasses}`}></div>
                   
                   <div className="flex justify-between items-start mb-5 relative z-10">
                     <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-colors border border-indigo-100/50 group-hover:border-indigo-600 shrink-0">
+                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors border shrink-0 ${iconBgClasses}`}>
                         <Users size={24} />
                       </div>
                       <div>
                         {section.schoolName ? (
                           <p className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest mb-1">{section.schoolName}</p>
                         ) : null}
-                        <div className="flex items-center flex-wrap gap-2">
+                        <div className="flex items-center flex-wrap gap-1.5">
                            <span className="text-[10px] font-semibold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md border border-slate-200">
                              {(Number(section.gradeLevel) === 0) ? "Kindergarten" : `Grade ${section.gradeLevel}`}
                            </span>
+                           {isAdviserOfSection && (
+                             <span className="text-[10px] font-black bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-md border border-emerald-300 shadow-2xs">
+                               Assigned Section
+                             </span>
+                           )}
+                           {isSubjectTeacherOfSection && (
+                             <span className="text-[10px] font-black bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-md border border-indigo-300 shadow-2xs">
+                               Assigned Subjects
+                             </span>
+                           )}
                            <SectionYearEndBadge sectionId={section.id} schoolYear={section.schoolYear} globalSettings={globalSettings} isSectionFinalized={section.isFinalized} />
                            {isExpired && (
                              <span className="text-[10px] font-semibold bg-red-50 text-red-600 px-2 py-0.5 rounded-md border border-red-200">Expired</span>
@@ -28391,21 +28444,27 @@ function AdminUsersView({
                           
                           {isExpanded && (
                             <div className="p-4 border-t border-slate-100 bg-white space-y-4">
-                              {/* Advisership Sections */}
+                              {/* Assigned Section (Advisorship) */}
                               <div>
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Advisory Classrooms ({syAdviserSections.length})</p>
+                                <div className="flex items-center gap-1.5 mb-2">
+                                  <span className="size-2 bg-emerald-500 rounded-full" />
+                                  <p className="text-[10px] font-black text-emerald-900 uppercase tracking-widest">Assigned Section ({syAdviserSections.length})</p>
+                                </div>
                                 {syAdviserSections.length === 0 ? (
-                                  <p className="text-xs text-slate-400 bg-slate-50/30 p-2.5 rounded-xl border border-slate-100/50 italic">No class Advisory rooms in this school year.</p>
+                                  <p className="text-xs text-slate-400 bg-slate-50/50 p-2.5 rounded-xl border border-slate-100 italic">No assigned section for this school year.</p>
                                 ) : (
                                   <div className="space-y-1.5">
                                     {syAdviserSections.map(sec => (
-                                      <div key={sec.id} className="flex items-center justify-between p-3 bg-emerald-50/40 border border-emerald-100/50 rounded-xl">
+                                      <div key={sec.id} className="flex items-center justify-between p-3 bg-emerald-50/80 border border-emerald-200/80 rounded-xl shadow-2xs">
                                         <div className="flex items-center gap-2">
-                                          <div className="size-2 bg-emerald-500 rounded-full animate-pulse" />
-                                          <span className="text-xs font-bold text-slate-750">{sec.name}</span>
+                                          <div className="size-2.5 bg-emerald-600 rounded-full animate-pulse" />
+                                          <div>
+                                            <span className="text-xs font-black text-emerald-950 uppercase">{sec.name}</span>
+                                            <p className="text-[10px] text-emerald-700 font-bold mt-0.5">Grade {sec.gradeLevel} &bull; Class Adviser</p>
+                                          </div>
                                         </div>
-                                        <span className="text-[9px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-md font-black uppercase tracking-widest">
-                                          Adviser
+                                        <span className="text-[9px] bg-emerald-600 text-white px-2.5 py-1 rounded-lg font-black uppercase tracking-widest shadow-2xs">
+                                          Assigned Section
                                         </span>
                                       </div>
                                     ))}
@@ -28413,23 +28472,26 @@ function AdminUsersView({
                                 )}
                               </div>
                               
-                              {/* Subject Loading Section */}
-                              <div className="pt-2 border-t border-slate-50">
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Academic Subject Load ({syAssignedSubjects.length})</p>
+                              {/* Assigned Subjects (Teaching Load) */}
+                              <div className="pt-3 border-t border-slate-100">
+                                <div className="flex items-center gap-1.5 mb-2">
+                                  <span className="size-2 bg-indigo-500 rounded-full" />
+                                  <p className="text-[10px] font-black text-indigo-900 uppercase tracking-widest">Assigned Subjects ({syAssignedSubjects.length})</p>
+                                </div>
                                 {syAssignedSubjects.length === 0 ? (
-                                  <p className="text-xs text-slate-400 bg-slate-50/30 p-2.5 rounded-xl border border-slate-100/50 italic">No academic subjects in this school year.</p>
+                                  <p className="text-xs text-slate-400 bg-slate-50/50 p-2.5 rounded-xl border border-slate-100 italic">No assigned subjects for this school year.</p>
                                 ) : (
                                   <div className="space-y-1.5">
                                     {syAssignedSubjects.map(sub => {
                                       const sec = sectionMap.get(sub.sectionId || '');
-                                      const secLabel = sec ? `${sec.name}` : 'Unknown';
+                                      const secLabel = sec ? `${sec.name}` : 'Unknown Section';
                                       return (
-                                        <div key={`${sub.id}-${sub.sectionId || ''}`} className="flex items-center justify-between p-3 bg-indigo-50/40 border border-indigo-100/50 rounded-xl">
+                                        <div key={`${sub.id}-${sub.sectionId || ''}`} className="flex items-center justify-between p-3 bg-indigo-50/80 border border-indigo-200/80 rounded-xl shadow-2xs">
                                           <div>
-                                            <p className="text-xs font-semibold text-slate-800">{sub.name}</p>
-                                            <p className="text-[10px] text-slate-400 mt-0.5">Section Name: <span className="font-bold text-slate-600">{secLabel}</span></p>
+                                            <p className="text-xs font-black text-indigo-950 uppercase">{sub.name}</p>
+                                            <p className="text-[10px] text-indigo-700 font-bold mt-0.5">Section: <span className="font-extrabold text-indigo-900">{secLabel}</span></p>
                                           </div>
-                                          <span className="text-[9px] bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-md font-semibold uppercase tracking-wide">Teacher</span>
+                                          <span className="text-[9px] bg-indigo-600 text-white px-2.5 py-1 rounded-lg font-black uppercase tracking-widest shadow-2xs">Assigned Subject</span>
                                         </div>
                                       );
                                     })}

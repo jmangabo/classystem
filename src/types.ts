@@ -209,6 +209,8 @@ export interface Section {
   subjectTeachers?: Record<string, string>;
 }
 
+import type { SystemThemeSettings } from './components/ThemeCustomizerModal';
+
 export interface UserProfile {
   uid: string;
   email: string;
@@ -218,6 +220,7 @@ export interface UserProfile {
   schoolId?: string;
   approvalStatus?: 'pending' | 'approved' | 'rejected';
   expiresAt?: string;
+  themeSettings?: SystemThemeSettings;
 }
 
 export interface Course {
