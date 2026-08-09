@@ -18773,7 +18773,7 @@ function GradebookView({
         </div>
 
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm overflow-hidden">
-          <div className="overflow-x-auto relative max-h-[75vh] custom-scrollbar">
+          <div className="overflow-x-auto relative custom-scrollbar">
             <table className="w-full border-collapse text-xs border border-slate-200 dark:border-slate-800 min-w-[1800px]">
                <thead className="sticky top-0 z-30 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
                  {/* Visual Header Grouping */}
