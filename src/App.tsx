@@ -4128,7 +4128,7 @@ export default function App() {
     <div className="flex flex-col h-screen bg-[#f8fafc] text-slate-900 font-sans overflow-hidden">
       {!globalSettings?.activeSchoolYear && <EncodingClosedBanner />}
       <DeadlineBanner globalSettings={globalSettings} />
-      <header className="sticky top-0 z-[100] h-16 bg-white border-b border-slate-200 flex items-center justify-between px-3 sm:px-4 xl:px-8 shrink-0 shadow-sm overflow-visible">
+      <header className="sticky top-0 z-[100] h-16 bg-white border-b border-slate-200 flex items-center justify-between px-3 sm:px-4 xl:px-8 shrink-0 shadow-sm overflow-hidden">
         {/* Left Side: Back button, Logo, & Interactive Quick Section Switcher */}
         <div className="flex items-center gap-2 sm:gap-4 xl:gap-6 min-w-0">
           <div className="flex items-center gap-2 sm:gap-4 border-r border-slate-100 pr-2 sm:pr-4 shrink-0">
@@ -4773,7 +4773,7 @@ export default function App() {
       </AnimatePresence>
 
       {/* Workspace Area */}
-      <main className={`flex-1 overflow-x-hidden overflow-y-auto bg-[#fcfdfe] scroll-smooth custom-scrollbar ${['gradebook', 'summary', 'dashboard', 'subjects', 'enroll', 'guide', 'sf8', 'transfers', 'sf10', 'observed-values', 'pta', 'tle-dashboard'].includes(activeTab) ? 'p-0' : 'p-6 md:p-12'}`}>
+      <main className={`flex-1 overflow-auto bg-[#fcfdfe] scroll-smooth custom-scrollbar ${['gradebook', 'summary', 'dashboard', 'subjects', 'enroll', 'guide', 'sf8', 'transfers', 'sf10', 'observed-values', 'pta', 'tle-dashboard'].includes(activeTab) ? 'p-0' : 'p-6 md:p-12'}`}>
         <div className={`${['gradebook', 'summary', 'dashboard', 'subjects', 'enroll', 'guide', 'sf8', 'transfers', 'sf10', 'observed-values', 'pta', 'tle-dashboard'].includes(activeTab) ? 'w-full' : 'max-w-full 2xl:max-w-[1600px] mx-auto w-full'}`}>
           <AnimatePresence mode="wait">
             {activeTab === 'tle-dashboard' && (
@@ -7110,7 +7110,7 @@ function StatementOfAccountView({
       </div>
 
       {/* Main Print Wrapper */}
-      <div className="bg-white border border-slate-200 shadow-sm rounded-3xl overflow-hidden print:overflow-visible print:border-0 print:shadow-none print:rounded-none">
+      <div className="bg-white border border-slate-200 shadow-sm rounded-3xl overflow-hidden print:overflow-hidden print:border-0 print:shadow-none print:rounded-none">
         
         {/* Top Header Decors / Corporate Ribbon (hidden in print) */}
         <div className="bg-gradient-to-r from-indigo-600 to-indigo-800 h-2.5 print:hidden"></div>
@@ -8382,7 +8382,7 @@ function SectionsView({
   };
 
   return (
-    <div className="h-screen print:h-auto bg-slate-50 flex flex-col font-sans overflow-hidden print:overflow-visible">
+    <div className="h-screen print:h-auto bg-slate-50 flex flex-col font-sans overflow-hidden print:overflow-hidden">
       
       <AnimatePresence>
         {showRequestsModal && (
@@ -8658,7 +8658,7 @@ function SectionsView({
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto print:overflow-visible print:h-auto print:block print:p-0 p-12 custom-scrollbar">
+      <main className="flex-1 overflow-y-auto print:overflow-hidden print:h-auto print:block print:p-0 p-12 custom-scrollbar">
         <div className="max-w-full 2xl:max-w-[1600px] w-full mx-auto space-y-12">
           {showProfile ? (
             <ProfileView 
@@ -18772,8 +18772,8 @@ function GradebookView({
           )}
         </div>
 
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm overflow-hidden">
-          <div className="overflow-x-auto relative custom-scrollbar">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm">
+          <div className="relative">
             <table className="w-full border-collapse text-xs border border-slate-200 dark:border-slate-800 min-w-[1800px]">
                <thead className="sticky top-0 z-30 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
                  {/* Visual Header Grouping */}
@@ -23834,7 +23834,7 @@ function MATATAGReportCardModal({
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col items-center justify-start py-8 overflow-y-auto bg-slate-100 gap-10 print:bg-white print:p-0 print:overflow-visible print:block">
+      <div className="flex-1 flex flex-col items-center justify-start py-8 overflow-y-auto bg-slate-100 gap-10 print:bg-white print:p-0 print:overflow-hidden print:block">
         <motion.div 
           ref={cardRef}
           initial={{ scale: 0.98, opacity: 0, y: 15 }}

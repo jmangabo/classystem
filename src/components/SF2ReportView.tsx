@@ -518,8 +518,8 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
               <span class="info-value">${section.schoolYear || ''}</span>
             </div>
             <div class="info-item">
-              <span class="info-label">Grade Level:</span>
-              <span class="info-value">${section.gradeLevel}</span>
+              <span class="info-label">Grade Level - Section:</span>
+              <span class="info-value">${section.gradeLevel} - ${section.name}</span>
             </div>
 
             <div class="info-item col-span-2">
@@ -2099,8 +2099,7 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
                  <div className="flex gap-2 min-w-[120px]"><span>School Year:</span> <span className="border-b border-black flex-1 text-center">{section.schoolYear || ''}</span></div>
                  <div className="flex gap-2 min-w-[200px]"><span>Report for the Month of:</span> <span className="border-b border-black flex-1 text-center text-indigo-700">{currentMonthData.month} (Term {currentMonthData.term})</span></div>
                  <div className="w-full flex gap-2"></div>
-                 <div className="flex gap-2 min-w-[200px]"><span>Grade Level:</span> <span className="border-b border-black flex-1 text-center">{section.gradeLevel}</span></div>
-                 <div className="flex gap-2 min-w-[200px]"><span>Section:</span> <span className="border-b border-black flex-1 text-center">{section.name}</span></div>
+                 <div className="flex gap-2 min-w-[300px]"><span>Grade Level & Section:</span> <span className="border-b border-black flex-1 text-center">{section.gradeLevel} - {section.name}</span></div>
                </div>
 
                {/* Table Section */}
@@ -2368,7 +2367,7 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
                     
                     <div className="flex gap-1 items-end col-span-2"><span>School Name:</span> <span className="border-b border-black flex-1 text-center font-bold pb-0.5">{section.schoolName || ''}</span></div>
                     <div className="flex gap-1 items-end"><span>School Year:</span> <span className="border-b border-black flex-1 text-center font-bold pb-0.5">{section.schoolYear || ''}</span></div>
-                    <div className="flex gap-1 items-end"><span>Grade Level:</span> <span className="border-b border-black flex-1 text-center font-bold pb-0.5">{section.gradeLevel}</span></div>
+                    <div className="flex gap-1 items-end"><span>Grade Level & Section:</span> <span className="border-b border-black flex-1 text-center font-bold pb-0.5">{section.gradeLevel} - {section.name}</span></div>
 
                     <div className="flex gap-1 items-end col-span-2"><span>Adviser Name:</span> <span className="border-b border-black flex-1 text-center font-bold pb-0.5">{section.adviserName || ''}</span></div>
                     <div className="flex gap-1 items-end col-span-2"><span>Report for the Month of:</span> <span className="border-b border-black flex-1 text-center text-indigo-700 font-bold pb-0.5">{currentMonthData.month} (Term {currentMonthData.term})</span></div>
