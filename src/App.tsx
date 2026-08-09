@@ -18234,8 +18234,8 @@ function GradebookView({
     if (validStudents.length === 0) return null;
     return (
       <>
-        <tr className="bg-slate-100/90 dark:bg-slate-800/90 border-b border-slate-200 dark:border-slate-700">
-          <td colSpan={25} className="sticky left-0 px-4 py-2 text-[11px] font-black text-slate-700 dark:text-slate-200 uppercase tracking-widest border-r border-b border-slate-200 dark:border-slate-700 bg-slate-100/90 dark:bg-slate-800/90 backdrop-blur-sm z-20">
+        <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+          <td colSpan={25} className="sticky left-0 px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-400 border-r border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 z-20">
             {label} Students ({validStudents.length})
           </td>
         </tr>
@@ -18255,37 +18255,35 @@ function GradebookView({
                                     (data.termExam?.score && Number(data.termExam.score) > 0);
         const showManualDropdown = student.isTransferredIn && (activeTerm < systemCurrentTerm || data.manualFinalGrade > 0);
         return (
-          <tr key={student.id} className={`hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors group ${isInactive ? 'opacity-60 bg-slate-50 dark:bg-slate-850' : 'border-b border-slate-200 dark:border-slate-800'}`}>
-            <td className="sticky left-0 bg-white dark:bg-slate-900 group-hover:bg-slate-50 dark:group-hover:bg-slate-800 z-20 px-4 py-2.5 text-xs font-bold text-slate-900 dark:text-slate-100 border-r border-slate-200 dark:border-slate-700 border-b border-slate-100 dark:border-slate-800 min-w-[220px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]">
-              <div className="flex items-center justify-between gap-1">
-                <div className="flex flex-col gap-1">
-                  <span className={isDroppedOrTransferred ? 'line-through text-slate-400 dark:text-slate-500' : 'text-slate-900 dark:text-slate-100 font-bold'}>{formatStudentName(student)}</span>
-                  {student.sectionName && (
-                    <span className="text-[9px] text-slate-500 dark:text-slate-400 font-medium">
-                      {(student as any).sectionName}
-                    </span>
-                  )}
-                  {isTransferredOut && (
-                    <span className="text-[8px] bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 px-1.5 py-0.5 rounded-full w-fit font-black uppercase tracking-widest border border-rose-200 dark:border-rose-800">
-                      Transferred {student.dropoutDate ? `(${new Date(student.dropoutDate).toLocaleDateString(undefined, { month: 'short' })})` : ''}{student.dropoutReason ? ` - ${student.dropoutReason}` : ''}
-                    </span>
-                  )}
-                  {isDroppedOut && (
-                    <span className="text-[8px] bg-orange-100 dark:bg-orange-950/80 text-orange-700 dark:text-orange-300 px-1.5 py-0.5 rounded-full w-fit font-black uppercase tracking-widest border border-orange-200 dark:border-orange-800">
-                      Dropped {student.dropoutDate ? `(${new Date(student.dropoutDate).toLocaleDateString(undefined, { month: 'short' })})` : ''}{student.dropoutReason ? ` - ${student.dropoutReason}` : ''}
-                    </span>
-                  )}
-                  {isPromoted && (
-                    <span className="text-[8px] bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 px-1.5 py-0.5 rounded-full w-fit font-bold uppercase tracking-widest flex items-center justify-center gap-1 border border-emerald-200 dark:border-emerald-800">
-                      Promoted
-                    </span>
-                  )}
-                  {isRetained && (
-                    <span className="text-[8px] bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 px-1.5 py-0.5 rounded-full w-fit font-bold uppercase tracking-widest flex items-center justify-center gap-1 border border-amber-200 dark:border-amber-800">
-                      Retained
-                    </span>
-                  )}
-                </div>
+          <tr key={student.id} className={`hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group ${isInactive ? 'opacity-60 bg-slate-50 dark:bg-slate-850' : 'border-b border-slate-200 dark:border-slate-800'}`}>
+            <td className="sticky left-0 bg-white dark:bg-slate-900 group-hover:bg-slate-50 dark:group-hover:bg-slate-800 z-20 px-4 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-200 border-r border-slate-200 dark:border-slate-700 min-w-[220px]">
+              <div className="flex flex-col gap-0.5">
+                <span className={isDroppedOrTransferred ? 'line-through text-slate-400 dark:text-slate-500' : 'text-slate-800 dark:text-slate-200 font-medium'}>{formatStudentName(student)}</span>
+                {student.sectionName && (
+                  <span className="text-[10px] text-slate-400 dark:text-slate-500 font-normal">
+                    {(student as any).sectionName}
+                  </span>
+                )}
+                {isTransferredOut && (
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                    Transferred {student.dropoutDate ? `(${new Date(student.dropoutDate).toLocaleDateString(undefined, { month: 'short' })})` : ''}
+                  </span>
+                )}
+                {isDroppedOut && (
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                    Dropped {student.dropoutDate ? `(${new Date(student.dropoutDate).toLocaleDateString(undefined, { month: 'short' })})` : ''}
+                  </span>
+                )}
+                {isPromoted && (
+                  <span className="text-[10px] text-emerald-600 dark:text-emerald-500 mt-0.5">
+                    Promoted
+                  </span>
+                )}
+                {isRetained && (
+                  <span className="text-[10px] text-amber-600 dark:text-amber-500 mt-0.5">
+                    Retained
+                  </span>
+                )}
               </div>
             </td>
             {/* Written Works Inputs */}
@@ -18302,21 +18300,21 @@ function GradebookView({
                     inputMode="numeric"
                     disabled={isDisabled}
                     value={data.writtenWorks?.scores?.[i] ?? ''}
-                    placeholder={hasHps ? "0" : ""}
+                    placeholder={hasHps ? "-" : ""}
                     title={cellTitle}
                     onChange={(e) => handleScoreChange(student.id, 'written', i, e.target.value)}
-                    className={`w-full text-center text-xs font-bold p-1 outline-none transition-all h-8 ${
+                    className={`w-full text-center text-xs font-medium py-1 px-1 outline-none bg-transparent border-b border-transparent focus:border-slate-300 dark:focus:border-slate-500 text-slate-800 dark:text-slate-200 transition-all ${
                       hasHps 
-                        ? 'bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-indigo-500 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded shadow-2xs' 
+                        ? '' 
                         : 'opacity-0 cursor-not-allowed'
-                    } ${(isInactive || isSubjectTermFinalized || isTermLocked) ? 'cursor-not-allowed text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-850' : ''}`}
+                    } ${(isInactive || isSubjectTermFinalized || isTermLocked) ? 'cursor-not-allowed text-slate-400 dark:text-slate-500' : ''}`}
                   />
                 </td>
               );
             })}
-      <td className={`bg-slate-50/50 dark:bg-slate-800/50 text-center text-xs font-extrabold border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px] text-slate-900 dark:text-slate-100 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>{grades.ww.total}</td>
-      <td className={`bg-slate-50/30 dark:bg-slate-850/50 text-center text-[11px] font-semibold border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px] text-slate-700 dark:text-slate-300 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>{grades.ww.ps.toFixed(1)}</td>
-      <td className={`bg-indigo-50/30 dark:bg-indigo-950/40 text-center text-xs font-black border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px] text-indigo-950 dark:text-indigo-200 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>{grades.ww.ws.toFixed(2)}</td>
+      <td className={`bg-slate-50 dark:bg-slate-800/50 text-center text-xs font-bold border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px] text-slate-800 dark:text-slate-200 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>{grades.ww.total}</td>
+      <td className={`bg-slate-50 dark:bg-slate-800/50 text-center text-xs font-bold border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px] text-slate-800 dark:text-slate-200 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>{grades.ww.ps.toFixed(1)}</td>
+      <td className={`bg-slate-100 dark:bg-slate-700 text-center text-xs font-bold border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px] text-slate-900 dark:text-slate-100 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>{grades.ww.ws.toFixed(2)}</td>
 
       {/* Performance Tasks Inputs */}
       {[0, 1, 2, 3, 4].map(i => {
@@ -18332,21 +18330,21 @@ function GradebookView({
               inputMode="numeric"
               disabled={isDisabled}
               value={data.performanceTasks?.scores?.[i] ?? ''}
-              placeholder={hasHps ? "0" : ""}
+              placeholder={hasHps ? "-" : ""}
               title={cellTitle}
               onChange={(e) => handleScoreChange(student.id, 'performance', i, e.target.value)}
-              className={`w-full text-center text-xs font-bold p-1 outline-none transition-all h-8 ${
+              className={`w-full text-center text-xs font-medium py-1 px-1 outline-none bg-transparent border-b border-transparent focus:border-slate-300 dark:focus:border-slate-500 text-slate-800 dark:text-slate-200 transition-all ${
                 hasHps 
-                  ? 'bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-emerald-500 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded shadow-2xs' 
+                  ? '' 
                   : 'opacity-0 cursor-not-allowed'
-              } ${(isInactive || isSubjectTermFinalized || isTermLocked) ? 'cursor-not-allowed text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-850' : ''}`}
+              } ${(isInactive || isSubjectTermFinalized || isTermLocked) ? 'cursor-not-allowed text-slate-400 dark:text-slate-500' : ''}`}
             />
           </td>
         );
       })}
-      <td className={`bg-slate-50/50 dark:bg-slate-800/50 text-center text-xs font-extrabold border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px] text-slate-900 dark:text-slate-100 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>{grades.pt.total}</td>
-      <td className={`bg-slate-50/30 dark:bg-slate-850/50 text-center text-[11px] font-semibold border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px] text-slate-700 dark:text-slate-300 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>{grades.pt.ps.toFixed(1)}</td>
-      <td className={`bg-emerald-50/30 dark:bg-emerald-950/40 text-center text-xs font-black border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px] text-emerald-950 dark:text-emerald-200 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>{grades.pt.ws.toFixed(2)}</td>
+      <td className={`bg-slate-50 dark:bg-slate-800/50 text-center text-xs font-bold border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px] text-slate-800 dark:text-slate-200 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>{grades.pt.total}</td>
+      <td className={`bg-slate-50 dark:bg-slate-800/50 text-center text-xs font-bold border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px] text-slate-800 dark:text-slate-200 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>{grades.pt.ps.toFixed(1)}</td>
+      <td className={`bg-slate-100 dark:bg-slate-700 text-center text-xs font-bold border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px] text-slate-900 dark:text-slate-100 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>{grades.pt.ws.toFixed(2)}</td>
 
       {/* Summative + Exam Inputs */}
       {[0, 1].map(i => {
@@ -18361,16 +18359,16 @@ function GradebookView({
                 inputMode="numeric"
                 disabled={isDisabled}
                 value={data.summativeTests?.scores?.[i] ?? ''}
-                placeholder={hasHps ? "0" : ""}
+                placeholder={hasHps ? "-" : ""}
                 onChange={(e) => handleScoreChange(student.id, 'summative', i, e.target.value)}
-                className={`w-full text-center text-xs font-bold p-1 outline-none transition-all h-8 ${
+                className={`w-full text-center text-xs font-medium py-1 px-1 outline-none bg-transparent border-b border-transparent focus:border-slate-300 dark:focus:border-slate-500 text-slate-800 dark:text-slate-200 transition-all ${
                   hasHps 
-                    ? 'bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-amber-500 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded shadow-2xs' 
+                    ? '' 
                     : 'opacity-0 cursor-not-allowed'
-                } ${(isInactive || isSubjectTermFinalized || isTermLocked) ? 'cursor-not-allowed text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-850' : ''}`}
+                } ${(isInactive || isSubjectTermFinalized || isTermLocked) ? 'cursor-not-allowed text-slate-400 dark:text-slate-500' : ''}`}
               />
               {hasHps && (
-                <span className="text-[9px] text-amber-700 dark:text-amber-400 font-bold tracking-tight select-none mt-px" title="Weighted score (30% of category)">
+                <span className="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5 select-none" title="Weighted score (30% of category)">
                   {(((Number(data.summativeTests?.scores?.[i]) || 0) / hps) * 30).toFixed(1)}
                 </span>
               )}
@@ -18392,16 +18390,16 @@ function GradebookView({
                 inputMode="numeric"
                 disabled={isDisabled}
                 value={data.termExam?.score ?? ''}
-                placeholder={hasHps ? "0" : ""}
+                placeholder={hasHps ? "-" : ""}
                 onChange={(e) => handleExamChange(student.id, e.target.value)}
-                className={`w-full text-center text-xs font-bold p-1 outline-none transition-all h-8 ${
+                className={`w-full text-center text-xs font-medium py-1 px-1 outline-none bg-transparent border-b border-transparent focus:border-slate-300 dark:focus:border-slate-500 text-slate-800 dark:text-slate-200 transition-all ${
                   hasHps 
-                    ? 'bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-amber-500 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded shadow-2xs' 
+                    ? '' 
                     : 'opacity-0 cursor-not-allowed'
-                } ${(isInactive || isNotOffered || isSubjectTermFinalized || isTermLocked) ? 'cursor-not-allowed text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-850' : ''}`}
+                } ${(isInactive || isNotOffered || isSubjectTermFinalized || isTermLocked) ? 'cursor-not-allowed text-slate-400 dark:text-slate-500' : ''}`}
               />
               {hasHps && (
-                <span className="text-[9px] text-amber-700 dark:text-amber-400 font-bold tracking-tight select-none mt-px" title="Weighted score (40% of category)">
+                <span className="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5 select-none" title="Weighted score (40% of category)">
                   {wsValue.toFixed(1)}
                 </span>
               )}
@@ -18409,15 +18407,15 @@ function GradebookView({
           );
         })()}
       </td>
-            <td className={`bg-slate-50/50 dark:bg-slate-800/50 text-center text-xs font-extrabold border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px] text-slate-900 dark:text-slate-100 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>{grades.ta.total}</td>
-            <td className={`bg-slate-50/30 dark:bg-slate-850/50 text-center text-[11px] font-semibold border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px] text-slate-700 dark:text-slate-300 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>{grades.ta.ps.toFixed(1)}</td>
-            <td className={`bg-amber-50/30 dark:bg-amber-950/40 text-center text-xs font-black border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px] text-amber-950 dark:text-amber-200 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>{grades.ta.ws.toFixed(2)}</td>
+            <td className={`bg-slate-50 dark:bg-slate-800/50 text-center text-xs font-bold border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px] text-slate-800 dark:text-slate-200 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>{grades.ta.total}</td>
+            <td className={`bg-slate-50 dark:bg-slate-800/50 text-center text-xs font-bold border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px] text-slate-800 dark:text-slate-200 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>{grades.ta.ps.toFixed(1)}</td>
+            <td className={`bg-slate-100 dark:bg-slate-700 text-center text-xs font-bold border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px] text-slate-900 dark:text-slate-100 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>{grades.ta.ws.toFixed(2)}</td>
 
-            <td className={`px-2 text-center text-xs font-bold border-r border-slate-200 dark:border-slate-700 w-22 min-w-[88px] text-slate-800 dark:text-slate-200 bg-slate-100/60 dark:bg-slate-800/60 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>
+            <td className={`px-2 text-center text-xs font-bold border-r border-slate-200 dark:border-slate-700 w-22 min-w-[88px] text-slate-900 dark:text-slate-100 bg-slate-100 dark:bg-slate-800 ${isNotOffered ? '!bg-black !text-black pointer-events-none' : ''}`}>
               {grades.initial.toFixed(2)}
             </td>
 
-            <td className={`px-4 py-2.5 text-center font-black text-xs border border-slate-200 dark:border-slate-700 border-l-0 relative group/manual w-24 min-w-[96px] ${isNotOffered ? '!bg-black !text-black' : 'bg-indigo-50/60 dark:bg-indigo-950/60 text-indigo-950 dark:text-indigo-200 group-hover:bg-indigo-100/80 dark:group-hover:bg-indigo-900/80 shadow-2xs'}`}>
+            <td className={`px-4 py-2.5 text-center font-bold text-xs border border-slate-200 dark:border-slate-700 border-l-0 relative group/manual w-24 min-w-[96px] ${isNotOffered ? '!bg-black !text-black' : 'bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 group-hover:bg-slate-100 dark:group-hover:bg-slate-700'}`}>
               {showManualDropdown ? (
                 <div className="relative flex items-center justify-center">
                    <select
@@ -18503,22 +18501,21 @@ function GradebookView({
   }
 
   return (
-    <div className="flex flex-col bg-slate-50 min-h-screen">
-      <div className="bg-white border-b border-slate-200 shadow-sm overflow-hidden mb-0 relative">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-50/50 rounded-full blur-3xl opacity-60 -mr-10 -mt-10 pointer-events-none"></div>
-        <div className="p-6 md:p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 shrink-0 z-45 relative">
-          <div className="flex items-center gap-5 w-full md:w-auto">
-            <div className="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center border border-indigo-100 shadow-sm shrink-0">
-               <TableIcon size={24} />
+    <div className="flex flex-col bg-slate-50 dark:bg-slate-950 min-h-screen">
+      <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
+        <div className="px-6 py-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div className="flex items-center gap-4 w-full md:w-auto">
+            <div className="w-10 h-10 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg flex items-center justify-center shrink-0">
+               <TableIcon size={20} />
             </div>
-            <div className="flex flex-col flex-1 min-w-0">
-              <div className="flex items-center gap-2 group/nav-subjects">
-                <h2 className="text-2xl font-bold text-slate-900 tracking-tight leading-tight truncate">{selectedSubject.name}</h2>
-              </div>
-              <div className="flex flex-wrap items-center gap-2 md:gap-3 mt-1.5">
-                <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100 shrink-0">
+            <div className="flex flex-col">
+              <div className="flex items-center gap-2">
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">{selectedSubject.name}</h2>
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">
                   {(Number(selectedSubject.gradeLevel) === 0) ? "Kindergarten" : `Grade ${selectedSubject.gradeLevel}`}
                 </span>
+              </div>
+              <div className="flex items-center gap-3 mt-1.5">
                 <div className="relative group shrink-0">
                   <select 
                     value={activeTerm}
@@ -18526,7 +18523,7 @@ function GradebookView({
                       const newTerm = Number(e.target.value) as TermNumber;
                       onTermChange(newTerm);
                     }}
-                    className={`appearance-none bg-white border px-3 pr-8 py-1.5 rounded-md text-xs font-semibold outline-none cursor-pointer hover:border-indigo-300 hover:bg-slate-50 transition-all shadow-sm ${isNotOffered ? 'border-rose-200 text-rose-600 bg-rose-50' : 'border-slate-200 text-slate-700'}`}
+                    className={`appearance-none bg-transparent border-none pr-6 py-0.5 text-xs font-semibold outline-none cursor-pointer hover:text-indigo-600 transition-colors ${isNotOffered ? 'text-rose-500' : 'text-slate-500 dark:text-slate-400'}`}
                   >
                     {Array.from({ length: globalNumTerms }, (_, i) => i + 1).map(q => {
                       const offered = !selectedSubject?.offeredTerms || selectedSubject?.offeredTerms.length === 0 || selectedSubject?.offeredTerms.includes(q as TermNumber);
@@ -18537,49 +18534,48 @@ function GradebookView({
                       );
                     })}
                   </select>
-                  <ChevronDown size={12} className={`absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none transition-colors ${isNotOffered ? 'text-rose-400' : 'text-slate-400 group-hover:text-indigo-500'}`} />
+                  <ChevronDown size={12} className={`absolute right-1 top-1/2 -translate-y-1/2 pointer-events-none ${isNotOffered ? 'text-rose-400' : 'text-slate-400'}`} />
                 </div>
                 
-                <div className="flex items-center gap-2 ml-2 mt-1 md:mt-0">
-                  <label className="flex items-center gap-1.5 cursor-pointer group/zero">
-                    <input 
-                      type="checkbox" 
-                      checked={!!selectedSubject.isZeroBasedGrading}
-                      onChange={(e) => {
-                        if (onUpdateSubject) {
-                          onUpdateSubject(selectedSubject.id, { isZeroBasedGrading: e.target.checked });
-                        }
-                      }}
-                      className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
-                    />
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest group-hover/zero:text-slate-700 transition-colors">
-                      Zero-based Grading System
-                    </span>
-                  </label>
-                </div>
+                <div className="w-px h-3 bg-slate-200 dark:bg-slate-700"></div>
+                
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    checked={!!selectedSubject.isZeroBasedGrading}
+                    onChange={(e) => {
+                      if (onUpdateSubject) {
+                        onUpdateSubject(selectedSubject.id, { isZeroBasedGrading: e.target.checked });
+                      }
+                    }}
+                    className="rounded border-slate-300 dark:border-slate-600 text-slate-800 dark:text-slate-400 focus:ring-slate-500 cursor-pointer w-3 h-3"
+                  />
+                  <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors">
+                    Zero-based Grading
+                  </span>
+                </label>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-3 w-full md:w-auto mt-4 md:mt-0 relative z-10">
+          <div className="flex items-center gap-2 w-full md:w-auto">
             <button 
               onClick={() => setShowActivityModal(true)}
-              className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold transition-all shadow-xs active:scale-95 whitespace-nowrap cursor-pointer"
-              title="Configure Activity Titles, Topics & HPS"
+              className="px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 cursor-pointer"
             >
-              <Edit size={14} className="text-indigo-600" />
-              Activity Titles & Topics
+              <Edit size={14} />
+              Config
             </button>
             <button 
               onClick={exportToExcel}
-              className="flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-all shadow-sm active:scale-95 whitespace-nowrap"
+              className="px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 cursor-pointer"
             >
-              <Download size={14} className="text-slate-400" />
+              <Download size={14} />
               Export
             </button>
             <button 
               onClick={() => setShowDataEntryHint(true)}
-              className="flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-semibold hover:bg-indigo-700 transition-all shadow-sm active:scale-95 whitespace-nowrap"
+              className="px-4 py-1.5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-lg text-xs font-semibold hover:bg-slate-800 dark:hover:bg-slate-100 transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer"
             >
               <FileText size={14} />
               Assistant
@@ -18588,272 +18584,188 @@ function GradebookView({
         </div>
       </div>
 
-      {/* Administrative Header - NEW FIELDS DISPLAY */}
-      {selectedSection && (
-        <div className="bg-white border-b border-slate-200 px-6 md:px-8 py-3 w-full overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
-          <div className="flex items-center gap-6 min-w-max text-xs">
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-slate-400">Region:</span>
-              <span className="font-semibold text-slate-700">{selectedSection.region}</span>
-            </div>
-            <div className="w-px h-4 bg-slate-200"></div>
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-slate-400">Division/District:</span>
-              <span className="font-semibold text-slate-700">{selectedSection.division} • {selectedSection.district}</span>
-            </div>
-            <div className="w-px h-4 bg-slate-200"></div>
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-slate-400">School:</span>
-              <span className="font-semibold text-slate-700">{selectedSection.schoolName} <span className="text-slate-400">({selectedSection.schoolId})</span></span>
-            </div>
-            <div className="w-px h-4 bg-slate-200"></div>
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-slate-400">SY:</span>
-              <span className="font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">{selectedSection.schoolYear}</span>
-            </div>
-          </div>
-        </div>
-      )}
-
       {isSubjectTermFinalized ? (
-        <div className="mx-8 mt-4 animate-in fade-in duration-300">
-          <div className="p-4 rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50 to-teal-50 text-emerald-900 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
-            <div className="flex items-center gap-3.5">
-              <div className="w-10 h-10 rounded-full bg-emerald-100 border border-emerald-200 flex items-center justify-center shrink-0">
-                <CheckCircle size={20} className="text-emerald-600" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2 mb-0.5">
-                  <h4 className="font-black uppercase tracking-widest text-[11px] text-emerald-950">
-                    Term {activeTerm} Grades Finalized & Released
-                  </h4>
-                  <span className="bg-emerald-200/80 text-emerald-900 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
-                    Released
-                  </span>
-                </div>
-                <p className="text-xs font-medium text-emerald-800/90">
-                  Grades for Term {activeTerm} in {selectedSubject.name} are finalized and released. They are now visible on the Class Card (SF9), Academic Records (SF10), and Grading Sheet.
-                </p>
-              </div>
+        <div className="mx-6 mt-4">
+          <div className="p-3 border border-emerald-200 bg-emerald-50 text-emerald-900 rounded-lg flex items-center justify-between text-xs">
+            <div className="flex items-center gap-3">
+              <CheckCircle size={16} className="text-emerald-600" />
+              <span>
+                <strong>Term {activeTerm} Finalized.</strong> Grades are released and visible on reports.
+              </span>
             </div>
             {onToggleFinalizeSubjectTerm && !isYearEndFinalized && (
               <button
                 onClick={() => setConfirmFinalizeConfig({ subjectId: selectedSubject.id, term: activeTerm, finalize: false })}
-                className="px-4 py-2 font-bold rounded-xl text-xs bg-white hover:bg-amber-50 text-amber-700 border border-amber-200 transition-all uppercase tracking-wider flex items-center gap-1.5 shadow-sm hover:border-amber-300 shrink-0 cursor-pointer"
+                className="px-3 py-1 font-medium rounded text-emerald-700 hover:bg-emerald-100 transition-colors flex items-center gap-1.5 cursor-pointer"
               >
-                <Unlock size={13} />
-                Unfinalize Term
+                <Unlock size={12} />
+                Unfinalize
               </button>
             )}
           </div>
         </div>
       ) : (
-        <div className="mx-8 mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
-           <div className={`p-4 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm transition-all duration-300 ${
+        <div className="mx-6 mt-4 flex items-center justify-between gap-4">
+           <div className={`p-3 rounded-lg border flex items-center gap-3 text-xs w-full max-w-lg ${
              hasUnsavedChanges 
-               ? 'bg-gradient-to-r from-amber-50 to-orange-50 border-amber-200 text-amber-800' 
-               : 'bg-gradient-to-r from-indigo-50/70 to-blue-50/70 border-indigo-150 text-indigo-800 bg-white'
+               ? 'bg-amber-50 border-amber-200 text-amber-800' 
+               : 'bg-white border-slate-200 text-slate-500'
            }`}>
-             <div className="flex items-center gap-4">
-               <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
-                 hasUnsavedChanges ? 'bg-amber-100' : 'bg-indigo-50 border border-indigo-100'
-               }`}>
-                 {hasUnsavedChanges ? (
-                   <Save size={18} className="text-amber-700 animate-bounce" />
-                 ) : (
-                   <Sparkles size={18} className="text-indigo-600" />
-                 )}
-               </div>
-               <div>
-                 <h4 className={`font-black uppercase tracking-widest text-[10px] mb-1 ${
-                   hasUnsavedChanges ? 'text-amber-900' : 'text-indigo-950'
-                 }`}>
-                   {hasUnsavedChanges ? 'Unsaved Grade Changes Detected' : 'Grade Entry / Editing Mode'}
-                 </h4>
-                 <p className="text-xs font-medium opacity-90">
-                   {hasUnsavedChanges 
-                     ? 'You have inputted new scores. Please click the "Save Grades" button to persist them in the database.' 
-                     : 'Learner grades are ready to be inputted. Changes will be kept locally until you click "Save Grades".'}
-                 </p>
-               </div>
-             </div>
-             
-             <div className="flex flex-wrap items-center gap-3">
+             {hasUnsavedChanges ? <Save size={14} className="text-amber-600" /> : <Edit size={14} />}
+             <span>{hasUnsavedChanges ? 'Unsaved grade changes. Please save.' : 'Grade entry mode active. Auto-computations are running.'}</span>
+           </div>
+           
+           <div className="flex items-center gap-2 shrink-0">
+             <button 
+               onClick={saveAllLocalGrades}
+               disabled={isSaving || !hasUnsavedChanges}
+               className={`px-4 py-1.5 font-medium rounded-lg text-xs transition-colors flex items-center gap-1.5 ${
+                 hasUnsavedChanges 
+                   ? 'bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer' 
+                   : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+               }`}
+             >
+               {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+               Save Grades
+             </button>
+
+             {isActiveTermReady && onToggleFinalizeSubjectTerm && (
                <button 
-                 onClick={saveAllLocalGrades}
-                 disabled={isSaving || !hasUnsavedChanges}
-                 className={`px-5 py-2.5 font-bold rounded-xl text-xs transition-all uppercase tracking-wider flex items-center gap-2 cursor-pointer shadow-md ${
-                   hasUnsavedChanges 
-                     ? 'bg-emerald-600 hover:bg-emerald-700 text-white active:scale-95 shadow-emerald-600/15' 
-                     : 'bg-slate-100 text-slate-400 cursor-not-allowed shadow-none'
+                 onClick={() => {
+                   if (hasUnsavedChanges) {
+                     alert("Please save your grade changes before finalizing.");
+                     return;
+                   }
+                   setConfirmFinalizeConfig({ subjectId: selectedSubject.id, term: activeTerm, finalize: true });
+                 }}
+                 className={`px-4 py-1.5 font-medium rounded-lg text-xs transition-colors flex items-center gap-1.5 ${
+                   hasUnsavedChanges
+                     ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                     : 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer'
                  }`}
                >
-                 {isSaving ? (
-                   <Loader2 size={14} className="animate-spin" />
-                 ) : (
-                   <Save size={14} />
-                 )}
-                 Save Grades
+                 <CheckCircle size={14} />
+                 Finalize Grades
                </button>
-
-               {isActiveTermReady && onToggleFinalizeSubjectTerm && (
-                 <button 
-                   onClick={() => {
-                     if (hasUnsavedChanges) {
-                       alert("Please save your grade changes before finalizing.");
-                       return;
-                     }
-                     setConfirmFinalizeConfig({ subjectId: selectedSubject.id, term: activeTerm, finalize: true });
-                   }}
-                   className={`px-5 py-2.5 font-bold rounded-xl text-xs transition-all uppercase tracking-wider shadow-md flex items-center gap-2 cursor-pointer ${
-                     hasUnsavedChanges
-                       ? 'bg-indigo-400 text-indigo-100 cursor-not-allowed'
-                       : 'bg-indigo-600 hover:bg-indigo-700 text-white active:scale-95 shadow-indigo-600/15'
-                   }`}
-                 >
-                   <Sparkles size={14} className={hasUnsavedChanges ? "" : "animate-spin"} style={{ animationDuration: '6s' }} />
-                   Finalize & Release Grades
-                 </button>
-               )}
-             </div>
+             )}
            </div>
         </div>
       )}
 
       {/* Main Table Container */}
-      <div className="px-4 md:px-10 py-8">
+      <div className="px-6 py-6">
         {isTermLocked ? (
-           <div className="p-8 bg-amber-50 border border-amber-200 rounded-2xl flex flex-col items-center justify-center gap-4 text-amber-800 shadow-sm">
-             <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center">
-               <Lock size={32} className="text-amber-600" />
-             </div>
-             <h4 className="font-black uppercase tracking-widest text-sm mb-1 text-amber-900">Term Locked</h4>
-             <p className="text-sm font-medium text-amber-700 max-w-sm text-center">The previous term is not yet finalized, so this subject and term's gradebook is locked.</p>
+           <div className="p-8 bg-slate-50 border border-slate-200 rounded-xl flex flex-col items-center justify-center gap-3 text-slate-500">
+             <Lock size={24} />
+             <p className="text-sm font-medium">The previous term is not yet finalized, so this gradebook is locked.</p>
            </div>
         ) : (
         <>
         {/* Active Activities & Topics Overview Legend */}
-        <div className="mb-6 bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+        <div className="mb-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="w-7 h-7 bg-indigo-50 border border-indigo-100 rounded-lg flex items-center justify-center text-indigo-600">
-                <BookOpen size={15} />
-              </div>
+            <div className="flex items-center gap-3">
+              <BookOpen size={16} className="text-slate-400" />
               <div>
-                <h3 className="text-xs font-black uppercase tracking-wider text-slate-800">
-                  eClass Activities & Topics Summary
+                <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                  Activities & Topics Summary
                 </h3>
-                <p className="text-[11px] text-slate-500 font-medium">
-                  Active task titles, descriptions, and Highest Possible Scores (HPS) for {selectedSubject.name} (Term {activeTerm})
-                </p>
               </div>
             </div>
             <div className="flex items-center gap-2">
               <button 
                 onClick={() => setShowActivityModal(true)}
-                className="text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:underline flex items-center gap-1 cursor-pointer bg-indigo-50/60 px-2.5 py-1 rounded-lg border border-indigo-100"
+                className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer px-2 py-1"
               >
                 <Edit size={12} />
-                Edit Titles & HPS
+                Edit Configurations
               </button>
               <button 
                 onClick={() => setShowActivityLegend(!showActivityLegend)} 
-                className="text-xs text-slate-500 font-bold hover:text-slate-800 transition-colors px-2 py-1 rounded hover:bg-slate-100 cursor-pointer"
+                className="text-xs text-slate-500 dark:text-slate-400 font-medium hover:text-slate-800 dark:hover:text-slate-200 transition-colors px-2 py-1 cursor-pointer"
               >
-                {showActivityLegend ? "Collapse Overview" : "Expand Overview"}
+                {showActivityLegend ? "Hide" : "Show Details"}
               </button>
             </div>
           </div>
 
           {showActivityLegend && (
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4 pt-3 border-t border-slate-100 text-xs">
-              <div className="bg-slate-50/80 rounded-xl p-3 border border-slate-150">
-                <div className="flex justify-between items-center mb-2">
-                  <h4 className="font-black text-blue-800 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
-                    <span className="w-2 h-2 bg-blue-500 rounded-full" />
-                    Written Works ({selectedSubject.wwWeight}%)
-                  </h4>
-                  <span className="text-[10px] font-bold text-slate-400">WW1 - WW5</span>
-                </div>
-                <div className="space-y-1.5">
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-6 pt-4 border-t border-slate-100 dark:border-slate-800 text-xs">
+              <div>
+                <h4 className="font-semibold text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 bg-blue-500 rounded-full" />
+                  Written Works ({selectedSubject.wwWeight}%)
+                </h4>
+                <div className="space-y-2 text-slate-600 dark:text-slate-400">
                   {[0, 1, 2, 3, 4].map(i => {
                     const hps = refData.writtenWorks?.maxScores?.[i] || 0;
                     const name = refData.writtenWorks?.names?.[i];
+                    if (hps === 0 && !name) return null;
                     return (
-                      <div key={`legend-ww-${i}`} className={`flex justify-between items-center text-[11px] px-2.5 py-1.5 rounded-lg border transition-all ${hps > 0 ? 'bg-white border-blue-100 text-slate-800 shadow-2xs' : 'bg-slate-100/50 border-slate-200/60 text-slate-400'}`}>
-                        <div className="truncate pr-2">
-                          <strong className="text-blue-700 font-black mr-1">WW{i+1}:</strong>
-                          <span>{name && name.trim() !== '' ? name : <span className="italic opacity-60">Activity {i+1}</span>}</span>
-                        </div>
-                        <span className={`font-bold text-[10px] px-1.5 py-0.5 rounded ${hps > 0 ? 'bg-blue-50 text-blue-700' : 'bg-slate-200/50 text-slate-400'}`}>
-                          {hps > 0 ? `HPS: ${hps}` : 'Disabled'}
+                      <div key={`legend-ww-${i}`} className="flex justify-between items-center">
+                        <span className="truncate pr-2">
+                          <strong className="mr-2">WW{i+1}:</strong>
+                          {name || `Activity ${i+1}`}
                         </span>
+                        <span>{hps > 0 ? hps : '-'}</span>
                       </div>
                     );
                   })}
                 </div>
               </div>
 
-              <div className="bg-slate-50/80 rounded-xl p-3 border border-slate-150">
-                <div className="flex justify-between items-center mb-2">
-                  <h4 className="font-black text-emerald-800 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
-                    <span className="w-2 h-2 bg-emerald-500 rounded-full" />
-                    Performance Tasks ({selectedSubject.ptWeight}%)
-                  </h4>
-                  <span className="text-[10px] font-bold text-slate-400">PT1 - PT5</span>
-                </div>
-                <div className="space-y-1.5">
+              <div>
+                <h4 className="font-semibold text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
+                  Performance Tasks ({selectedSubject.ptWeight}%)
+                </h4>
+                <div className="space-y-2 text-slate-600 dark:text-slate-400">
                   {[0, 1, 2, 3, 4].map(i => {
                     const hps = refData.performanceTasks?.maxScores?.[i] || 0;
                     const name = refData.performanceTasks?.names?.[i];
+                    if (hps === 0 && !name) return null;
                     return (
-                      <div key={`legend-pt-${i}`} className={`flex justify-between items-center text-[11px] px-2.5 py-1.5 rounded-lg border transition-all ${hps > 0 ? 'bg-white border-emerald-100 text-slate-800 shadow-2xs' : 'bg-slate-100/50 border-slate-200/60 text-slate-400'}`}>
-                        <div className="truncate pr-2">
-                          <strong className="text-emerald-700 font-black mr-1">PT{i+1}:</strong>
-                          <span>{name && name.trim() !== '' ? name : <span className="italic opacity-60">Task {i+1}</span>}</span>
-                        </div>
-                        <span className={`font-bold text-[10px] px-1.5 py-0.5 rounded ${hps > 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-200/50 text-slate-400'}`}>
-                          {hps > 0 ? `HPS: ${hps}` : 'Disabled'}
+                      <div key={`legend-pt-${i}`} className="flex justify-between items-center">
+                        <span className="truncate pr-2">
+                          <strong className="mr-2">PT{i+1}:</strong>
+                          {name || `Task ${i+1}`}
                         </span>
+                        <span>{hps > 0 ? hps : '-'}</span>
                       </div>
                     );
                   })}
                 </div>
               </div>
 
-              <div className="bg-slate-50/80 rounded-xl p-3 border border-slate-150">
-                <div className="flex justify-between items-center mb-2">
-                  <h4 className="font-black text-amber-800 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
-                    <span className="w-2 h-2 bg-amber-500 rounded-full" />
-                    Summative Tests & Exam ({selectedSubject.taWeight}%)
-                  </h4>
-                  <span className="text-[10px] font-bold text-slate-400">ST & Exam</span>
-                </div>
-                <div className="space-y-1.5">
+              <div>
+                <h4 className="font-semibold text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 bg-amber-500 rounded-full" />
+                  Assessments ({selectedSubject.taWeight}%)
+                </h4>
+                <div className="space-y-2 text-slate-600 dark:text-slate-400">
                   {[0, 1].map(i => {
                     const hps = refData.summativeTests?.maxScores?.[i] || 0;
                     const name = refData.summativeTests?.names?.[i];
+                    if (hps === 0 && !name) return null;
                     return (
-                      <div key={`legend-st-${i}`} className={`flex justify-between items-center text-[11px] px-2.5 py-1.5 rounded-lg border transition-all ${hps > 0 ? 'bg-white border-amber-100 text-slate-800 shadow-2xs' : 'bg-slate-100/50 border-slate-200/60 text-slate-400'}`}>
-                        <div className="truncate pr-2">
-                          <strong className="text-amber-700 font-black mr-1">ST{i+1}:</strong>
-                          <span>{name && name.trim() !== '' ? name : <span className="italic opacity-60">Summative {i+1}</span>}</span>
-                        </div>
-                        <span className={`font-bold text-[10px] px-1.5 py-0.5 rounded ${hps > 0 ? 'bg-amber-50 text-amber-700' : 'bg-slate-200/50 text-slate-400'}`}>
-                          {hps > 0 ? `HPS: ${hps}` : 'Disabled'}
+                      <div key={`legend-st-${i}`} className="flex justify-between items-center">
+                        <span className="truncate pr-2">
+                          <strong className="mr-2">ST{i+1}:</strong>
+                          {name || `Summative ${i+1}`}
                         </span>
+                        <span>{hps > 0 ? hps : '-'}</span>
                       </div>
                     );
                   })}
-                  <div className={`flex justify-between items-center text-[11px] px-2.5 py-1.5 rounded-lg border transition-all ${(refData.termExam?.maxScore || 0) > 0 ? 'bg-amber-50/60 border-amber-200 text-slate-800 shadow-2xs' : 'bg-slate-100/50 border-slate-200/60 text-slate-400'}`}>
-                    <div className="truncate pr-2">
-                      <strong className="text-amber-900 font-black mr-1">Exam:</strong>
-                      <span>Quarterly / Term Exam</span>
+                  {(refData.termExam?.maxScore || 0) > 0 && (
+                    <div className="flex justify-between items-center mt-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                      <span className="truncate pr-2">
+                        <strong className="mr-2">Exam:</strong>
+                        Quarterly Assessment
+                      </span>
+                      <span>{refData.termExam?.maxScore}</span>
                     </div>
-                    <span className={`font-bold text-[10px] px-1.5 py-0.5 rounded ${(refData.termExam?.maxScore || 0) > 0 ? 'bg-amber-100 text-amber-800' : 'bg-slate-200/50 text-slate-400'}`}>
-                      {(refData.termExam?.maxScore || 0) > 0 ? `HPS: ${refData.termExam.maxScore}` : 'Disabled'}
-                    </span>
-                  </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -18863,31 +18775,31 @@ function GradebookView({
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm overflow-hidden">
           <div className="overflow-x-auto relative max-h-[75vh] custom-scrollbar">
             <table className="w-full border-collapse text-xs border border-slate-200 dark:border-slate-800 min-w-[1800px]">
-               <thead className="sticky top-0 z-30 bg-slate-50 dark:bg-slate-900 shadow-sm border-b border-slate-200 dark:border-slate-800">
+               <thead className="sticky top-0 z-30 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
                  {/* Visual Header Grouping */}
-                 <tr className="bg-slate-100 dark:bg-slate-850 text-[10px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                   <th className="sticky left-0 bg-slate-100 dark:bg-slate-900 z-40 px-4 py-3 border border-slate-200 dark:border-slate-800 text-left min-w-[220px] text-slate-900 dark:text-slate-100 font-extrabold shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]" rowSpan={2}>Learner Name</th>
-                  <th className="px-2 py-2 border border-slate-200 dark:border-slate-800 text-indigo-950 dark:text-indigo-200 bg-indigo-50/90 dark:bg-indigo-950/80 font-black uppercase text-[11px] tracking-wider" colSpan={8}>
+                 <tr className="bg-slate-50 dark:bg-slate-800 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                   <th className="sticky left-0 bg-slate-50 dark:bg-slate-800 z-40 px-4 py-3 border border-slate-200 dark:border-slate-700 text-left min-w-[220px] text-slate-700 dark:text-slate-200" rowSpan={2}>Learner Name</th>
+                  <th className="px-2 py-2 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-semibold uppercase text-[11px] tracking-wider" colSpan={8}>
                     Written Works ({selectedSubject.wwWeight}%)
                   </th>
-                  <th className="px-2 py-2 border border-slate-200 dark:border-slate-800 text-emerald-950 dark:text-emerald-200 bg-emerald-50/90 dark:bg-emerald-950/80 font-black uppercase text-[11px] tracking-wider" colSpan={8}>
+                  <th className="px-2 py-2 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-semibold uppercase text-[11px] tracking-wider" colSpan={8}>
                     Performance Tasks ({selectedSubject.ptWeight}%)
                   </th>
-                  <th className="px-2 py-2 border border-slate-200 dark:border-slate-800 text-amber-950 dark:text-amber-200 bg-amber-50/90 dark:bg-amber-950/80 font-black uppercase text-[11px] tracking-wider" colSpan={6}>
+                  <th className="px-2 py-2 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-semibold uppercase text-[11px] tracking-wider" colSpan={6}>
                     Summative Test and Term Exam ({selectedSubject.taWeight}%)
                   </th>
-                  <th className="px-2 py-2 border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 w-22 min-w-[88px] text-[10px] font-bold" rowSpan={2}>Initial Grade</th>
-                  <th className="px-4 py-2 border border-slate-200 dark:border-slate-800 bg-indigo-100 dark:bg-indigo-900/90 text-indigo-950 dark:text-indigo-100 w-24 min-w-[96px] font-black text-xs" rowSpan={2}>Term Grade</th>
+                  <th className="px-2 py-2 border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 w-22 min-w-[88px] text-[10px] font-semibold" rowSpan={2}>Initial Grade</th>
+                  <th className="px-4 py-2 border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-100 w-24 min-w-[96px] font-bold text-xs" rowSpan={2}>Term Grade</th>
                 </tr>
-                <tr className="bg-slate-50 dark:bg-slate-900 text-[10px] font-bold text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800">
+                <tr className="bg-white dark:bg-slate-900 text-[10px] font-medium text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
                   {/* WW sub-headers */}
                   {[0, 1, 2, 3, 4].map(i => {
                     const name = refData.writtenWorks?.names?.[i] || "";
                     const hps = refData.writtenWorks?.maxScores?.[i] || 0;
                     return (
-                      <th key={`wwh-${i}`} className="p-1 border border-slate-200 dark:border-slate-800 w-20 min-w-[80px]" title={`Written Work ${i+1}${name ? `: ${name}` : ''} (HPS: ${hps})`}>
-                        <div className="flex flex-col items-center gap-0.5 py-0.5">
-                          <span className="text-[9px] font-black text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/80 px-1.5 py-0.2 rounded border border-indigo-200 dark:border-indigo-800 uppercase tracking-wider">
+                      <th key={`wwh-${i}`} className="p-1 border border-slate-200 dark:border-slate-800 w-20 min-w-[80px] font-normal" title={`Written Work ${i+1}${name ? `: ${name}` : ''} (HPS: ${hps})`}>
+                        <div className="flex flex-col items-center gap-1 py-1">
+                          <span className="text-[9px] font-bold text-slate-700 dark:text-slate-300">
                             WW{i+1}
                           </span>
                           <input 
@@ -18895,26 +18807,26 @@ function GradebookView({
                             disabled={isNotOffered || isYearEndFinalized || isSubjectTermFinalized}
                             value={name}
                             onChange={(e) => handleMassUpdate('written', 'names', i, e.target.value)}
-                            placeholder="Activity title"
+                            placeholder="Title"
                             title={`WW${i+1} Activity Title / Topic Description`}
-                            className={`w-full text-center bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-1 focus:ring-indigo-500 outline-none py-1 px-1 text-[10px] font-semibold text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded shadow-2xs transition-all ${(isNotOffered || isYearEndFinalized || isSubjectTermFinalized) ? 'cursor-not-allowed opacity-50 bg-slate-100 dark:bg-slate-850' : ''}`}
+                            className={`w-full text-center bg-transparent border-b border-dashed border-slate-300 dark:border-slate-600 focus:border-slate-500 focus:border-solid outline-none py-0.5 px-1 text-[10px] text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 transition-all ${(isNotOffered || isYearEndFinalized || isSubjectTermFinalized) ? 'cursor-not-allowed opacity-50' : ''}`}
                           />
                         </div>
                       </th>
                     );
                   })}
-                  <th className="bg-slate-100/80 dark:bg-slate-800/80 text-slate-800 dark:text-slate-200 border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px] text-center font-bold">Total</th>
-                  <th className="bg-slate-100/80 dark:bg-slate-800/80 text-slate-800 dark:text-slate-200 border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px] text-center font-bold">PS</th>
-                  <th className="bg-indigo-50/80 dark:bg-indigo-950/60 text-indigo-950 dark:text-indigo-200 border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px] font-black text-center">WS</th>
+                  <th className="bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px] text-center">Total</th>
+                  <th className="bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px] text-center">PS</th>
+                  <th className="bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200 border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px] font-bold text-center">WS</th>
                   
                   {/* PT sub-headers */}
                   {[0, 1, 2, 3, 4].map(i => {
                     const name = refData.performanceTasks?.names?.[i] || "";
                     const hps = refData.performanceTasks?.maxScores?.[i] || 0;
                     return (
-                      <th key={`pth-${i}`} className="p-1 border-r border-slate-200 dark:border-slate-800 w-20 min-w-[80px]" title={`Performance Task ${i+1}${name ? `: ${name}` : ''} (HPS: ${hps})`}>
-                        <div className="flex flex-col items-center gap-0.5 py-0.5">
-                          <span className="text-[9px] font-black text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/80 px-1.5 py-0.2 rounded border border-emerald-200 dark:border-emerald-800 uppercase tracking-wider">
+                      <th key={`pth-${i}`} className="p-1 border-r border-slate-200 dark:border-slate-800 w-20 min-w-[80px] font-normal" title={`Performance Task ${i+1}${name ? `: ${name}` : ''} (HPS: ${hps})`}>
+                        <div className="flex flex-col items-center gap-1 py-1">
+                          <span className="text-[9px] font-bold text-slate-700 dark:text-slate-300">
                             PT{i+1}
                           </span>
                           <input 
@@ -18922,26 +18834,26 @@ function GradebookView({
                             disabled={isNotOffered || isYearEndFinalized || isSubjectTermFinalized}
                             value={name}
                             onChange={(e) => handleMassUpdate('performance', 'names', i, e.target.value)}
-                            placeholder="Activity title"
+                            placeholder="Title"
                             title={`PT${i+1} Activity Title / Topic Description`}
-                            className={`w-full text-center bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 focus:border-emerald-500 dark:focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500 outline-none py-1 px-1 text-[10px] font-semibold text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded shadow-2xs transition-all ${(isNotOffered || isYearEndFinalized || isSubjectTermFinalized) ? 'cursor-not-allowed opacity-50 bg-slate-100 dark:bg-slate-850' : ''}`}
+                            className={`w-full text-center bg-transparent border-b border-dashed border-slate-300 dark:border-slate-600 focus:border-slate-500 focus:border-solid outline-none py-0.5 px-1 text-[10px] text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 transition-all ${(isNotOffered || isYearEndFinalized || isSubjectTermFinalized) ? 'cursor-not-allowed opacity-50' : ''}`}
                           />
                         </div>
                       </th>
                     );
                   })}
-                  <th className="bg-slate-100/80 dark:bg-slate-800/80 text-slate-800 dark:text-slate-200 border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px] text-center font-bold">Total</th>
-                  <th className="bg-slate-100/80 dark:bg-slate-800/80 text-slate-800 dark:text-slate-200 border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px] text-center font-bold">PS</th>
-                  <th className="bg-emerald-50/80 dark:bg-emerald-950/60 text-emerald-950 dark:text-emerald-200 border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px] font-black text-center">WS</th>
+                  <th className="bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px] text-center">Total</th>
+                  <th className="bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px] text-center">PS</th>
+                  <th className="bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200 border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px] font-bold text-center">WS</th>
 
                   {/* ST sub-headers */}
                   {[0, 1].map(i => {
                     const name = refData.summativeTests?.names?.[i] || "";
                     const hps = refData.summativeTests?.maxScores?.[i] || 0;
                     return (
-                      <th key={`sth-${i}`} className="p-1 border-r border-slate-200 dark:border-slate-800 w-20 min-w-[80px]" title={`Summative Test ${i+1}${name ? `: ${name}` : ''} (HPS: ${hps})`}>
-                        <div className="flex flex-col items-center gap-0.5 py-0.5">
-                          <span className="text-[9px] font-black text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/80 px-1.5 py-0.2 rounded border border-amber-200 dark:border-amber-800 uppercase tracking-wider">
+                      <th key={`sth-${i}`} className="p-1 border-r border-slate-200 dark:border-slate-800 w-20 min-w-[80px] font-normal" title={`Summative Test ${i+1}${name ? `: ${name}` : ''} (HPS: ${hps})`}>
+                        <div className="flex flex-col items-center gap-1 py-1">
+                          <span className="text-[9px] font-bold text-slate-700 dark:text-slate-300">
                             ST{i+1}
                           </span>
                           <input 
@@ -18949,16 +18861,16 @@ function GradebookView({
                             disabled={isNotOffered || isYearEndFinalized || isSubjectTermFinalized}
                             value={name}
                             onChange={(e) => handleMassUpdate('summative', 'names', i, e.target.value)}
-                            placeholder="Activity title"
+                            placeholder="Title"
                             title={`ST${i+1} Activity Title / Topic Description`}
-                            className={`w-full text-center bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 focus:border-amber-500 dark:focus:border-amber-400 focus:ring-1 focus:ring-amber-500 outline-none py-1 px-1 text-[10px] font-semibold text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded shadow-2xs transition-all ${(isNotOffered || isYearEndFinalized || isSubjectTermFinalized) ? 'cursor-not-allowed opacity-50 bg-slate-100 dark:bg-slate-850' : ''}`}
+                            className={`w-full text-center bg-transparent border-b border-dashed border-slate-300 dark:border-slate-600 focus:border-slate-500 focus:border-solid outline-none py-0.5 px-1 text-[10px] text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 transition-all ${(isNotOffered || isYearEndFinalized || isSubjectTermFinalized) ? 'cursor-not-allowed opacity-50' : ''}`}
                           />
-                          <div className="text-[8px] text-amber-700 dark:text-amber-400 font-bold text-center select-none leading-none mt-0.5">30% WS</div>
+                          <div className="text-[8px] text-slate-400 dark:text-slate-500 text-center select-none leading-none mt-1">30% WS</div>
                         </div>
                       </th>
                     );
                   })}
-                  <th className="bg-slate-100/80 dark:bg-slate-800/80 text-slate-800 dark:text-slate-200 border-r border-slate-200 dark:border-slate-700 w-24 min-w-[96px] text-center py-1">
+                  <th className="bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-r border-slate-200 dark:border-slate-700 w-24 min-w-[96px] text-center py-2">
                     <div className="font-bold">Term Exam</div>
                     <div className="text-[8px] text-amber-700 dark:text-amber-400 font-bold select-none leading-none mt-0.5">40% WS</div>
                   </th>
@@ -18967,53 +18879,53 @@ function GradebookView({
                   <th className="bg-amber-50/80 dark:bg-amber-950/60 text-amber-950 dark:text-amber-200 border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px] font-black text-center">WS</th>
                 </tr>
                 {/* HIGHEST POSSIBLE SCORE ROW */}
-                <tr className="bg-slate-100/90 dark:bg-slate-800/90 border-b border-slate-200 dark:border-slate-700 shadow-xs">
-                  <td className="sticky left-0 bg-slate-100 dark:bg-slate-800 z-30 px-4 py-3 border-r border-b border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
-                    <div className="text-[10px] font-black text-slate-800 dark:text-slate-100 uppercase tracking-widest">Baseline (HPS)</div>
+                <tr className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
+                  <td className="sticky left-0 bg-slate-50 dark:bg-slate-800 z-30 px-4 py-3 border-r border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300">
+                    <div className="text-[10px] font-bold uppercase tracking-widest">Highest Possible Score</div>
                   </td>
                   {/* WW HPS */}
                   {[0, 1, 2, 3, 4].map(i => (
-                    <td key={`wwhps-${i}`} className="p-1 border-r border-slate-200 dark:border-slate-700 bg-transparent text-center w-20 min-w-[80px]">
+                    <td key={`wwhps-${i}`} className="p-1 border-r border-slate-200 dark:border-slate-700 text-center w-20 min-w-[80px]">
                       <input 
                         type="text"
                         inputMode="numeric"
                         disabled={isNotOffered || isYearEndFinalized || isSubjectTermFinalized}
                         value={refData.writtenWorks?.maxScores?.[i] === 0 ? "" : (refData.writtenWorks?.maxScores?.[i] || "")}
                         onChange={(e) => handleMassUpdate('written', 'maxScores', i, e.target.value)}
-                        placeholder="--"
-                        className={`w-full text-center text-xs font-bold py-1 px-1 outline-none bg-white dark:bg-slate-800 focus:bg-white dark:focus:bg-slate-800 border border-slate-300 dark:border-slate-600 focus:border-indigo-500 text-slate-900 dark:text-slate-100 rounded transition-all ${(isNotOffered || isYearEndFinalized || isSubjectTermFinalized) ? 'cursor-not-allowed text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800 border-transparent' : ''}`}
+                        placeholder="-"
+                        className={`w-full text-center text-xs font-semibold py-1 px-1 outline-none bg-transparent border-b border-transparent focus:border-slate-300 dark:focus:border-slate-500 text-slate-800 dark:text-slate-200 transition-all ${(isNotOffered || isYearEndFinalized || isSubjectTermFinalized) ? 'cursor-not-allowed text-slate-400 dark:text-slate-500' : ''}`}
                       />
                     </td>
                   ))}
-                  <td className="bg-slate-200/60 dark:bg-slate-700/60 text-slate-900 dark:text-slate-100 font-extrabold text-center border-r border-slate-200 dark:border-slate-700 py-2 w-16 min-w-[64px]">
+                  <td className="bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-center border-r border-slate-200 dark:border-slate-700 py-2 w-16 min-w-[64px]">
                     {(refData.writtenWorks?.maxScores || []).reduce((a: number, b: any) => a + (Number(b) || 0), 0) || ""}
                   </td>
-                  <td className="bg-slate-100/50 dark:bg-slate-800/50 border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px]"></td>
-                  <td className="bg-slate-100/50 dark:bg-slate-800/50 border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px]"></td>
+                  <td className="border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px]"></td>
+                  <td className="border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px]"></td>
 
                   {/* PT HPS */}
                   {[0, 1, 2, 3, 4].map(i => (
-                    <td key={`pthps-${i}`} className="p-1 border-r border-slate-200 dark:border-slate-700 bg-transparent text-center w-20 min-w-[80px]">
+                    <td key={`pthps-${i}`} className="p-1 border-r border-slate-200 dark:border-slate-700 text-center w-20 min-w-[80px]">
                       <input 
                         type="text"
                         inputMode="numeric"
                         disabled={isNotOffered || isYearEndFinalized || isSubjectTermFinalized}
                         value={refData.performanceTasks?.maxScores?.[i] === 0 ? "" : (refData.performanceTasks?.maxScores?.[i] || "")}
                         onChange={(e) => handleMassUpdate('performance', 'maxScores', i, e.target.value)}
-                        placeholder="--"
-                        className={`w-full text-center text-xs font-bold py-1 px-1 outline-none bg-white dark:bg-slate-800 focus:bg-white dark:focus:bg-slate-800 border border-slate-300 dark:border-slate-600 focus:border-emerald-500 text-slate-900 dark:text-slate-100 rounded transition-all ${(isNotOffered || isYearEndFinalized || isSubjectTermFinalized) ? 'cursor-not-allowed text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800 border-transparent' : ''}`}
+                        placeholder="-"
+                        className={`w-full text-center text-xs font-semibold py-1 px-1 outline-none bg-transparent border-b border-transparent focus:border-slate-300 dark:focus:border-slate-500 text-slate-800 dark:text-slate-200 transition-all ${(isNotOffered || isYearEndFinalized || isSubjectTermFinalized) ? 'cursor-not-allowed text-slate-400 dark:text-slate-500' : ''}`}
                       />
                     </td>
                   ))}
-                  <td className="bg-slate-200/60 dark:bg-slate-700/60 text-slate-900 dark:text-slate-100 font-extrabold text-center border-r border-slate-200 dark:border-slate-700 py-2 w-16 min-w-[64px]">
+                  <td className="bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-center border-r border-slate-200 dark:border-slate-700 py-2 w-16 min-w-[64px]">
                     {(refData.performanceTasks?.maxScores || []).reduce((a: number, b: any) => a + (Number(b) || 0), 0) || ""}
                   </td>
-                  <td className="bg-slate-100/50 dark:bg-slate-800/50 border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px]"></td>
-                  <td className="bg-slate-100/50 dark:bg-slate-800/50 border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px]"></td>
+                  <td className="border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px]"></td>
+                  <td className="border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px]"></td>
 
                   {/* ST HPS */}
                   {[0, 1].map(i => (
-                    <td key={`sthps-${i}`} className="p-1 border-r border-slate-200 dark:border-slate-700 bg-transparent text-center w-20 min-w-[80px]">
+                    <td key={`sthps-${i}`} className="p-1 border-r border-slate-200 dark:border-slate-700 text-center w-20 min-w-[80px]">
                       <div className="flex flex-col items-center justify-center">
                         <input 
                           type="text"
@@ -19021,18 +18933,18 @@ function GradebookView({
                           disabled={isNotOffered || isYearEndFinalized || isSubjectTermFinalized}
                           value={refData.summativeTests?.maxScores?.[i] === 0 ? "" : (refData.summativeTests?.maxScores?.[i] || "")}
                           onChange={(e) => handleMassUpdate('summative', 'maxScores', i, e.target.value)}
-                          placeholder="--"
-                          className={`w-full text-center text-xs font-bold py-1 px-1 outline-none bg-white dark:bg-slate-800 focus:bg-white dark:focus:bg-slate-800 border border-slate-300 dark:border-slate-600 focus:border-amber-500 text-slate-900 dark:text-slate-100 rounded transition-all ${(isNotOffered || isYearEndFinalized || isSubjectTermFinalized) ? 'cursor-not-allowed text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800 border-transparent' : ''}`}
+                          placeholder="-"
+                          className={`w-full text-center text-xs font-semibold py-1 px-1 outline-none bg-transparent border-b border-transparent focus:border-slate-300 dark:focus:border-slate-500 text-slate-800 dark:text-slate-200 transition-all ${(isNotOffered || isYearEndFinalized || isSubjectTermFinalized) ? 'cursor-not-allowed text-slate-400 dark:text-slate-500' : ''}`}
                         />
                         {(refData.summativeTests?.maxScores?.[i] || 0) > 0 && (
-                          <span className="text-[8px] text-amber-700 dark:text-amber-400 font-bold select-none mt-px" title="Max Weight Score">
+                          <span className="text-[8px] text-slate-400 dark:text-slate-500 mt-0.5 select-none" title="Max Weight Score">
                             Max: 30.0
                           </span>
                         )}
                       </div>
                     </td>
                   ))}
-                  <td className="p-1 border-r border-slate-200 dark:border-slate-700 bg-transparent text-center w-24 min-w-[96px]">
+                  <td className="p-1 border-r border-slate-200 dark:border-slate-700 text-center w-24 min-w-[96px]">
                     <div className="flex flex-col items-center justify-center">
                       <input 
                         type="text"
@@ -19040,23 +18952,23 @@ function GradebookView({
                         disabled={isNotOffered || isYearEndFinalized || isSubjectTermFinalized}
                         value={refData.termExam?.maxScore === 0 ? "" : (refData.termExam?.maxScore || "")}
                         onChange={(e) => handleExamMaxChange(e.target.value)}
-                        placeholder="--"
-                        className={`w-full text-center text-xs font-bold py-1 px-1 outline-none bg-white dark:bg-slate-800 focus:bg-white dark:focus:bg-slate-800 border border-slate-300 dark:border-slate-600 focus:border-amber-500 text-slate-900 dark:text-slate-100 rounded transition-all ${(isNotOffered || isYearEndFinalized || isSubjectTermFinalized) ? 'cursor-not-allowed text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800 border-transparent' : ''}`}
+                        placeholder="-"
+                        className={`w-full text-center text-xs font-semibold py-1 px-1 outline-none bg-transparent border-b border-transparent focus:border-slate-300 dark:focus:border-slate-500 text-slate-800 dark:text-slate-200 transition-all ${(isNotOffered || isYearEndFinalized || isSubjectTermFinalized) ? 'cursor-not-allowed text-slate-400 dark:text-slate-500' : ''}`}
                       />
                       {(refData.termExam?.maxScore || 0) > 0 && (
-                        <span className="text-[8px] text-amber-700 dark:text-amber-400 font-bold select-none mt-px" title="Max Weight Score">
+                        <span className="text-[8px] text-slate-400 dark:text-slate-500 mt-0.5 select-none" title="Max Weight Score">
                           Max: 40.0
                         </span>
                       )}
                     </div>
                   </td>
-                  <td className="bg-slate-200/60 dark:bg-slate-700/60 text-slate-900 dark:text-slate-100 font-extrabold text-center border-r border-slate-200 dark:border-slate-700 py-2 w-16 min-w-[64px]">
+                  <td className="bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-center border-r border-slate-200 dark:border-slate-700 py-2 w-16 min-w-[64px]">
                     {((refData.summativeTests?.maxScores || []).reduce((a: number, b: any) => a + (Number(b) || 0), 0) + Number(refData.termExam?.maxScore || 0)) || ""}
                   </td>
-                  <td className="bg-slate-100/50 dark:bg-slate-800/50 border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px]"></td>
-                  <td className="bg-slate-100/50 dark:bg-slate-800/50 border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px]"></td>
-                  <td className="bg-slate-100/50 dark:bg-slate-800/50 border-r border-slate-200 dark:border-slate-700 w-22 min-w-[88px]"></td>
-                  <td className="bg-slate-200/50 dark:bg-slate-750 border-r border-slate-200 dark:border-slate-700 w-24 min-w-[96px]"></td>
+                  <td className="border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px]"></td>
+                  <td className="border-r border-slate-200 dark:border-slate-700 w-16 min-w-[64px]"></td>
+                  <td className="border-r border-slate-200 dark:border-slate-700 w-22 min-w-[88px]"></td>
+                  <td className="border-r border-slate-200 dark:border-slate-700 w-24 min-w-[96px]"></td>
                 </tr>
               </thead>
               <tbody className="bg-white dark:bg-slate-900 divide-y divide-slate-100 dark:divide-slate-800">
@@ -19078,40 +18990,40 @@ function GradebookView({
             { label: 'Female', stats: mpsFemale, color: 'blue', icon: <Venus size={16} /> },
             { label: 'Overall', stats: mpsOverall, color: 'indigo', icon: <Users size={16} /> }
           ].map((group) => (
-            <div key={group.label} className="bg-white border border-slate-200 p-5 rounded-lg shadow-sm">
-              <div className="flex items-center gap-2 mb-4 border-b border-slate-100 pb-2">
-                <span className={`text-${group.color}-600`}>{group.icon}</span>
-                <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider">{group.label} Statistics</h4>
+            <div key={group.label} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-xl">
+              <div className="flex items-center gap-2 mb-4 pb-2 border-b border-slate-100 dark:border-slate-800">
+                <span className={`text-${group.color}-600 dark:text-${group.color}-500`}>{group.icon}</span>
+                <h4 className="font-semibold text-slate-800 dark:text-slate-200 text-sm">{group.label} Statistics</h4>
               </div>
               <div className="space-y-3">
-                <div className="flex justify-between items-center text-[11px]">
-                  <p className="text-slate-500">Total Enrolled</p>
-                  <p className="font-bold text-slate-900">{group.stats.takers}</p>
+                <div className="flex justify-between items-center text-xs">
+                  <p className="text-slate-500 dark:text-slate-400">Total Enrolled</p>
+                  <p className="font-medium text-slate-900 dark:text-slate-100">{group.stats.takers}</p>
                 </div>
-                <div className="flex justify-between items-center text-[11px]">
-                  <p className="text-slate-500 font-bold">Advancing (90-100)</p>
-                  <p className="font-bold text-indigo-600">{group.stats.advancing}</p>
+                <div className="flex justify-between items-center text-xs">
+                  <p className="text-slate-500 dark:text-slate-400">Advancing (90-100)</p>
+                  <p className="font-medium text-indigo-600 dark:text-indigo-400">{group.stats.advancing}</p>
                 </div>
-                <div className="flex justify-between items-center text-[11px]">
-                  <p className="text-slate-500">Benchmarking (80-89)</p>
-                  <p className="font-bold text-emerald-600">{group.stats.benchmarking}</p>
+                <div className="flex justify-between items-center text-xs">
+                  <p className="text-slate-500 dark:text-slate-400">Benchmarking (80-89)</p>
+                  <p className="font-medium text-emerald-600 dark:text-emerald-400">{group.stats.benchmarking}</p>
                 </div>
-                <div className="flex justify-between items-center text-[11px]">
-                  <p className="text-slate-500">Connecting (75-79)</p>
-                  <p className="font-bold text-blue-600">{group.stats.connecting}</p>
+                <div className="flex justify-between items-center text-xs">
+                  <p className="text-slate-500 dark:text-slate-400">Connecting (75-79)</p>
+                  <p className="font-medium text-blue-600 dark:text-blue-400">{group.stats.connecting}</p>
                 </div>
-                <div className="flex justify-between items-center text-[11px]">
-                  <p className="text-slate-500">Developing (65-74)</p>
-                  <p className="font-bold text-amber-600">{group.stats.developing}</p>
+                <div className="flex justify-between items-center text-xs">
+                  <p className="text-slate-500 dark:text-slate-400">Developing (65-74)</p>
+                  <p className="font-medium text-amber-600 dark:text-amber-400">{group.stats.developing}</p>
                 </div>
-                <div className="flex justify-between items-center text-[11px]">
-                  <p className="text-slate-500">Emerging (0-64)</p>
-                  <p className="font-bold text-rose-600">{group.stats.emerging}</p>
+                <div className="flex justify-between items-center text-xs">
+                  <p className="text-slate-500 dark:text-slate-400">Emerging (0-64)</p>
+                  <p className="font-medium text-rose-600 dark:text-rose-400">{group.stats.emerging}</p>
                 </div>
                 
-                <div className="pt-3 border-t border-slate-100 flex justify-between items-center mt-2">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Mean Percentage Score (MPS)</p>
-                  <p className="text-xl font-bold text-slate-900">{group.stats.mps.toFixed(2)}</p>
+                <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center mt-2">
+                  <p className="text-xs font-medium text-slate-500 dark:text-slate-400">MPS</p>
+                  <p className="text-lg font-bold text-slate-900 dark:text-slate-100">{group.stats.mps.toFixed(2)}</p>
                 </div>
               </div>
             </div>
@@ -19134,28 +19046,28 @@ function GradebookView({
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="bg-white rounded-3xl p-6 w-full max-w-md relative z-10 shadow-2xl flex flex-col items-center text-center"
+              className="bg-white dark:bg-slate-900 rounded-xl p-6 w-full max-w-md relative z-10 shadow-lg border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center"
             >
-              <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-4 ${
-                confirmFinalizeConfig.finalize ? 'bg-indigo-100 text-indigo-600' : 'bg-amber-100 text-amber-600'
+              <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-4 ${
+                confirmFinalizeConfig.finalize ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/50 dark:text-indigo-400' : 'bg-amber-50 text-amber-600 dark:bg-amber-900/50 dark:text-amber-400'
               }`}>
-                {confirmFinalizeConfig.finalize ? <CheckCircle size={32} /> : <AlertTriangle size={32} />}
+                {confirmFinalizeConfig.finalize ? <CheckCircle size={24} /> : <AlertTriangle size={24} />}
               </div>
               
-              <h3 className="text-xl font-black text-slate-900 mb-2">
-                {confirmFinalizeConfig.finalize ? 'Finalize & Release Term Grades?' : 'Unfinalize Term Grades?'}
+              <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-2">
+                {confirmFinalizeConfig.finalize ? 'Finalize Grades?' : 'Unfinalize Grades?'}
               </h3>
               
-              <p className="text-slate-500 text-sm font-medium mb-6 leading-relaxed">
+              <p className="text-slate-500 dark:text-slate-400 text-sm mb-6">
                 {confirmFinalizeConfig.finalize 
-                  ? `Are you sure you want to finalize Term ${confirmFinalizeConfig.term} for this subject? Finalizing will release and display these grades in the Learner's Class Card (SF9), Permanent Academic Records (SF10), and Section Grading Sheet.`
-                  : `Are you sure you want to unfinalize Term ${confirmFinalizeConfig.term} for this subject?`}
+                  ? `Are you sure you want to finalize Term ${confirmFinalizeConfig.term}? Finalizing will release and display these grades.`
+                  : `Are you sure you want to unfinalize Term ${confirmFinalizeConfig.term}?`}
               </p>
               
               <div className="flex gap-3 w-full">
                 <button 
                   onClick={() => setConfirmFinalizeConfig(null)}
-                  className="flex-1 py-3 bg-slate-100 text-slate-600 font-bold text-xs uppercase tracking-wider rounded-xl hover:bg-slate-200 transition-colors"
+                  className="flex-1 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium text-sm rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                 >
                   Cancel
                 </button>
@@ -19166,13 +19078,13 @@ function GradebookView({
                     }
                     setConfirmFinalizeConfig(null);
                   }}
-                  className={`flex-1 py-3 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow-md hover:-translate-y-0.5 active:translate-y-0 ${
+                  className={`flex-1 py-2 text-white font-medium text-sm rounded-lg transition-colors ${
                     confirmFinalizeConfig.finalize 
-                      ? 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/20' 
-                      : 'bg-amber-600 hover:bg-amber-700 shadow-amber-600/20'
+                      ? 'bg-indigo-600 hover:bg-indigo-700' 
+                      : 'bg-amber-600 hover:bg-amber-700'
                   }`}
                 >
-                  {confirmFinalizeConfig.finalize ? 'Yes, Finalize & Release' : 'Yes, Unfinalize'}
+                  {confirmFinalizeConfig.finalize ? 'Finalize' : 'Unfinalize'}
                 </button>
               </div>
             </motion.div>
@@ -19183,50 +19095,48 @@ function GradebookView({
       {/* Activity Titles, Topics & HPS Modal */}
       {showActivityModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-lg border border-slate-200 dark:border-slate-800 max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center font-bold">
+                <div className="w-10 h-10 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-lg flex items-center justify-center border border-slate-200 dark:border-slate-700">
                   <Edit size={20} />
                 </div>
                 <div>
-                  <h3 className="font-bold text-slate-800 text-base">Activity Titles, Topics & HPS Config</h3>
-                  <p className="text-xs text-slate-500 font-medium">{selectedSubject.name} — Term {activeTerm} eClass Record</p>
+                  <h3 className="font-semibold text-slate-800 dark:text-slate-200 text-base">Activity Configurations</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">{selectedSubject.name} — Term {activeTerm}</p>
                 </div>
               </div>
               <button 
                 onClick={() => setShowActivityModal(false)}
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-colors cursor-pointer"
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors cursor-pointer"
               >
                 <X size={18} />
               </button>
             </div>
 
             <div className="p-6 overflow-y-auto space-y-6 custom-scrollbar flex-1">
-              <div className="bg-indigo-50/60 border border-indigo-100 rounded-xl p-3.5 text-xs text-indigo-900 flex items-start gap-2.5">
-                <BookOpen size={16} className="text-indigo-600 mt-0.5 shrink-0" />
-                <p className="leading-relaxed">
-                  Specify the title or topic description for each Written Work, Performance Task, and Summative Test (e.g. <em>Quiz 1: Cell Structure</em>, <em>Group Activity: Poster Design</em>). Setting the <strong>Highest Possible Score (HPS)</strong> activates the score column in the eClass Record.
+              <div className="text-sm text-slate-600 dark:text-slate-400">
+                <p>
+                  Specify the title and Highest Possible Score (HPS) for each activity. Setting an HPS activates the score column.
                 </p>
               </div>
 
               {/* Written Works Section */}
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-xs font-black text-blue-800 uppercase tracking-wider flex items-center gap-2">
-                    <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
-                    Written Works (WW) — Weight: {selectedSubject.wwWeight}%
+                  <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span>
+                    Written Works (WW) — {selectedSubject.wwWeight}%
                   </h4>
-                  <span className="text-[10px] text-slate-400 font-medium">Max 5 Activities</span>
                 </div>
                 <div className="space-y-2">
                   {[0, 1, 2, 3, 4].map(i => {
                     const name = refData.writtenWorks?.names?.[i] || "";
                     const hps = refData.writtenWorks?.maxScores?.[i] ?? "";
                     return (
-                      <div key={`modal-ww-${i}`} className="grid grid-cols-12 gap-3 items-center p-2.5 bg-slate-50 rounded-xl border border-slate-150 hover:bg-white hover:border-indigo-200 transition-all">
+                      <div key={`modal-ww-${i}`} className="grid grid-cols-12 gap-3 items-center p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
                         <div className="col-span-2 sm:col-span-1">
-                          <span className="text-xs font-black text-indigo-700 bg-indigo-100 px-2 py-1 rounded-lg block text-center">WW{i+1}</span>
+                          <span className="text-xs font-medium text-slate-500 dark:text-slate-400 block text-center">WW{i+1}</span>
                         </div>
                         <div className="col-span-6 sm:col-span-8">
                           <input 
@@ -19234,20 +19144,20 @@ function GradebookView({
                             disabled={isNotOffered || isYearEndFinalized || isSubjectTermFinalized}
                             value={name}
                             onChange={(e) => handleMassUpdate('written', 'names', i, e.target.value)}
-                            placeholder={`Activity ${i+1} Title / Topic (e.g. Quiz on Fractions)`}
-                            className="w-full text-xs p-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-indigo-500 font-medium text-slate-800"
+                            placeholder={`Title (e.g. Quiz ${i+1})`}
+                            className="w-full text-sm p-2 bg-transparent border-b border-slate-200 dark:border-slate-700 outline-none focus:border-slate-400 dark:focus:border-slate-500 text-slate-800 dark:text-slate-200"
                           />
                         </div>
-                        <div className="col-span-4 sm:col-span-3 flex items-center gap-1.5">
-                          <span className="text-[10px] font-bold text-slate-400 uppercase">HPS:</span>
+                        <div className="col-span-4 sm:col-span-3 flex items-center gap-2">
+                          <span className="text-xs text-slate-500">HPS:</span>
                           <input 
                             type="text"
                             inputMode="numeric"
                             disabled={isNotOffered || isYearEndFinalized || isSubjectTermFinalized}
                             value={hps === 0 ? "" : hps}
                             onChange={(e) => handleMassUpdate('written', 'maxScores', i, e.target.value)}
-                            placeholder="0"
-                            className="w-full text-xs font-bold text-center p-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800"
+                            placeholder="-"
+                            className="w-full text-sm font-medium text-center p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg outline-none focus:border-slate-400 text-slate-800 dark:text-slate-200"
                           />
                         </div>
                       </div>
@@ -19259,20 +19169,19 @@ function GradebookView({
               {/* Performance Tasks Section */}
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-xs font-black text-emerald-800 uppercase tracking-wider flex items-center gap-2">
-                    <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>
-                    Performance Tasks (PT) — Weight: {selectedSubject.ptWeight}%
+                  <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>
+                    Performance Tasks (PT) — {selectedSubject.ptWeight}%
                   </h4>
-                  <span className="text-[10px] text-slate-400 font-medium">Max 5 Tasks</span>
                 </div>
                 <div className="space-y-2">
                   {[0, 1, 2, 3, 4].map(i => {
                     const name = refData.performanceTasks?.names?.[i] || "";
                     const hps = refData.performanceTasks?.maxScores?.[i] ?? "";
                     return (
-                      <div key={`modal-pt-${i}`} className="grid grid-cols-12 gap-3 items-center p-2.5 bg-slate-50 rounded-xl border border-slate-150 hover:bg-white hover:border-emerald-200 transition-all">
+                      <div key={`modal-pt-${i}`} className="grid grid-cols-12 gap-3 items-center p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
                         <div className="col-span-2 sm:col-span-1">
-                          <span className="text-xs font-black text-emerald-700 bg-emerald-100 px-2 py-1 rounded-lg block text-center">PT{i+1}</span>
+                          <span className="text-xs font-medium text-slate-500 dark:text-slate-400 block text-center">PT{i+1}</span>
                         </div>
                         <div className="col-span-6 sm:col-span-8">
                           <input 
@@ -19280,20 +19189,20 @@ function GradebookView({
                             disabled={isNotOffered || isYearEndFinalized || isSubjectTermFinalized}
                             value={name}
                             onChange={(e) => handleMassUpdate('performance', 'names', i, e.target.value)}
-                            placeholder={`Performance Task ${i+1} Title (e.g. Science Experiment)`}
-                            className="w-full text-xs p-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-emerald-500 font-medium text-slate-800"
+                            placeholder={`Title (e.g. Task ${i+1})`}
+                            className="w-full text-sm p-2 bg-transparent border-b border-slate-200 dark:border-slate-700 outline-none focus:border-slate-400 dark:focus:border-slate-500 text-slate-800 dark:text-slate-200"
                           />
                         </div>
-                        <div className="col-span-4 sm:col-span-3 flex items-center gap-1.5">
-                          <span className="text-[10px] font-bold text-slate-400 uppercase">HPS:</span>
+                        <div className="col-span-4 sm:col-span-3 flex items-center gap-2">
+                          <span className="text-xs text-slate-500">HPS:</span>
                           <input 
                             type="text"
                             inputMode="numeric"
                             disabled={isNotOffered || isYearEndFinalized || isSubjectTermFinalized}
                             value={hps === 0 ? "" : hps}
                             onChange={(e) => handleMassUpdate('performance', 'maxScores', i, e.target.value)}
-                            placeholder="0"
-                            className="w-full text-xs font-bold text-center p-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-emerald-500 text-slate-800"
+                            placeholder="-"
+                            className="w-full text-sm font-medium text-center p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg outline-none focus:border-slate-400 text-slate-800 dark:text-slate-200"
                           />
                         </div>
                       </div>
@@ -19305,9 +19214,9 @@ function GradebookView({
               {/* Summative Tests Section */}
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-xs font-black text-amber-800 uppercase tracking-wider flex items-center gap-2">
-                    <span className="w-2 h-2 bg-amber-500 rounded-full"></span>
-                    Summative Tests & Exam — Weight: {selectedSubject.taWeight}%
+                  <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 bg-amber-500 rounded-full"></span>
+                    Assessments — {selectedSubject.taWeight}%
                   </h4>
                 </div>
                 <div className="space-y-2">
@@ -19315,9 +19224,9 @@ function GradebookView({
                     const name = refData.summativeTests?.names?.[i] || "";
                     const hps = refData.summativeTests?.maxScores?.[i] ?? "";
                     return (
-                      <div key={`modal-st-${i}`} className="grid grid-cols-12 gap-3 items-center p-2.5 bg-slate-50 rounded-xl border border-slate-150 hover:bg-white hover:border-amber-200 transition-all">
+                      <div key={`modal-st-${i}`} className="grid grid-cols-12 gap-3 items-center p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
                         <div className="col-span-2 sm:col-span-1">
-                          <span className="text-xs font-black text-amber-700 bg-amber-100 px-2 py-1 rounded-lg block text-center">ST{i+1}</span>
+                          <span className="text-xs font-medium text-slate-500 dark:text-slate-400 block text-center">ST{i+1}</span>
                         </div>
                         <div className="col-span-6 sm:col-span-8">
                           <input 
@@ -19325,43 +19234,43 @@ function GradebookView({
                             disabled={isNotOffered || isYearEndFinalized || isSubjectTermFinalized}
                             value={name}
                             onChange={(e) => handleMassUpdate('summative', 'names', i, e.target.value)}
-                            placeholder={`Summative Test ${i+1} Title (e.g. Unit Examination)`}
-                            className="w-full text-xs p-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-amber-500 font-medium text-slate-800"
+                            placeholder={`Title (e.g. Assessment ${i+1})`}
+                            className="w-full text-sm p-2 bg-transparent border-b border-slate-200 dark:border-slate-700 outline-none focus:border-slate-400 dark:focus:border-slate-500 text-slate-800 dark:text-slate-200"
                           />
                         </div>
-                        <div className="col-span-4 sm:col-span-3 flex items-center gap-1.5">
-                          <span className="text-[10px] font-bold text-slate-400 uppercase">HPS:</span>
+                        <div className="col-span-4 sm:col-span-3 flex items-center gap-2">
+                          <span className="text-xs text-slate-500">HPS:</span>
                           <input 
                             type="text"
                             inputMode="numeric"
                             disabled={isNotOffered || isYearEndFinalized || isSubjectTermFinalized}
                             value={hps === 0 ? "" : hps}
                             onChange={(e) => handleMassUpdate('summative', 'maxScores', i, e.target.value)}
-                            placeholder="0"
-                            className="w-full text-xs font-bold text-center p-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-amber-500 text-slate-800"
+                            placeholder="-"
+                            className="w-full text-sm font-medium text-center p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg outline-none focus:border-slate-400 text-slate-800 dark:text-slate-200"
                           />
                         </div>
                       </div>
                     );
                   })}
 
-                  <div className="grid grid-cols-12 gap-3 items-center p-2.5 bg-amber-50/50 rounded-xl border border-amber-200">
+                  <div className="grid grid-cols-12 gap-3 items-center p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
                     <div className="col-span-2 sm:col-span-1">
-                      <span className="text-[10px] font-black text-amber-900 bg-amber-200 px-1 py-1 rounded-lg block text-center uppercase">Exam</span>
+                      <span className="text-xs font-medium text-slate-500 dark:text-slate-400 block text-center">Exam</span>
                     </div>
                     <div className="col-span-6 sm:col-span-8">
-                      <span className="text-xs font-bold text-slate-800">Quarterly / Term Final Examination</span>
+                      <span className="text-sm text-slate-800 dark:text-slate-200 p-2 block">Quarterly Assessment</span>
                     </div>
-                    <div className="col-span-4 sm:col-span-3 flex items-center gap-1.5">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase">HPS:</span>
+                    <div className="col-span-4 sm:col-span-3 flex items-center gap-2">
+                      <span className="text-xs text-slate-500">HPS:</span>
                       <input 
                         type="text"
                         inputMode="numeric"
                         disabled={isNotOffered || isYearEndFinalized || isSubjectTermFinalized}
                         value={refData.termExam?.maxScore === 0 ? "" : (refData.termExam?.maxScore || "")}
                         onChange={(e) => handleExamMaxChange(e.target.value)}
-                        placeholder="0"
-                        className="w-full text-xs font-bold text-center p-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-amber-500 text-slate-800"
+                        placeholder="-"
+                        className="w-full text-sm font-medium text-center p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg outline-none focus:border-slate-400 text-slate-800 dark:text-slate-200"
                       />
                     </div>
                   </div>
@@ -19369,13 +19278,12 @@ function GradebookView({
               </div>
             </div>
 
-            <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-between items-center">
-              <span className="text-xs text-slate-500 font-medium">Changes sync immediately with class records</span>
+            <div className="p-4 border-t border-slate-100 dark:border-slate-800 flex justify-end">
               <button
                 onClick={() => setShowActivityModal(false)}
-                className="px-6 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 transition-all shadow-sm active:scale-95 cursor-pointer"
+                className="px-4 py-2 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 rounded-lg text-sm font-medium hover:bg-slate-800 dark:hover:bg-white transition-colors cursor-pointer"
               >
-                Save & Close
+                Done
               </button>
             </div>
           </div>
