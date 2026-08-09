@@ -268,9 +268,9 @@ export const SPTAOfficialReceiptModal: React.FC<SPTAOfficialReceiptModalProps> =
                 </span>
               </div>
 
-              {/* Signatures Grid (Record Collector changed to SPTA Treasure / SPTA Treasurer) */}
-              <div className="grid grid-cols-2 gap-6 pt-4 border-t border-slate-200 text-center">
-                <div>
+              {/* Signature Section (SPTA Treasurer) */}
+              <div className="flex justify-center pt-4 border-t border-slate-200 text-center">
+                <div className="max-w-[220px] w-full">
                   <div className="h-8 flex items-end justify-center">
                     <span className="font-bold text-slate-900 text-xs uppercase border-b border-slate-800 px-3 pb-0.5 w-full truncate">
                       {payment.treasurerName || payment.collectorName || 'SPTA Treasurer'}
@@ -278,16 +278,6 @@ export const SPTAOfficialReceiptModal: React.FC<SPTAOfficialReceiptModalProps> =
                   </div>
                   <span className="text-[9px] font-extrabold text-slate-500 uppercase tracking-wider block mt-1">
                     SPTA Treasure / Treasurer
-                  </span>
-                </div>
-                <div>
-                  <div className="h-8 flex items-end justify-center">
-                    <span className="font-bold text-slate-900 text-xs uppercase border-b border-slate-800 px-3 pb-0.5 w-full truncate">
-                      {section?.adviserName || 'Class Adviser'}
-                    </span>
-                  </div>
-                  <span className="text-[9px] font-extrabold text-slate-500 uppercase tracking-wider block mt-1">
-                    Attested By (Adviser)
                   </span>
                 </div>
               </div>
