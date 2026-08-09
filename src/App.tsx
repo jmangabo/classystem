@@ -4569,7 +4569,7 @@ export default function App() {
                   </div>
                   <div className="flex flex-col min-w-0">
                     <h2 className="text-base font-black text-slate-900 dark:text-white truncate">Section Navigation</h2>
-                    <p className="text-xs font-bold text-indigo-600 dark:text-indigo-400 truncate">
+                    <p className="text-xs font-bold text-indigo-600 dark:text-indigo-500 truncate">
                       {selectedSection?.name} • Grade {selectedSection?.gradeLevel}
                     </p>
                   </div>
@@ -4688,7 +4688,7 @@ export default function App() {
                                     }`}
                                   >
                                     <div className={`p-2 rounded-xl shrink-0 ${
-                                      isActive ? 'bg-white/20 text-white' : 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-2xs'
+                                      isActive ? 'bg-white/20 text-white' : 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-500 shadow-2xs'
                                     }`}>
                                       {t.icon}
                                     </div>
@@ -18303,7 +18303,7 @@ function GradebookView({
                     placeholder={hasHps ? "-" : ""}
                     title={cellTitle}
                     onChange={(e) => handleScoreChange(student.id, 'written', i, e.target.value)}
-                    className={`w-full text-center text-xs font-medium py-1 px-1 outline-none bg-transparent border-b border-transparent focus:border-slate-300 dark:focus:border-slate-500 text-slate-800 dark:text-slate-200 transition-all ${
+                    className={`w-full text-center text-xs font-medium py-1 px-1 outline-none bg-transparent border-b border-transparent focus:border-indigo-500 text-slate-800 dark:text-slate-200 transition-all ${
                       hasHps 
                         ? '' 
                         : 'opacity-0 cursor-not-allowed'
@@ -18333,7 +18333,7 @@ function GradebookView({
               placeholder={hasHps ? "-" : ""}
               title={cellTitle}
               onChange={(e) => handleScoreChange(student.id, 'performance', i, e.target.value)}
-              className={`w-full text-center text-xs font-medium py-1 px-1 outline-none bg-transparent border-b border-transparent focus:border-slate-300 dark:focus:border-slate-500 text-slate-800 dark:text-slate-200 transition-all ${
+              className={`w-full text-center text-xs font-medium py-1 px-1 outline-none bg-transparent border-b border-transparent focus:border-indigo-500 text-slate-800 dark:text-slate-200 transition-all ${
                 hasHps 
                   ? '' 
                   : 'opacity-0 cursor-not-allowed'
@@ -18361,7 +18361,7 @@ function GradebookView({
                 value={data.summativeTests?.scores?.[i] ?? ''}
                 placeholder={hasHps ? "-" : ""}
                 onChange={(e) => handleScoreChange(student.id, 'summative', i, e.target.value)}
-                className={`w-full text-center text-xs font-medium py-1 px-1 outline-none bg-transparent border-b border-transparent focus:border-slate-300 dark:focus:border-slate-500 text-slate-800 dark:text-slate-200 transition-all ${
+                className={`w-full text-center text-xs font-medium py-1 px-1 outline-none bg-transparent border-b border-transparent focus:border-indigo-500 text-slate-800 dark:text-slate-200 transition-all ${
                   hasHps 
                     ? '' 
                     : 'opacity-0 cursor-not-allowed'
@@ -18392,7 +18392,7 @@ function GradebookView({
                 value={data.termExam?.score ?? ''}
                 placeholder={hasHps ? "-" : ""}
                 onChange={(e) => handleExamChange(student.id, e.target.value)}
-                className={`w-full text-center text-xs font-medium py-1 px-1 outline-none bg-transparent border-b border-transparent focus:border-slate-300 dark:focus:border-slate-500 text-slate-800 dark:text-slate-200 transition-all ${
+                className={`w-full text-center text-xs font-medium py-1 px-1 outline-none bg-transparent border-b border-transparent focus:border-indigo-500 text-slate-800 dark:text-slate-200 transition-all ${
                   hasHps 
                     ? '' 
                     : 'opacity-0 cursor-not-allowed'
@@ -18505,7 +18505,7 @@ function GradebookView({
       <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
         <div className="px-6 py-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div className="flex items-center gap-4 w-full md:w-auto">
-            <div className="w-10 h-10 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg flex items-center justify-center shrink-0">
+            <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 rounded-lg flex items-center justify-center shrink-0">
                <TableIcon size={20} />
             </div>
             <div className="flex flex-col">
@@ -18575,7 +18575,7 @@ function GradebookView({
             </button>
             <button 
               onClick={() => setShowDataEntryHint(true)}
-              className="px-4 py-1.5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-lg text-xs font-semibold hover:bg-slate-800 dark:hover:bg-slate-100 transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer"
+              className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer"
             >
               <FileText size={14} />
               Assistant
@@ -18675,7 +18675,7 @@ function GradebookView({
             <div className="flex items-center gap-2">
               <button 
                 onClick={() => setShowActivityModal(true)}
-                className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer px-2 py-1"
+                className="text-xs font-medium text-indigo-600 dark:text-indigo-500 hover:underline flex items-center gap-1 cursor-pointer px-2 py-1"
               >
                 <Edit size={12} />
                 Edit Configurations
@@ -18893,7 +18893,7 @@ function GradebookView({
                         value={refData.writtenWorks?.maxScores?.[i] === 0 ? "" : (refData.writtenWorks?.maxScores?.[i] || "")}
                         onChange={(e) => handleMassUpdate('written', 'maxScores', i, e.target.value)}
                         placeholder="-"
-                        className={`w-full text-center text-xs font-semibold py-1 px-1 outline-none bg-transparent border-b border-transparent focus:border-slate-300 dark:focus:border-slate-500 text-slate-800 dark:text-slate-200 transition-all ${(isNotOffered || isYearEndFinalized || isSubjectTermFinalized) ? 'cursor-not-allowed text-slate-400 dark:text-slate-500' : ''}`}
+                        className={`w-full text-center text-xs font-semibold py-1 px-1 outline-none bg-transparent border-b border-transparent focus:border-indigo-500 text-slate-800 dark:text-slate-200 transition-all ${(isNotOffered || isYearEndFinalized || isSubjectTermFinalized) ? 'cursor-not-allowed text-slate-400 dark:text-slate-500' : ''}`}
                       />
                     </td>
                   ))}
@@ -18913,7 +18913,7 @@ function GradebookView({
                         value={refData.performanceTasks?.maxScores?.[i] === 0 ? "" : (refData.performanceTasks?.maxScores?.[i] || "")}
                         onChange={(e) => handleMassUpdate('performance', 'maxScores', i, e.target.value)}
                         placeholder="-"
-                        className={`w-full text-center text-xs font-semibold py-1 px-1 outline-none bg-transparent border-b border-transparent focus:border-slate-300 dark:focus:border-slate-500 text-slate-800 dark:text-slate-200 transition-all ${(isNotOffered || isYearEndFinalized || isSubjectTermFinalized) ? 'cursor-not-allowed text-slate-400 dark:text-slate-500' : ''}`}
+                        className={`w-full text-center text-xs font-semibold py-1 px-1 outline-none bg-transparent border-b border-transparent focus:border-indigo-500 text-slate-800 dark:text-slate-200 transition-all ${(isNotOffered || isYearEndFinalized || isSubjectTermFinalized) ? 'cursor-not-allowed text-slate-400 dark:text-slate-500' : ''}`}
                       />
                     </td>
                   ))}
@@ -18934,7 +18934,7 @@ function GradebookView({
                           value={refData.summativeTests?.maxScores?.[i] === 0 ? "" : (refData.summativeTests?.maxScores?.[i] || "")}
                           onChange={(e) => handleMassUpdate('summative', 'maxScores', i, e.target.value)}
                           placeholder="-"
-                          className={`w-full text-center text-xs font-semibold py-1 px-1 outline-none bg-transparent border-b border-transparent focus:border-slate-300 dark:focus:border-slate-500 text-slate-800 dark:text-slate-200 transition-all ${(isNotOffered || isYearEndFinalized || isSubjectTermFinalized) ? 'cursor-not-allowed text-slate-400 dark:text-slate-500' : ''}`}
+                          className={`w-full text-center text-xs font-semibold py-1 px-1 outline-none bg-transparent border-b border-transparent focus:border-indigo-500 text-slate-800 dark:text-slate-200 transition-all ${(isNotOffered || isYearEndFinalized || isSubjectTermFinalized) ? 'cursor-not-allowed text-slate-400 dark:text-slate-500' : ''}`}
                         />
                         {(refData.summativeTests?.maxScores?.[i] || 0) > 0 && (
                           <span className="text-[8px] text-slate-400 dark:text-slate-500 mt-0.5 select-none" title="Max Weight Score">
@@ -18953,7 +18953,7 @@ function GradebookView({
                         value={refData.termExam?.maxScore === 0 ? "" : (refData.termExam?.maxScore || "")}
                         onChange={(e) => handleExamMaxChange(e.target.value)}
                         placeholder="-"
-                        className={`w-full text-center text-xs font-semibold py-1 px-1 outline-none bg-transparent border-b border-transparent focus:border-slate-300 dark:focus:border-slate-500 text-slate-800 dark:text-slate-200 transition-all ${(isNotOffered || isYearEndFinalized || isSubjectTermFinalized) ? 'cursor-not-allowed text-slate-400 dark:text-slate-500' : ''}`}
+                        className={`w-full text-center text-xs font-semibold py-1 px-1 outline-none bg-transparent border-b border-transparent focus:border-indigo-500 text-slate-800 dark:text-slate-200 transition-all ${(isNotOffered || isYearEndFinalized || isSubjectTermFinalized) ? 'cursor-not-allowed text-slate-400 dark:text-slate-500' : ''}`}
                       />
                       {(refData.termExam?.maxScore || 0) > 0 && (
                         <span className="text-[8px] text-slate-400 dark:text-slate-500 mt-0.5 select-none" title="Max Weight Score">
@@ -19002,7 +19002,7 @@ function GradebookView({
                 </div>
                 <div className="flex justify-between items-center text-xs">
                   <p className="text-slate-500 dark:text-slate-400">Advancing (90-100)</p>
-                  <p className="font-medium text-indigo-600 dark:text-indigo-400">{group.stats.advancing}</p>
+                  <p className="font-medium text-indigo-600 dark:text-indigo-500">{group.stats.advancing}</p>
                 </div>
                 <div className="flex justify-between items-center text-xs">
                   <p className="text-slate-500 dark:text-slate-400">Benchmarking (80-89)</p>
@@ -19049,7 +19049,7 @@ function GradebookView({
               className="bg-white dark:bg-slate-900 rounded-xl p-6 w-full max-w-md relative z-10 shadow-lg border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center"
             >
               <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-4 ${
-                confirmFinalizeConfig.finalize ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/50 dark:text-indigo-400' : 'bg-amber-50 text-amber-600 dark:bg-amber-900/50 dark:text-amber-400'
+                confirmFinalizeConfig.finalize ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/50 dark:text-indigo-500' : 'bg-amber-50 text-amber-600 dark:bg-amber-900/50 dark:text-amber-400'
               }`}>
                 {confirmFinalizeConfig.finalize ? <CheckCircle size={24} /> : <AlertTriangle size={24} />}
               </div>
@@ -19098,7 +19098,7 @@ function GradebookView({
           <div className="bg-white dark:bg-slate-900 rounded-xl shadow-lg border border-slate-200 dark:border-slate-800 max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-lg flex items-center justify-center border border-slate-200 dark:border-slate-700">
+                <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 rounded-lg flex items-center justify-center border border-indigo-100 dark:border-indigo-800">
                   <Edit size={20} />
                 </div>
                 <div>
@@ -19145,7 +19145,7 @@ function GradebookView({
                             value={name}
                             onChange={(e) => handleMassUpdate('written', 'names', i, e.target.value)}
                             placeholder={`Title (e.g. Quiz ${i+1})`}
-                            className="w-full text-sm p-2 bg-transparent border-b border-slate-200 dark:border-slate-700 outline-none focus:border-slate-400 dark:focus:border-slate-500 text-slate-800 dark:text-slate-200"
+                            className="w-full text-sm p-2 bg-transparent border-b border-slate-200 dark:border-slate-700 outline-none focus:border-indigo-500 text-slate-800 dark:text-slate-200"
                           />
                         </div>
                         <div className="col-span-4 sm:col-span-3 flex items-center gap-2">
@@ -19157,7 +19157,7 @@ function GradebookView({
                             value={hps === 0 ? "" : hps}
                             onChange={(e) => handleMassUpdate('written', 'maxScores', i, e.target.value)}
                             placeholder="-"
-                            className="w-full text-sm font-medium text-center p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg outline-none focus:border-slate-400 text-slate-800 dark:text-slate-200"
+                            className="w-full text-sm font-medium text-center p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg outline-none focus:border-indigo-500 text-slate-800 dark:text-slate-200"
                           />
                         </div>
                       </div>
@@ -19190,7 +19190,7 @@ function GradebookView({
                             value={name}
                             onChange={(e) => handleMassUpdate('performance', 'names', i, e.target.value)}
                             placeholder={`Title (e.g. Task ${i+1})`}
-                            className="w-full text-sm p-2 bg-transparent border-b border-slate-200 dark:border-slate-700 outline-none focus:border-slate-400 dark:focus:border-slate-500 text-slate-800 dark:text-slate-200"
+                            className="w-full text-sm p-2 bg-transparent border-b border-slate-200 dark:border-slate-700 outline-none focus:border-indigo-500 text-slate-800 dark:text-slate-200"
                           />
                         </div>
                         <div className="col-span-4 sm:col-span-3 flex items-center gap-2">
@@ -19202,7 +19202,7 @@ function GradebookView({
                             value={hps === 0 ? "" : hps}
                             onChange={(e) => handleMassUpdate('performance', 'maxScores', i, e.target.value)}
                             placeholder="-"
-                            className="w-full text-sm font-medium text-center p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg outline-none focus:border-slate-400 text-slate-800 dark:text-slate-200"
+                            className="w-full text-sm font-medium text-center p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg outline-none focus:border-indigo-500 text-slate-800 dark:text-slate-200"
                           />
                         </div>
                       </div>
@@ -19235,7 +19235,7 @@ function GradebookView({
                             value={name}
                             onChange={(e) => handleMassUpdate('summative', 'names', i, e.target.value)}
                             placeholder={`Title (e.g. Assessment ${i+1})`}
-                            className="w-full text-sm p-2 bg-transparent border-b border-slate-200 dark:border-slate-700 outline-none focus:border-slate-400 dark:focus:border-slate-500 text-slate-800 dark:text-slate-200"
+                            className="w-full text-sm p-2 bg-transparent border-b border-slate-200 dark:border-slate-700 outline-none focus:border-indigo-500 text-slate-800 dark:text-slate-200"
                           />
                         </div>
                         <div className="col-span-4 sm:col-span-3 flex items-center gap-2">
@@ -19247,7 +19247,7 @@ function GradebookView({
                             value={hps === 0 ? "" : hps}
                             onChange={(e) => handleMassUpdate('summative', 'maxScores', i, e.target.value)}
                             placeholder="-"
-                            className="w-full text-sm font-medium text-center p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg outline-none focus:border-slate-400 text-slate-800 dark:text-slate-200"
+                            className="w-full text-sm font-medium text-center p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg outline-none focus:border-indigo-500 text-slate-800 dark:text-slate-200"
                           />
                         </div>
                       </div>
@@ -19270,7 +19270,7 @@ function GradebookView({
                         value={refData.termExam?.maxScore === 0 ? "" : (refData.termExam?.maxScore || "")}
                         onChange={(e) => handleExamMaxChange(e.target.value)}
                         placeholder="-"
-                        className="w-full text-sm font-medium text-center p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg outline-none focus:border-slate-400 text-slate-800 dark:text-slate-200"
+                        className="w-full text-sm font-medium text-center p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg outline-none focus:border-indigo-500 text-slate-800 dark:text-slate-200"
                       />
                     </div>
                   </div>
@@ -19281,7 +19281,7 @@ function GradebookView({
             <div className="p-4 border-t border-slate-100 dark:border-slate-800 flex justify-end">
               <button
                 onClick={() => setShowActivityModal(false)}
-                className="px-4 py-2 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 rounded-lg text-sm font-medium hover:bg-slate-800 dark:hover:bg-white transition-colors cursor-pointer"
+                className="px-6 py-2 bg-indigo-600 text-white rounded-lg text-xs font-semibold hover:bg-indigo-700 transition-colors shadow-sm cursor-pointer"
               >
                 Done
               </button>
@@ -30041,7 +30041,7 @@ function ProfileView({ userProfile, onUpdate, onBack, onOpenThemeModal }: { user
               onClick={onOpenThemeModal}
               className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-100 px-4 py-2.5 rounded-xl font-bold text-xs transition-all shadow-xs cursor-pointer border border-slate-200 dark:border-slate-700"
             >
-              <Palette size={15} className="text-indigo-600 dark:text-indigo-400 shrink-0" />
+              <Palette size={15} className="text-indigo-600 dark:text-indigo-500 shrink-0" />
               <span>System Appearance & Themes</span>
             </button>
           )}
