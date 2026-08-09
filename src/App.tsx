@@ -4128,7 +4128,7 @@ export default function App() {
     <div className="flex flex-col h-screen bg-[#f8fafc] text-slate-900 font-sans overflow-hidden">
       {!globalSettings?.activeSchoolYear && <EncodingClosedBanner />}
       <DeadlineBanner globalSettings={globalSettings} />
-      <header className="sticky top-0 z-[100] h-16 bg-white border-b border-slate-200 flex items-center justify-between px-3 sm:px-4 xl:px-8 shrink-0 shadow-sm overflow-hidden">
+      <header className="sticky top-0 z-[100] h-16 bg-white border-b border-slate-200 flex items-center justify-between px-3 sm:px-4 xl:px-8 shrink-0 shadow-sm">
         {/* Left Side: Back button, Logo, & Interactive Quick Section Switcher */}
         <div className="flex items-center gap-2 sm:gap-4 xl:gap-6 min-w-0">
           <div className="flex items-center gap-2 sm:gap-4 border-r border-slate-100 pr-2 sm:pr-4 shrink-0">
@@ -8685,7 +8685,7 @@ function SectionsView({
               </div>
 
               {/* Premium Contextual Header for Sections */}
-              <div className="relative bg-white rounded-2xl p-8 md:p-10 mb-8 border border-slate-200 shadow-sm overflow-hidden flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
+              <div className="relative bg-white rounded-2xl p-8 md:p-10 mb-8 border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
                 <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-50/50 rounded-full blur-3xl opacity-60 -mr-10 -mt-10 pointer-events-none"></div>
                 
                 <div className="relative z-10 space-y-3 max-w-2xl">
@@ -12836,7 +12836,7 @@ function AddLearnerView({
           </div>
         )}
         {/* Male Panel */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col">
           <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-blue-50/20">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-blue-100 text-blue-600 rounded-lg shadow-sm">
@@ -12873,7 +12873,7 @@ function AddLearnerView({
         </div>
 
         {/* Female Panel */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col">
           <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-rose-50/20">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-rose-100 text-rose-600 rounded-lg shadow-sm">
@@ -12911,7 +12911,7 @@ function AddLearnerView({
       </div>
 
       {studentsOther.length > 0 && (
-        <div className="bg-amber-50/30 rounded-2xl border border-amber-200/50 shadow-sm overflow-hidden flex flex-col mt-8">
+        <div className="bg-amber-50/30 rounded-2xl border border-amber-200/50 shadow-sm flex flex-col mt-8">
           <div className="p-4 border-b border-amber-100 flex justify-between items-center bg-amber-50">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-amber-100 text-amber-600 rounded-lg">
@@ -21579,7 +21579,7 @@ function SubjectsView({
         )}
       </AnimatePresence>
 
-      <section className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <section className="bg-white rounded-2xl border border-slate-200 shadow-sm">
         <div className="p-5 md:p-6 border-b border-slate-200 bg-white flex flex-col md:flex-row md:items-center justify-between gap-4 px-6">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600">
@@ -25105,7 +25105,7 @@ function SummarySheetView({
 
   return (
     <div className="flex flex-col bg-slate-50 min-h-screen">
-      <div className="bg-white border-b border-slate-200 shadow-sm overflow-hidden mb-0 relative">
+      <div className="bg-white border-b border-slate-200 shadow-sm mb-0 relative">
         <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-50/50 rounded-full blur-3xl opacity-60 -mr-10 -mt-10 pointer-events-none"></div>
         <div className="p-6 md:p-8 flex flex-col md:flex-row md:items-center justify-between gap-6 print:hidden relative z-10">
           <div className="flex items-center gap-5 w-full md:w-auto">
