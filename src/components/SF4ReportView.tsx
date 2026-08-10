@@ -5,6 +5,7 @@ import { Section, Student, School, TermNumber } from '../types';
 import { FileText, Download, Loader2, Calendar, RefreshCw, X, Printer } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx-js-style';
+import { printHTMLContent } from '../utils';
 
 interface SF4ReportViewProps {
   schoolId: string;
@@ -413,6 +414,54 @@ export const SF4ReportView: React.FC<SF4ReportViewProps> = ({ schoolId, calendar
        return aName.localeCompare(bName);
     });
   }, [selectedCategory, currentMonthData, sections, sectionStudents, monthsList]);
+
+  const handlePrintNewWindow = () => {
+    const printContents = document.getElementById('sf4-print-card')?.innerHTML || document.querySelector('.print-card-sf4')?.innerHTML;
+    if (printContents) {
+      const win = {
+        document: {
+          write: (html: string) => printHTMLContent(html),
+          close: () => {}
+        }
+      };
+      if (win) {
+        win.document.write(`
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>School Form 4 (SF4) - Monthly Learner Movement and Attendance</title>
+            <style>
+              @page { size: landscape; margin: 10mm; }
+              body { font-family: sans-serif; padding: 0; margin: 0; color: #000; background: #fff; }
+              table { border-collapse: collapse; width: 100%; font-size: 6.5px; }
+              th, td { border: 1px solid black !important; padding: 2px !important; text-align: center; }
+              .print-card-sf4 { width: 277mm; margin: 0 auto; background: white; }
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            </style>
+          </head>
+          <body>
+            <div class="print-card-sf4">
+              ${printContents}
+            </div>
+            <script>
+              window.onload = function() {
+                setTimeout(function() {
+                  window.onafterprint = function() { window.close(); };
+                  window.onfocus = function() { setTimeout(function() { window.close(); }, 800); };
+                  window.print();
+                }, 800);
+              };
+            </script>
+          </body>
+          </html>
+        `);
+        win.document.close();
+      }
+    } else {
+      window.print();
+    }
+  };
 
   const handleExportExcel = () => {
     if (!currentMonthData || reportData.length === 0) return;
@@ -1062,19 +1111,23 @@ export const SF4ReportView: React.FC<SF4ReportViewProps> = ({ schoolId, calendar
                 </p>
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-4 flex-wrap">
+                <div className="flex items-center gap-2 bg-indigo-950/80 border border-indigo-500/40 px-4 py-2 rounded-xl text-xs font-semibold text-indigo-200">
+                  <Printer size={16} className="text-indigo-400 animate-pulse" />
+                  <span>Press <kbd className="bg-indigo-900 border border-indigo-700 px-1.5 py-0.5 rounded text-white font-mono font-bold text-[11px]">Ctrl</kbd> + <kbd className="bg-indigo-900 border border-indigo-700 px-1.5 py-0.5 rounded text-white font-mono font-bold text-[11px]">P</kbd> to Print Report</span>
+                </div>
                 <button 
-                  onClick={() => window.print()}
-                  className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full font-bold text-[10px] uppercase tracking-wide shadow flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+                  onClick={handlePrintNewWindow}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-[10px] uppercase tracking-wider shadow flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer"
                 >
-                  <Printer size={12} />
-                  Print Form
+                  <Printer size={14} />
+                  Print Now
                 </button>
                 <button 
                   onClick={() => setIsPrintModalOpen(false)}
-                  className="px-4 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-full font-bold text-[10px] uppercase tracking-wide shadow flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold text-[10px] uppercase tracking-wider shadow flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer"
                 >
-                  <X size={12} />
+                  <X size={14} />
                   Close Page
                 </button>
               </div>
@@ -1088,7 +1141,7 @@ export const SF4ReportView: React.FC<SF4ReportViewProps> = ({ schoolId, calendar
                 className="flex flex-col gap-8 print:gap-0 print:block print:transform-none select-none shadow-xl border border-slate-200/50 rounded-lg p-2 bg-white/50 print:border-0 print:p-0 print:bg-transparent"
               >
                 {/* PRINT PAGE CARD */}
-                <div className="bg-white w-[297mm] p-[0.35in] shadow-2xl rounded text-black border border-black flex flex-col overflow-hidden print:shadow-none print:m-0 border-collapse print-card-sf4">
+                <div id="sf4-print-card" className="bg-white w-[297mm] p-[0.35in] shadow-2xl rounded text-black border border-black flex flex-col overflow-hidden print:shadow-none print:m-0 border-collapse print-card-sf4">
                   
                   {/* Header Section */}
                   <div className="text-center mb-4">
