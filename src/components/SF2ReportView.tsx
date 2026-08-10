@@ -2331,12 +2331,23 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
                 </p>
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-4 flex-wrap">
+                <div className="flex items-center gap-2 bg-indigo-950/80 border border-indigo-500/40 px-4 py-2 rounded-xl text-xs font-semibold text-indigo-200">
+                  <Printer size={16} className="text-indigo-400 animate-pulse" />
+                  <span>Press <kbd className="bg-indigo-900 border border-indigo-700 px-1.5 py-0.5 rounded text-white font-mono font-bold text-[11px]">Ctrl</kbd> + <kbd className="bg-indigo-900 border border-indigo-700 px-1.5 py-0.5 rounded text-white font-mono font-bold text-[11px]">P</kbd> to Print Report</span>
+                </div>
+                <button 
+                  onClick={handlePrintNewWindow}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-[10px] uppercase tracking-wider shadow flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+                >
+                  <Printer size={14} />
+                  Print Now
+                </button>
                 <button 
                   onClick={() => setIsPrintModalOpen(false)}
-                  className="px-4 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-full font-bold text-[10px] uppercase tracking-wide shadow flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold text-[10px] uppercase tracking-wider shadow flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer"
                 >
-                  <X size={12} />
+                  <X size={14} />
                   Close Page
                 </button>
               </div>
