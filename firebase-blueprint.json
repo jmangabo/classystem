@@ -370,6 +370,28 @@
         "date": { "type": "string", "format": "date-time" }
       },
       "required": ["studentId", "studentName", "assessmentTitle", "result", "date"]
+    },
+    "AttendanceScanLog": {
+      "title": "Attendance Scan Log",
+      "description": "Log of barcode/QR scanning events for student time-in and time-out tracking",
+      "type": "object",
+      "properties": {
+        "studentId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "lrn": { "type": "string" },
+        "sectionId": { "type": "string" },
+        "sectionName": { "type": "string" },
+        "gradeLevel": { "type": "number" },
+        "schoolId": { "type": "string" },
+        "schoolYear": { "type": "string" },
+        "scanDate": { "type": "string" },
+        "scanTime": { "type": "string" },
+        "scanType": { "type": "string", "enum": ["IN", "OUT"] },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "scannedBy": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["studentId", "studentName", "lrn", "scanDate", "scanTime", "scanType", "timestamp"]
     }
   },
   "firestore": {
@@ -444,6 +466,10 @@
     "aral_classes/{classId}": {
       "schema": "AralClass",
       "description": "ARAL remedial tutoring classes"
+    },
+    "attendance_scan_logs/{logId}": {
+      "schema": "AttendanceScanLog",
+      "description": "Logs of barcode/QR scanning events for student time-in and time-out tracking"
     }
   }
 }

@@ -1,8 +1,9 @@
 import { formatStudentName } from "../utils";
 import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
-import { Student } from '../types';
-import { Filter, Calendar as CalendarIcon, QrCode, X, CheckCircle, AlertCircle, AlertTriangle } from 'lucide-react';
+import { Student, AttendanceScanLog, Section } from '../types';
+import { Filter, Calendar as CalendarIcon, QrCode, X, CheckCircle, AlertCircle, AlertTriangle, Clock, LogIn, LogOut } from 'lucide-react';
 import { Scanner } from '@yudiel/react-qr-scanner';
+import { AttendanceScanReport } from './AttendanceScanReport';
 
 interface DailyAttendanceTrackerProps {
   students: Student[];
@@ -11,6 +12,18 @@ interface DailyAttendanceTrackerProps {
   onMarkAllPresent: (studentId: string, month: string) => void;
   schoolYear?: string;
   userId?: string;
+  section?: Section;
+  sections?: Section[];
+  scanLogs?: AttendanceScanLog[];
+  onAddScanLog?: (log: Omit<AttendanceScanLog, 'id'>) => Promise<void> | void;
+  onDeleteScanLog?: (logId: string) => Promise<void> | void;
+  onClearScanLogs?: (logIds?: string[]) => Promise<void> | void;
+  currentUserEmail?: string;
+  schoolName?: string;
+  schoolId?: string;
+  division?: string;
+  region?: string;
+  onScanID?: () => void;
 }
 
 const MONTHS = ["June", "July", "August", "September", "October", "November", "December", "January", "February", "March", "April", "May"];
@@ -34,9 +47,30 @@ const monthIndices: { [key: string]: number } = {
   'July': 6, 'August': 7, 'September': 8, 'October': 9, 'November': 10, 'December': 11
 };
 
-export const DailyAttendanceTracker: React.FC<DailyAttendanceTrackerProps> = ({ students, calendar, onUpdateAttendance, onMarkAllPresent, schoolYear, userId }) => {
+export const DailyAttendanceTracker: React.FC<DailyAttendanceTrackerProps> = ({ 
+  students, 
+  calendar, 
+  onUpdateAttendance, 
+  onMarkAllPresent, 
+  schoolYear, 
+  userId,
+  section,
+  sections = [],
+  scanLogs = [],
+  onAddScanLog,
+  onDeleteScanLog,
+  onClearScanLogs,
+  currentUserEmail,
+  schoolName,
+  schoolId,
+  division,
+  region,
+  onScanID
+}) => {
+  const [viewMode, setViewMode] = useState<'grid' | 'scan_report'>('grid');
+  const [scanMode, setScanMode] = useState<'auto' | 'in' | 'out'>('auto');
   const [showScanner, setShowScanner] = useState(false);
-  const [recentScan, setRecentScan] = useState<{ status: 'success' | 'error', message: string, student?: Student | null } | null>(null);
+  const [recentScan, setRecentScan] = useState<{ status: 'success' | 'error', message: string, student?: Student | null, scanType?: 'IN' | 'OUT' } | null>(null);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
   const [scannerError, setScannerError] = useState<string | null>(null);
 
@@ -234,15 +268,21 @@ export const DailyAttendanceTracker: React.FC<DailyAttendanceTrackerProps> = ({ 
     const student = students.find(s => s.lrn === scannedLrn);
     if (!student) {
       setRecentScan({ status: 'error', message: `LRN ${scannedLrn} not found in this section.`, student: null });
-      setTimeout(() => setRecentScan(null), 3000);
+      setTimeout(() => setRecentScan(null), 3500);
       return;
     }
 
-    // Get current date
+    // Get current date and formatted strings
     const today = new Date();
     const currentYear = today.getFullYear();
     const currentMonthStr = MONTHS[today.getMonth()];
     const currentDay = today.getDate();
+
+    const monthStr = String(today.getMonth() + 1).padStart(2, '0');
+    const dayStr = String(today.getDate()).padStart(2, '0');
+    const scanDate = `${currentYear}-${monthStr}-${dayStr}`;
+    
+    const scanTime = today.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
 
     // Find the term key for the current month/year
     let termKeyToUpdate: string | null = null;
@@ -259,7 +299,7 @@ export const DailyAttendanceTracker: React.FC<DailyAttendanceTrackerProps> = ({ 
 
     if (!termKeyToUpdate) {
       setRecentScan({ status: 'error', message: `Today (${currentMonthStr} ${currentDay}) is not a valid school day in the calendar.`, student });
-      setTimeout(() => setRecentScan(null), 3000);
+      setTimeout(() => setRecentScan(null), 3500);
       return;
     }
 
@@ -267,14 +307,64 @@ export const DailyAttendanceTracker: React.FC<DailyAttendanceTrackerProps> = ({ 
     const isDisabled = isDayDisabledForStudent(student, currentYear, currentMonthStr, currentDay);
     if (isDisabled) {
       setRecentScan({ status: 'error', message: `${formatStudentName(student)} is inactive or not enrolled today.`, student });
-      setTimeout(() => setRecentScan(null), 3000);
+      setTimeout(() => setRecentScan(null), 3500);
       return;
+    }
+
+    // Determine scanType (IN vs OUT)
+    let scanType: 'IN' | 'OUT' = 'IN';
+    if (scanMode === 'in') {
+      scanType = 'IN';
+    } else if (scanMode === 'out') {
+      scanType = 'OUT';
+    } else {
+      // Auto-detect mode: inspect student's today scan logs
+      const studentTodayLogs = scanLogs
+        .filter(l => l.scanDate === scanDate && (l.studentId === student.id || l.lrn === student.lrn))
+        .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+      if (studentTodayLogs.length > 0) {
+        const lastLog = studentTodayLogs[studentTodayLogs.length - 1];
+        if (lastLog.scanType === 'IN') {
+          scanType = 'OUT';
+        } else {
+          scanType = 'IN';
+        }
+      } else {
+        scanType = 'IN';
+      }
     }
 
     // Mark present
     onUpdateAttendance(student.id, termKeyToUpdate, currentDay, true);
-    setRecentScan({ status: 'success', message: `${formatStudentName(student)} marked present for today.`, student });
-    setTimeout(() => setRecentScan(null), 3000);
+
+    // Record scan log
+    if (onAddScanLog) {
+      onAddScanLog({
+        studentId: student.id,
+        studentName: formatStudentName(student),
+        lrn: student.lrn || '',
+        sectionId: section?.id || student.sectionId || '',
+        sectionName: section?.name || student.sectionName || 'Section',
+        gradeLevel: section?.gradeLevel || student.gradeLevel || 0,
+        schoolId: section?.schoolId || schoolId || '',
+        schoolYear: schoolYear || section?.schoolYear || '',
+        scanDate,
+        scanTime,
+        scanType,
+        timestamp: today.toISOString(),
+        scannedBy: currentUserEmail || 'ID Scanner',
+        status: 'On Time'
+      });
+    }
+
+    setRecentScan({ 
+      status: 'success', 
+      message: `${formatStudentName(student)} logged TIME ${scanType} at ${scanTime}.`, 
+      student,
+      scanType
+    });
+    setTimeout(() => setRecentScan(null), 3500);
   };
 
   const trackerScanRef = useRef(handleScan);
@@ -455,65 +545,118 @@ export const DailyAttendanceTracker: React.FC<DailyAttendanceTrackerProps> = ({ 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden flex flex-col gap-0">
       {/* Standardized Header */}
-      <div className="p-8 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row md:items-center justify-between gap-6 print:hidden">
-        <div className="flex items-center gap-5">
-          <div className="w-12 h-12 bg-indigo-600 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-200 border border-indigo-500">
-             <CalendarIcon size={24} />
+      <div className="p-6 md:p-8 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row md:items-center justify-between gap-6 print:hidden">
+        <div className="flex flex-col md:flex-row md:items-center gap-5">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 bg-indigo-600 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-200 border border-indigo-500 shrink-0">
+               <CalendarIcon size={24} />
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Daily Attendance Tracker</h2>
+              <p className="text-slate-500 text-xs font-medium uppercase tracking-widest mt-0.5">Record & monitor learner attendance & scan logs</p>
+            </div>
           </div>
-          <div>
-            <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Daily Attendance Tracker</h2>
-            <p className="text-slate-500 text-xs font-medium uppercase tracking-widest mt-0.5">Record and monitor learner daily attendance</p>
+
+          {/* View Mode Toggle */}
+          <div className="flex items-center gap-1 bg-slate-200/80 p-1.5 rounded-2xl border border-slate-300/80 self-start md:self-auto">
+            <button
+              type="button"
+              onClick={() => setViewMode('grid')}
+              className={`px-3.5 py-2 rounded-xl text-xs font-extrabold transition-all flex items-center gap-1.5 cursor-pointer ${
+                viewMode === 'grid'
+                  ? 'bg-white text-indigo-700 shadow-sm font-black'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <CalendarIcon size={14} />
+              <span>Daily Matrix Grid</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('scan_report')}
+              className={`px-3.5 py-2 rounded-xl text-xs font-extrabold transition-all flex items-center gap-1.5 cursor-pointer ${
+                viewMode === 'scan_report'
+                  ? 'bg-white text-indigo-700 shadow-sm font-black'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Clock size={14} />
+              <span>ID Scan Logs (In & Out)</span>
+            </button>
           </div>
         </div>
+
         <button 
           onClick={() => {
-            setShowScanner(true);
-            setScannerError(null);
+            if (onScanID) {
+              onScanID();
+            } else {
+              setShowScanner(true);
+              setScannerError(null);
+            }
           }}
-          className="flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-indigo-200"
+          className="flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-indigo-200 cursor-pointer self-start md:self-auto"
         >
           <QrCode size={16} />
           Scan QR ID
         </button>
       </div>
 
-      {/* Selectors Area */}
-      <div className="p-6 border-b border-slate-100 bg-white flex flex-col md:flex-row items-center justify-between gap-4 print:hidden">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="relative group">
-            <select 
-              value={selectedTerm}
-              onChange={(e) => setSelectedTerm(e.target.value)}
-              className="appearance-none bg-white border border-slate-200 px-4 pr-10 py-1.5 rounded-xl text-xs font-bold text-slate-700 outline-none cursor-pointer hover:border-indigo-300 transition-all shadow-sm"
-            >
-              <option value="all">All Terms</option>
-              {availableTerms.map(term => (
-                <option key={term} value={term}>Term {term}</option>
-              ))}
-            </select>
-            <Filter size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 group-hover:text-indigo-500 pointer-events-none transition-colors" />
-          </div>
-
-          <div className="relative group">
-            <select 
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              className="appearance-none bg-white border border-slate-200 px-4 pr-10 py-1.5 rounded-xl text-xs font-bold text-slate-700 outline-none cursor-pointer hover:border-indigo-300 transition-all shadow-sm"
-            >
-              <option value="all">All Months</option>
-              {availableMonths.map(month => (
-                <option key={month} value={month}>{month}</option>
-              ))}
-            </select>
-            <CalendarIcon size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 group-hover:text-indigo-500 pointer-events-none transition-colors" />
-          </div>
+      {viewMode === 'scan_report' ? (
+        <div className="p-6">
+          <AttendanceScanReport
+            logs={scanLogs}
+            sections={sections.length > 0 ? sections : section ? [section] : []}
+            students={students}
+            selectedSectionId={section?.id}
+            onDeleteLog={onDeleteScanLog}
+            onClearLogs={onClearScanLogs}
+            currentUserEmail={currentUserEmail}
+            schoolName={schoolName}
+            schoolId={schoolId}
+            division={division}
+            region={region}
+          />
         </div>
+      ) : (
+        <>
+          {/* Selectors Area */}
+          <div className="p-6 border-b border-slate-100 bg-white flex flex-col md:flex-row items-center justify-between gap-4 print:hidden">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="relative group">
+                <select 
+                  value={selectedTerm}
+                  onChange={(e) => setSelectedTerm(e.target.value)}
+                  className="appearance-none bg-white border border-slate-200 px-4 pr-10 py-1.5 rounded-xl text-xs font-bold text-slate-700 outline-none cursor-pointer hover:border-indigo-300 transition-all shadow-sm"
+                >
+                  <option value="all">All Terms</option>
+                  {availableTerms.map(term => (
+                    <option key={term} value={term}>Term {term}</option>
+                  ))}
+                </select>
+                <Filter size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 group-hover:text-indigo-500 pointer-events-none transition-colors" />
+              </div>
 
-        <div className="flex items-center gap-2 bg-indigo-50/50 border border-indigo-100 rounded-xl px-4 py-2 text-indigo-700 text-[10px] font-bold uppercase tracking-wider">
-           <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
-           <span>Quick Instruction: Check the box if the learner is present.</span>
-        </div>
-      </div>
+              <div className="relative group">
+                <select 
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  className="appearance-none bg-white border border-slate-200 px-4 pr-10 py-1.5 rounded-xl text-xs font-bold text-slate-700 outline-none cursor-pointer hover:border-indigo-300 transition-all shadow-sm"
+                >
+                  <option value="all">All Months</option>
+                  {availableMonths.map(month => (
+                    <option key={month} value={month}>{month}</option>
+                  ))}
+                </select>
+                <CalendarIcon size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 group-hover:text-indigo-500 pointer-events-none transition-colors" />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 bg-indigo-50/50 border border-indigo-100 rounded-xl px-4 py-2 text-indigo-700 text-[10px] font-bold uppercase tracking-wider">
+               <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
+               <span>Quick Instruction: Check the box if the learner is present.</span>
+            </div>
+          </div>
 
       <div className="px-6 pb-6 pt-0 overflow-auto max-h-[650px] relative custom-scrollbar">
           <table className="w-full border-collapse border border-black text-[10px] text-black">
@@ -785,6 +928,8 @@ export const DailyAttendanceTracker: React.FC<DailyAttendanceTrackerProps> = ({ 
             </tbody>
         </table>
         </div>
+      </>
+      )}
 
         {/* QR Scanner Modal */}
         {showScanner && (
@@ -797,20 +942,60 @@ export const DailyAttendanceTracker: React.FC<DailyAttendanceTrackerProps> = ({ 
                   </div>
                   <div>
                     <h3 className="font-black text-slate-800 tracking-tight">Scan ID for Attendance</h3>
-                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Hold QR Code in frame</p>
+                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Hold Barcode/QR Code in frame or scan</p>
                   </div>
                 </div>
                 <button 
                   onClick={() => setShowScanner(false)}
-                  className="w-10 h-10 flex items-center justify-center text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-colors"
+                  className="w-10 h-10 flex items-center justify-center text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
                 >
                   <X size={20} />
                 </button>
               </div>
               
               <div className="p-6 grid grid-cols-1 md:grid-cols-12 gap-6 items-start overflow-y-auto max-h-[85vh] custom-scrollbar">
-                {/* Left Part: Scanner */}
+                {/* Left Part: Scanner Controls */}
                 <div className="md:col-span-5 flex flex-col items-center">
+                  {/* Scan Mode Toggle */}
+                  <div className="w-full bg-slate-100 p-2 rounded-2xl border border-slate-200/80 mb-3 flex flex-col items-center gap-1.5">
+                    <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Scan Event Mode</span>
+                    <div className="flex items-center gap-1 w-full justify-center">
+                      <button
+                        type="button"
+                        onClick={() => setScanMode('auto')}
+                        className={`flex-1 py-1.5 rounded-xl text-[10px] font-extrabold transition-all cursor-pointer ${
+                          scanMode === 'auto'
+                            ? 'bg-indigo-600 text-white shadow-xs'
+                            : 'bg-white text-slate-700 hover:bg-slate-200'
+                        }`}
+                      >
+                        🔄 Auto In/Out
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setScanMode('in')}
+                        className={`flex-1 py-1.5 rounded-xl text-[10px] font-extrabold transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                          scanMode === 'in'
+                            ? 'bg-emerald-600 text-white shadow-xs'
+                            : 'bg-white text-slate-700 hover:bg-slate-200'
+                        }`}
+                      >
+                        <LogIn size={11} /> Time IN
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setScanMode('out')}
+                        className={`flex-1 py-1.5 rounded-xl text-[10px] font-extrabold transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                          scanMode === 'out'
+                            ? 'bg-amber-600 text-white shadow-xs'
+                            : 'bg-white text-slate-700 hover:bg-slate-200'
+                        }`}
+                      >
+                        <LogOut size={11} /> Time OUT
+                      </button>
+                    </div>
+                  </div>
+
                   <div className="flex justify-center gap-2 mb-4 w-full">
                     <button
                       type="button"
@@ -886,6 +1071,13 @@ export const DailyAttendanceTracker: React.FC<DailyAttendanceTrackerProps> = ({ 
 
                             <div className="space-y-1 min-w-0 flex-1">
                               <div className="flex items-center gap-2 flex-wrap">
+                                {recentScan.scanType && (
+                                  <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full ${
+                                    recentScan.scanType === 'IN' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-amber-600 text-white shadow-xs'
+                                  }`}>
+                                    LOGGED TIME {recentScan.scanType}
+                                  </span>
+                                )}
                                 <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border ${
                                   recentScan.student.status === 'Dropped Out' 
                                     ? 'bg-orange-50 border-orange-200 text-orange-600'

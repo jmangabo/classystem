@@ -255,6 +255,12 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin() || isSystemAdmin() || isTeacher();
     }
 
+    // Attendance Scan Logs Rules (Time In & Time Out Monitoring)
+    match /attendance_scan_logs/{logId} {
+      allow read, list, get: if isSignedIn();
+      allow create, update, delete: if isSignedIn();
+    }
+
     // 7. PTA Audit Logs Rules
     match /pta_audit_logs/{logId} {
       allow read: if isAdmin() || isSystemAdmin() || isTeacher();

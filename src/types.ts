@@ -18,6 +18,25 @@ export interface DailyAttendance {
   [day: number]: boolean;
 }
 
+export interface AttendanceScanLog {
+  id: string;
+  studentId: string;
+  studentName: string;
+  lrn: string;
+  sectionId: string;
+  sectionName: string;
+  gradeLevel?: number;
+  schoolId?: string;
+  schoolYear?: string;
+  scanDate: string; // YYYY-MM-DD
+  scanTime: string; // HH:mm:ss AM/PM or 12-hour format
+  scanType: 'IN' | 'OUT';
+  timestamp: string; // ISO string
+  scannedBy?: string;
+  status?: 'On Time' | 'Late' | 'Regular' | 'Early Leave';
+  remarks?: string;
+}
+
 export interface TermData {
   writtenWorks: GradeComponent; // Max 5
   performanceTasks: GradeComponent; // Max 5

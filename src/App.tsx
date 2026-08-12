@@ -527,7 +527,7 @@ import {
   arrayUnion
 } from "firebase/firestore";
 import { auth, db, handleFirestoreError, safeGetDoc as getDoc, safeGetDocs as getDocs } from "./firebase";
-import { Subject, Student, Course, TermNumber, RatedValue, Section, UserProfile, School, Eligibility, AnecdotalRecord, AralClass } from "./types";
+import { Subject, Student, Course, TermNumber, RatedValue, Section, UserProfile, School, Eligibility, AnecdotalRecord, AralClass, AttendanceScanLog } from "./types";
 import { formatStudentName, capitalizeName, capitalizeFirst, getSubjectSortScore, printHTMLContent, isTleSubject, getTleDisplayName } from "./utils";
 import { INITIAL_STUDENTS, DEFAULT_TERM_DATA } from "./constants";
 import { AttendanceCard } from "./components/AttendanceCard";
@@ -1170,12 +1170,70 @@ export default function App() {
   const [statusChangeDate, setStatusChangeDate] = useState(new Date().toISOString().split('T')[0]);
   const [statusChangeReason, setStatusChangeReason] = useState("");
 
+  const [scanLogs, setScanLogs] = useState<AttendanceScanLog[]>([]);
   const [showGlobalScanner, setShowGlobalScanner] = useState(false);
   const [isScannerFullScreen, setIsScannerFullScreen] = useState(true);
   const [globalScannerFacingMode, setGlobalScannerFacingMode] = useState<'user' | 'environment'>('environment');
-  const [globalRecentScan, setGlobalRecentScan] = useState<{ status: 'success' | 'error', message: string, student?: Student | null, section?: Section | null } | null>(null);
+  const [globalRecentScan, setGlobalRecentScan] = useState<{ status: 'success' | 'error', message: string, student?: Student | null, section?: Section | null, scanType?: 'IN' | 'OUT', scanTime?: string } | null>(null);
   const [globalScannerError, setGlobalScannerError] = useState<string | null>(null);
   const [globalManualLrnInput, setGlobalManualLrnInput] = useState('');
+
+  // Sync scan logs from Firestore
+  useEffect(() => {
+    if (!db || !currentUser) return;
+    const q = query(collection(db, 'attendance_scan_logs'));
+    const unsub = onSnapshot(q, (snapshot) => {
+      const logs: AttendanceScanLog[] = [];
+      snapshot.forEach((docSnap) => {
+        logs.push({ id: docSnap.id, ...docSnap.data() } as AttendanceScanLog);
+      });
+      logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      setScanLogs(logs);
+    }, (err) => {
+      console.error("Error fetching attendance_scan_logs:", err);
+      handleFirestoreError(err, 'list', 'attendance_scan_logs');
+    });
+    return () => unsub();
+  }, [currentUser]);
+
+  const handleAddScanLog = async (logData: Omit<AttendanceScanLog, 'id'>) => {
+    try {
+      const docRef = doc(collection(db, 'attendance_scan_logs'));
+      const newLog: AttendanceScanLog = {
+        id: docRef.id,
+        ...logData
+      };
+      await setDoc(docRef, newLog);
+    } catch (err) {
+      console.error("Error saving scan log:", err);
+      handleFirestoreError(err, 'write', 'attendance_scan_logs');
+    }
+  };
+
+  const handleDeleteScanLog = async (logId: string) => {
+    try {
+      await deleteDoc(doc(db, 'attendance_scan_logs', logId));
+    } catch (err) {
+      console.error("Error deleting scan log:", err);
+      handleFirestoreError(err, 'delete', `attendance_scan_logs/${logId}`);
+    }
+  };
+
+  const handleClearScanLogs = async (logIds?: string[]) => {
+    try {
+      if (logIds && logIds.length > 0) {
+        const batchOps = logIds.map(id => deleteDoc(doc(db, 'attendance_scan_logs', id)));
+        await Promise.all(batchOps);
+      } else {
+        const snap = await getDocs(collection(db, 'attendance_scan_logs'));
+        const batchOps = snap.docs.map(d => deleteDoc(d.ref));
+        await Promise.all(batchOps);
+      }
+    } catch (err) {
+      console.error("Error clearing scan logs:", err);
+      handleFirestoreError(err, 'delete', 'attendance_scan_logs');
+    }
+  };
 
   const globalScannerConstraints = useMemo(() => ({
     facingMode: globalScannerFacingMode
@@ -1230,6 +1288,42 @@ export default function App() {
     const JS_MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
     const currentMonthStr = JS_MONTHS[today.getMonth()];
     const currentDay = today.getDate();
+
+    const monthVal = String(today.getMonth() + 1).padStart(2, '0');
+    const dayVal = String(today.getDate()).padStart(2, '0');
+    const scanDate = `${currentYear}-${monthVal}-${dayVal}`;
+    const scanTime = today.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+
+    // Determine scanType (IN vs OUT)
+    const studentTodayLogs = scanLogs
+      .filter(l => l.scanDate === scanDate && (l.studentId === student.id || l.lrn === student.lrn))
+      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+    let scanType: 'IN' | 'OUT' = 'IN';
+    if (studentTodayLogs.length > 0) {
+      const lastLog = studentTodayLogs[studentTodayLogs.length - 1];
+      scanType = lastLog.scanType === 'IN' ? 'OUT' : 'IN';
+    } else {
+      scanType = 'IN';
+    }
+
+    // Record scan log to database
+    handleAddScanLog({
+      studentId: student.id,
+      studentName: formatStudentName(student),
+      lrn: student.lrn || '',
+      sectionId: targetSection.id,
+      sectionName: targetSection.name,
+      gradeLevel: targetSection.gradeLevel,
+      schoolId: targetSection.schoolId || userProfile?.schoolId || '',
+      schoolYear: targetSection.schoolYear || '',
+      scanDate,
+      scanTime,
+      scanType,
+      timestamp: today.toISOString(),
+      scannedBy: currentUser?.email || 'ID Scanner',
+      status: 'On Time'
+    });
 
     // Reconstruct filtered calendar entries for this section's school year
     const sectionCal = schoolCalendar.filter(c => c.schoolYear === targetSection.schoolYear);
@@ -1334,19 +1428,23 @@ export default function App() {
     if (isDisabled) {
       setGlobalRecentScan({
         status: 'error',
-        message: `${formatStudentName(student)} is marked as inactive, dropped out, or not enrolled today.`,
+        message: `${formatStudentName(student)} logged TIME ${scanType} at ${scanTime}, but is marked inactive/dropped out today.`,
         student,
-        section: targetSection
+        section: targetSection,
+        scanType,
+        scanTime
       });
       return;
     }
 
     if (!termKeyToUpdate) {
       setGlobalRecentScan({
-        status: 'error',
-        message: `Learner is verified, but today (${currentMonthStr} ${currentDay}) is not registered as a school day in the school calendar.`,
+        status: 'success',
+        message: `${formatStudentName(student)} logged TIME ${scanType} at ${scanTime} (Section ${targetSection.name}). Note: Today (${currentMonthStr} ${currentDay}) is not a scheduled school day in calendar.`,
         student,
-        section: targetSection
+        section: targetSection,
+        scanType,
+        scanTime
       });
       return;
     }
@@ -1384,17 +1482,21 @@ export default function App() {
 
       setGlobalRecentScan({
         status: 'success',
-        message: `${formatStudentName(student)} is verified & successfully marked present in Section ${targetSection.name} for today.`,
+        message: `${formatStudentName(student)} logged TIME ${scanType} at ${scanTime} (Section ${targetSection.name}).`,
         student,
-        section: targetSection
+        section: targetSection,
+        scanType,
+        scanTime
       });
     } catch (err) {
       console.error(err);
       setGlobalRecentScan({
         status: 'error',
-        message: `Verified LRN, but failed to record attendance: ${err instanceof Error ? err.message : String(err)}`,
+        message: `Logged TIME ${scanType} at ${scanTime}, but failed to update daily matrix: ${err instanceof Error ? err.message : String(err)}`,
         student,
-        section: targetSection
+        section: targetSection,
+        scanType,
+        scanTime
       });
     }
   };
@@ -3941,6 +4043,13 @@ export default function App() {
                               <div className="space-y-1.5 min-w-0 flex-1">
                                 {/* Status Badge */}
                                 <div className="flex items-center gap-2 flex-wrap">
+                                  {globalRecentScan.scanType && (
+                                    <span className={`text-[9px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full ${
+                                      globalRecentScan.scanType === 'IN' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-amber-600 text-white shadow-xs'
+                                    }`}>
+                                      LOGGED TIME {globalRecentScan.scanType}
+                                    </span>
+                                  )}
                                   <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border ${
                                     globalRecentScan.student.status === 'Dropped Out' 
                                       ? 'bg-orange-50 border-orange-200 text-orange-600'
@@ -5001,6 +5110,18 @@ export default function App() {
                     onUpdateAttendance={handleUpdateDailyAttendance} 
                     onMarkAllPresent={handleMarkAllPresent}
                     userId={currentUser?.uid}
+                    section={selectedSection}
+                    sections={sections}
+                    scanLogs={scanLogs}
+                    onAddScanLog={handleAddScanLog}
+                    onDeleteScanLog={handleDeleteScanLog}
+                    onClearScanLogs={handleClearScanLogs}
+                    currentUserEmail={currentUser?.email}
+                    schoolName={selectedSection?.schoolName || activeSchool?.name}
+                    schoolId={selectedSection?.schoolId || activeSchool?.schoolId}
+                    division={selectedSection?.division || activeSchool?.division}
+                    region={selectedSection?.region || activeSchool?.region}
+                    onScanID={() => { setShowGlobalScanner(true); setGlobalRecentScan(null); setGlobalScannerError(null); }}
                   />
                 )}
               </motion.div>
@@ -5406,280 +5527,6 @@ export default function App() {
                 >
                   Yes, Unfinalize
                 </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* Global QR Scanner Modal (with Learner Information and Validity check) */}
-      <AnimatePresence>
-        {showGlobalScanner && (
-          <div className={`fixed inset-0 z-[150] ${isScannerFullScreen ? 'p-0 bg-white' : 'p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center'}`}>
-            <motion.div 
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className={`bg-white shadow-2xl overflow-hidden flex flex-col transition-all duration-200 ${
-                isScannerFullScreen 
-                  ? 'w-screen h-screen rounded-none border-0' 
-                  : 'rounded-2xl sm:rounded-3xl w-full max-w-[95vw] lg:max-w-6xl xl:max-w-7xl h-[95vh] md:h-[90vh] max-h-[850px] animate-in zoom-in-95'
-              }`}
-            >
-              <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50 shrink-0">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center shrink-0">
-                    <QrCode size={20} />
-                  </div>
-                  <div>
-                    <h3 className="font-extrabold text-slate-800 tracking-tight text-sm sm:text-base">Scan ID Card</h3>
-                    <p className="text-[10px] text-indigo-600 font-bold uppercase tracking-widest">Attendance & Learner Validity (Full Screen Window)</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsScannerFullScreen(!isScannerFullScreen)}
-                    className="p-2 text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl transition-all flex items-center gap-1.5 text-xs font-extrabold shadow-xs cursor-pointer"
-                    title={isScannerFullScreen ? "Exit Fullscreen Window" : "Expand to Fullscreen"}
-                  >
-                    {isScannerFullScreen ? (
-                      <>
-                        <Minimize2 size={16} className="text-slate-700" />
-                        <span className="hidden sm:inline">Exit Fullscreen</span>
-                      </>
-                    ) : (
-                      <>
-                        <Maximize2 size={16} className="text-slate-700" />
-                        <span className="hidden sm:inline">Full Screen</span>
-                      </>
-                    )}
-                  </button>
-                  <button 
-                    onClick={() => {
-                      setShowGlobalScanner(false);
-                      setGlobalRecentScan(null);
-                    }}
-                    className="w-10 h-10 flex items-center justify-center text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
-                    title="Close Scanner"
-                  >
-                    <X size={20} />
-                  </button>
-                </div>
-              </div>
-
-              <div className="p-6 grid grid-cols-1 md:grid-cols-12 gap-8 items-stretch flex-1 overflow-y-auto custom-scrollbar">
-                {/* Left Part: Scanner Controls & Camera */}
-                <div className="md:col-span-6 flex flex-col items-center justify-center border-b md:border-b-0 md:border-r border-slate-100 pb-6 md:pb-0 md:pr-8">
-                  {/* Camera Selection */}
-                  <div className="flex justify-center gap-2 w-full max-w-md sm:max-w-lg mb-4">
-                    <button
-                      type="button"
-                      onClick={() => setGlobalScannerFacingMode('environment')}
-                      className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer flex items-center gap-1.5 ${globalScannerFacingMode === 'environment' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-                    >
-                      <Camera size={14} />
-                      <span>Back Camera</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setGlobalScannerFacingMode('user')}
-                      className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer flex items-center gap-1.5 ${globalScannerFacingMode === 'user' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-                    >
-                      <User size={14} />
-                      <span>Front Camera</span>
-                    </button>
-                  </div>
-
-                  {/* Scanner Camera Frame */}
-                  <div className="w-full max-w-md sm:max-w-lg aspect-square rounded-2xl overflow-hidden bg-black shadow-inner border-4 border-slate-100 relative shrink-0">
-                    <Scanner
-                      onScan={handleGlobalScannerScan}
-                      onError={handleGlobalScannerError}
-                      constraints={globalScannerConstraints}
-                      components={globalScannerComponents}
-                      allowMultiple={true}
-                      scanDelay={2500}
-                    />
-
-                    {globalScannerError && (
-                      <div className="absolute inset-0 bg-slate-900/95 flex flex-col items-center justify-center p-6 text-center z-10 animate-in fade-in duration-200">
-                        <div className="w-12 h-12 bg-amber-500/10 text-amber-500 rounded-xl flex items-center justify-center mb-2">
-                          <AlertTriangle size={24} />
-                        </div>
-                        <p className="text-sm font-bold text-white mb-1">Camera Access Issue</p>
-                        <p className="text-xs text-slate-300 leading-normal max-w-[280px] mb-3">{globalScannerError}</p>
-                        <div className="bg-white/10 p-3 rounded-lg text-[10px] text-slate-300 text-left max-w-sm border border-white/5 space-y-1">
-                          <p className="font-bold text-indigo-300">💡 Troubleshooting Guide:</p>
-                          <p>1. Check if another application is using your camera.</p>
-                          <p>2. Click the camera or lock icon in your browser's address bar, choose <b>"Allow"</b>, and refresh.</p>
-                          <p>3. If you're on mobile, verify camera permissions are enabled in system settings.</p>
-                          <p className="pt-1 border-t border-white/10 text-indigo-200 font-semibold"><b>Backup Option:</b> Use the <b>Manual Entry</b> section below!</p>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Scanner overlay corners */}
-                    <div className="absolute top-6 left-6 w-10 h-10 border-t-4 border-l-4 border-white/70 rounded-tl-xl"></div>
-                    <div className="absolute top-6 right-6 w-10 h-10 border-t-4 border-r-4 border-white/70 rounded-tr-xl"></div>
-                    <div className="absolute bottom-6 left-6 w-10 h-10 border-b-4 border-l-4 border-white/70 rounded-bl-xl"></div>
-                    <div className="absolute bottom-6 right-6 w-10 h-10 border-b-4 border-r-4 border-white/70 rounded-br-xl"></div>
-                  </div>
-
-                  {/* Manual Entry Fallback Panel */}
-                  <div className="w-full max-w-md sm:max-w-lg mt-4 p-4 bg-slate-50 border border-slate-200 rounded-2xl text-left">
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <span className="p-1 bg-indigo-50 text-indigo-600 rounded-lg shrink-0">
-                        <Users size={14} />
-                      </span>
-                      <h5 className="text-xs font-black text-slate-700 uppercase tracking-wider">
-                        Manual Keyboard & Barcode Entry
-                      </h5>
-                    </div>
-                    <p className="text-[10px] text-slate-500 mb-3 leading-normal">
-                      Type a student LRN or scan with a hardware barcode scanner to verify status and record attendance automatically.
-                    </p>
-                    
-                    <div className="flex gap-2">
-                      <input 
-                        type="text"
-                        placeholder="Type Student LRN..."
-                        value={globalManualLrnInput}
-                        onChange={(e) => setGlobalManualLrnInput(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            if (globalManualLrnInput.trim()) {
-                              handleGlobalScan(globalManualLrnInput.trim());
-                              setGlobalManualLrnInput('');
-                            }
-                          }
-                        }}
-                        className="flex-1 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-sm text-black placeholder:text-slate-400"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (globalManualLrnInput.trim()) {
-                            handleGlobalScan(globalManualLrnInput.trim());
-                            setGlobalManualLrnInput('');
-                          }
-                        }}
-                        className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase text-[10px] tracking-wider rounded-xl cursor-pointer transition-colors shadow-sm"
-                      >
-                        Submit
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Right Part: Learner Info and Validity check */}
-                <div className="md:col-span-6 w-full flex flex-col justify-center pl-0 md:pl-2">
-                  <h4 className="text-xs font-black text-slate-400 uppercase tracking-wider mb-4">Scan Status & Learner Info</h4>
-                  {globalRecentScan ? (
-                    <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-200">
-                      {/* Scan Status Banner */}
-                      <div className={`p-4 rounded-xl flex items-center gap-3 border ${globalRecentScan.status === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-rose-50 border-rose-200 text-rose-700'}`}>
-                        {globalRecentScan.status === 'success' ? (
-                          <CheckCircle size={24} className="text-emerald-600 shrink-0" />
-                        ) : (
-                          <AlertCircle size={24} className="text-rose-600 shrink-0" />
-                        )}
-                        <span className="text-xs font-bold leading-relaxed">{globalRecentScan.message}</span>
-                      </div>
-
-                      {/* Learner Info Card (scanning validity of the learner information) */}
-                      {globalRecentScan.student && (
-                        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 relative overflow-hidden shadow-sm text-left">
-                          <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50/40 rounded-full blur-2xl pointer-events-none"></div>
-                          
-                          <div className="flex gap-4 items-start relative z-10">
-                            {/* Student Profile Picture or Placeholder */}
-                            {globalRecentScan.student.photo ? (
-                              <img 
-                                src={globalRecentScan.student.photo} 
-                                alt={formatStudentName(globalRecentScan.student)}
-                                className="w-20 h-20 rounded-2xl object-cover border border-slate-200 shadow-sm"
-                                referrerPolicy="no-referrer"
-                              />
-                            ) : (
-                              <div className={`w-20 h-20 rounded-2xl flex items-center justify-center font-black text-2xl text-white shadow-sm ${globalRecentScan.student.sex === 'Female' ? 'bg-rose-500 shadow-rose-100' : 'bg-indigo-500 shadow-indigo-100'}`}>
-                                {formatStudentName(globalRecentScan.student).charAt(0)}
-                              </div>
-                            )}
-
-                            <div className="space-y-1.5 min-w-0 flex-1">
-                              {/* Status Badge */}
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border ${
-                                  globalRecentScan.student.status === 'Dropped Out' 
-                                    ? 'bg-orange-50 border-orange-200 text-orange-600'
-                                    : globalRecentScan.student.status === 'Transferred Out'
-                                    ? 'bg-rose-50 border-rose-200 text-rose-600'
-                                    : 'bg-emerald-50 border-emerald-200 text-emerald-600'
-                                }`}>
-                                  {globalRecentScan.student.status || 'Active / Enrolled'}
-                                </span>
-                                {globalRecentScan.student.sex && (
-                                  <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border ${
-                                    globalRecentScan.student.sex === 'Female' ? 'bg-pink-50 border-pink-200 text-pink-600' : 'bg-blue-50 border-blue-200 text-blue-600'
-                                  }`}>
-                                    {globalRecentScan.student.sex}
-                                  </span>
-                                )}
-                              </div>
-
-                              <h4 className="text-base font-black text-slate-800 tracking-tight truncate">
-                                {formatStudentName(globalRecentScan.student)}
-                              </h4>
-                              
-                              <p className="text-xs font-bold text-slate-500">
-                                LRN: <span className="text-slate-800 font-mono font-bold">{globalRecentScan.student.lrn}</span>
-                              </p>
-                            </div>
-                          </div>
-
-                          {/* Secondary Fields Grid */}
-                          <div className="grid grid-cols-2 gap-4 mt-6 pt-6 border-t border-slate-200/60 text-xs relative z-10">
-                            <div>
-                              <p className="text-slate-400 font-semibold uppercase tracking-wider text-[10px]">Grade & Section</p>
-                              <p className="text-slate-700 font-bold uppercase mt-1">
-                                {(() => {
-                                  const activeSec = globalRecentScan?.section || selectedSection;
-                                  if (!activeSec) return 'Unknown Section';
-                                  return (Number(activeSec.gradeLevel) === 0) ? `Kindergarten • ${activeSec.name}` : `Grade ${activeSec.gradeLevel} • ${activeSec.name}`;
-                                })()}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-slate-400 font-semibold uppercase tracking-wider text-[10px]">Contact Number</p>
-                              <p className="text-slate-700 font-bold mt-1">{globalRecentScan.student.contactNumber || 'No registered contact'}</p>
-                            </div>
-                            <div>
-                              <p className="text-slate-400 font-semibold uppercase tracking-wider text-[10px]">First Attendance</p>
-                              <p className="text-slate-700 font-bold mt-1">{globalRecentScan.student.dateOfFirstAttendance || 'Not specified'}</p>
-                            </div>
-                            <div>
-                              <p className="text-slate-400 font-semibold uppercase tracking-wider text-[10px]">Guardian Name</p>
-                              <p className="text-slate-700 font-bold mt-1 truncate">{globalRecentScan.student.guardianName || 'None'}</p>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="p-8 rounded-2xl bg-slate-50 border border-slate-200 text-center flex flex-col items-center justify-center h-full min-h-[280px]">
-                      <div className="w-14 h-14 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-500 mb-3 animate-pulse">
-                        <QrCode size={28} />
-                      </div>
-                      <div>
-                        <p className="text-sm font-black text-slate-700">Waiting for scan...</p>
-                        <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">
-                          Position Student ID QR inside the camera view
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
               </div>
             </motion.div>
           </div>

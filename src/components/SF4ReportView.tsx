@@ -101,10 +101,17 @@ export const SF4ReportView: React.FC<SF4ReportViewProps> = ({ schoolId, calendar
     }
 
     const list: { key: string; month: string; year: number; term: string; schoolYear: string }[] = [];
-    filteredCalendar.forEach(c => {
+    const seenKeys = new Set<string>();
+    filteredCalendar.forEach((c, idx) => {
       const term = (c.term || '1').toString();
+      const baseKey = `${c.month}_${term}_${c.schoolYear}`;
+      let uniqueKey = baseKey;
+      if (seenKeys.has(uniqueKey)) {
+        uniqueKey = `${baseKey}_${c.id || idx}`;
+      }
+      seenKeys.add(uniqueKey);
       list.push({
-        key: `${c.month}_${term}_${c.schoolYear}`,
+        key: uniqueKey,
         month: c.month,
         year: parseInt(c.year) || new Date().getFullYear(),
         term,
@@ -418,46 +425,41 @@ export const SF4ReportView: React.FC<SF4ReportViewProps> = ({ schoolId, calendar
   const handlePrintNewWindow = () => {
     const printContents = document.getElementById('sf4-print-card')?.innerHTML || document.querySelector('.print-card-sf4')?.innerHTML;
     if (printContents) {
-      const win = {
-        document: {
-          write: (html: string) => printHTMLContent(html),
-          close: () => {}
-        }
-      };
-      if (win) {
-        win.document.write(`
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <title>School Form 4 (SF4) - Monthly Learner Movement and Attendance</title>
-            <style>
-              @page { size: landscape; margin: 10mm; }
-              body { font-family: sans-serif; padding: 0; margin: 0; color: #000; background: #fff; }
-              table { border-collapse: collapse; width: 100%; font-size: 6.5px; }
-              th, td { border: 1px solid black !important; padding: 2px !important; text-align: center; }
-              .print-card-sf4 { width: 277mm; margin: 0 auto; background: white; }
-              -webkit-print-color-adjust: exact !important;
-              print-color-adjust: exact !important;
-            </style>
-          </head>
-          <body>
-            <div class="print-card-sf4">
-              ${printContents}
-            </div>
-            <script>
-              window.onload = function() {
-                setTimeout(function() {
-                  window.onafterprint = function() { window.close(); };
-                  window.onfocus = function() { setTimeout(function() { window.close(); }, 800); };
-                  window.print();
-                }, 800);
-              };
-            </script>
-          </body>
-          </html>
-        `);
-        win.document.close();
-      }
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>School Form 4 (SF4) - Monthly Learner Movement and Attendance</title>
+          <style>
+            @page { size: landscape; margin: 8mm; }
+            body { font-family: sans-serif; padding: 0; margin: 0; color: #000; background: #fff; }
+            table { border-collapse: collapse; width: 100%; font-size: 6.5px; }
+            th, td { border: 1px solid black !important; padding: 2px !important; text-align: center; }
+            .print-card-sf4 { width: 277mm; margin: 0 auto; background: white; }
+            @media print {
+              .print-card-sf4 { width: 100% !important; margin: 0 !important; }
+            }
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          </style>
+        </head>
+        <body>
+          <div class="print-card-sf4">
+            ${printContents}
+          </div>
+          <script>
+            window.onload = function() {
+              setTimeout(function() {
+                window.onafterprint = function() { window.close(); };
+                window.onfocus = function() { setTimeout(function() { window.close(); }, 800); };
+                window.print();
+              }, 500);
+            };
+          </script>
+        </body>
+        </html>
+      `;
+      printHTMLContent(htmlContent);
     } else {
       window.print();
     }
@@ -890,8 +892,8 @@ export const SF4ReportView: React.FC<SF4ReportViewProps> = ({ schoolId, calendar
                 </tr>
               </thead>
               <tbody>
-                {reportData.map(row => (
-                  <tr key={row.sectionId} className="hover:bg-slate-50">
+                {reportData.map((row, idx) => (
+                  <tr key={`sf4-row-${row.sectionId || row.sectionName || idx}-${idx}`} className="hover:bg-slate-50">
                     <td className="border border-slate-900 p-1 font-bold whitespace-nowrap">Gr. {row.gradeLevel} - {row.sectionName}</td>
                     
                     <td className="border border-slate-900 p-1 text-center">{row.maleEnrolment}</td>
@@ -1042,7 +1044,7 @@ export const SF4ReportView: React.FC<SF4ReportViewProps> = ({ schoolId, calendar
               ) : (
                 <div className="space-y-3">
                    {categoryStudents.map((item, idx) => (
-                      <div key={idx} className="flex items-center justify-between p-4 rounded-2xl border border-slate-100 bg-slate-50 hover:bg-white hover:shadow-md transition-all">
+                      <div key={`cat-stu-${item.student.id || idx}-${idx}`} className="flex items-center justify-between p-4 rounded-2xl border border-slate-100 bg-slate-50 hover:bg-white hover:shadow-md transition-all">
                         <div className="flex items-center gap-4">
                           <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-slate-600 ${
                             item.student.sex?.toLowerCase() === 'female' || item.student.sex?.toLowerCase() === 'f' 
@@ -1205,8 +1207,8 @@ export const SF4ReportView: React.FC<SF4ReportViewProps> = ({ schoolId, calendar
                         </tr>
                       </thead>
                       <tbody>
-                        {reportData.map(row => (
-                          <tr key={row.sectionId} className="hover:bg-slate-50">
+                        {reportData.map((row, idx) => (
+                          <tr key={`sf4-print-row-${row.sectionId || row.sectionName || idx}-${idx}`} className="hover:bg-slate-50">
                             <td className="border border-black p-0.5 font-bold whitespace-nowrap">Gr. {row.gradeLevel} - {row.sectionName}</td>
                             
                             <td className="border border-black p-0.5 text-center">{row.maleEnrolment}</td>

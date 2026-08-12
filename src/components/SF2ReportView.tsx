@@ -100,17 +100,6 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
   const handlePrintNewWindow = () => {
     if (!currentMonthData) return;
 
-    const win = {
-      document: {
-        write: (html: string) => printHTMLContent(html),
-        close: () => {}
-      }
-    };
-    if (!win) {
-      alert("Please allow popups to print the report.");
-      return;
-    }
-
     const maxDays = Math.max(25, schoolDaysInMonth.length);
     const emptyDaysCount = Math.max(0, 25 - schoolDaysInMonth.length);
 
@@ -711,8 +700,7 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
       </html>
     `;
 
-    win.document.write(documentContent);
-    win.document.close();
+    printHTMLContent(documentContent);
   };
 
 
@@ -725,10 +713,17 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
   const monthsList = useMemo(() => {
     if (!calendar || calendar.length === 0 || !section) return [];
     const list: { key: string; month: string; year: number; term: string }[] = [];
-    calendar.filter(c => c.schoolYear === section.schoolYear).forEach(c => {
+    const seenKeys = new Set<string>();
+    calendar.filter(c => c.schoolYear === section.schoolYear).forEach((c, idx) => {
       const term = (c.term || '1').toString();
+      const baseKey = `${c.month}_${term}`;
+      let uniqueKey = baseKey;
+      if (seenKeys.has(uniqueKey)) {
+        uniqueKey = `${baseKey}_${c.id || idx}`;
+      }
+      seenKeys.add(uniqueKey);
       list.push({
-        key: `${c.month}_${term}`,
+        key: uniqueKey,
         month: c.month,
         year: parseInt(c.year) || new Date().getFullYear(),
         term
@@ -1843,7 +1838,7 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
     if (absentCount < 0) absentCount = 0;
 
     return (
-      <tr key={`modal-row-${student.id}`} className="text-[9px] h-[22px] leading-tight transition-none">
+      <tr key={`modal-row-${student.id || index}-${index}`} className="text-[9px] h-[22px] leading-tight transition-none">
         <td className="border border-black p-0.5 text-center font-bold h-[22px] leading-none">{index + 1}</td>
         <td className="border border-black px-1.5 py-0.5 font-bold text-[7.5pt] whitespace-nowrap leading-none h-[22px]">
           <div className="flex flex-col">
@@ -1853,10 +1848,10 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
             )}
           </div>
         </td>
-        {schoolDaysInMonth.map(dayInfo => {
+        {schoolDaysInMonth.map((dayInfo, dIdx) => {
            const isPresent = !!dailyData[dayInfo.day];
            return (
-             <td key={`m-att-${student.id}-${dayInfo.dateStr}`} className="border border-black p-0 text-center min-w-[15px] h-[22px] align-middle">
+             <td key={`m-att-${student.id || index}-${dayInfo.dateStr || dIdx}`} className="border border-black p-0 text-center min-w-[15px] h-[22px] align-middle">
                <div className="flex items-center justify-center h-full w-full">
                  {!isPresent ? <span className="font-bold text-red-600 leading-none text-[8.5px]">X</span> : <span className="text-slate-300 leading-none text-[8px]">.</span>}
                </div>
@@ -1864,7 +1859,7 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
            );
         })}
         {Array.from({ length: Math.max(0, 25 - schoolDaysInMonth.length) }).map((_, i) => (
-           <td key={`m-empty-${student.id}-${i}`} className="border border-black p-0 h-[22px] bg-slate-50" />
+           <td key={`m-empty-${student.id || index}-${i}`} className="border border-black p-0 h-[22px] bg-slate-50" />
         ))}
         <td className="border border-black p-0.5 text-center font-bold bg-white leading-none h-[22px] text-[8.5px] text-red-700">{absentCount > 0 ? absentCount : 0}</td>
         <td className="border border-black p-0.5 text-center font-bold bg-white leading-none h-[22px] text-[8.5px] text-emerald-700">{presentCount}</td>
@@ -1924,7 +1919,7 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
     if (absentCount < 0) absentCount = 0;
 
     return (
-      <tr key={student.id} className="text-[10px] sm:text-xs h-[30px]">
+      <tr key={`row-${student.id || index}-${index}`} className="text-[10px] sm:text-xs h-[30px]">
         <td className="border border-black p-1 text-center font-bold h-[30px] leading-none">{index + 1}</td>
         <td className="border border-black p-1 font-bold text-[7pt] whitespace-nowrap leading-none h-[30px]">
           <div className="flex flex-col">
@@ -1934,10 +1929,10 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
             )}
           </div>
         </td>
-        {schoolDaysInMonth.map(dayInfo => {
+        {schoolDaysInMonth.map((dayInfo, dIdx) => {
            const isPresent = !!dailyData[dayInfo.day];
            return (
-             <td key={dayInfo.dateStr} className="border border-black p-0 text-center min-w-[1.2rem] h-[30px] align-middle">
+             <td key={`att-${student.id || index}-${dayInfo.dateStr || dIdx}`} className="border border-black p-0 text-center min-w-[1.2rem] h-[30px] align-middle">
                <div className="flex items-center justify-center h-full w-full">
                  {!isPresent ? <span className="font-bold text-red-600 leading-none">X</span> : <span className="text-slate-300 leading-none">.</span>}
                </div>
@@ -1945,7 +1940,7 @@ export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar
            );
         })}
         {Array.from({ length: Math.max(0, 25 - schoolDaysInMonth.length) }).map((_, i) => (
-           <td key={`empty-${i}`} className="border border-black p-0 h-[30px] bg-slate-50" />
+           <td key={`empty-${student.id || index}-${i}`} className="border border-black p-0 h-[30px] bg-slate-50" />
         ))}
         <td className="border border-black p-1 text-center font-bold bg-white leading-none h-[30px] text-red-700">{absentCount > 0 ? absentCount : 0}</td>
         <td className="border border-black p-1 text-center font-bold bg-white leading-none h-[30px] text-emerald-700">{presentCount}</td>

@@ -438,8 +438,8 @@ export function AdminSchoolCalendarView({ onBack, onShowFeedback, isFeedbackOpen
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-slate-100">
-                        {groupedEntries[term].map(entry => (
-                          <tr key={entry.id} className="hover:bg-slate-50/50 transition-colors">
+                        {groupedEntries[term].map((entry, idx) => (
+                          <tr key={entry.id ? `cal-${entry.id}-${idx}` : `cal-idx-${idx}`} className="hover:bg-slate-50/50 transition-colors">
                             <td className="px-6 py-4">
                               <span className="text-sm font-bold text-slate-800">{entry.month}</span>
                             </td>
