@@ -27,14 +27,14 @@ const app = initializeApp(firebaseConfig);
 let dbInstance;
 try {
   // Initialize Firestore with default settings which auto-detect persistent/IndexedDB cache and fall back gracefully to memory
-  dbInstance = initializeFirestore(app, {}, firebaseConfig.firestoreDatabaseId);
+  dbInstance = initializeFirestore(app, { experimentalForceLongPolling: true }, firebaseConfig.firestoreDatabaseId);
 } catch (error: any) {
   if (error.message?.includes('already been initialized') || error.code === 'failed-precondition') {
     dbInstance = getFirestore(app, firebaseConfig.firestoreDatabaseId);
   } else {
     try {
       dbInstance = initializeFirestore(app, {
-        localCache: memoryLocalCache()
+        localCache: memoryLocalCache(), experimentalForceLongPolling: true
       }, firebaseConfig.firestoreDatabaseId);
     } catch (fallbackError: any) {
       dbInstance = getFirestore(app, firebaseConfig.firestoreDatabaseId);
