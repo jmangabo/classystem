@@ -1,4 +1,0 @@
-      await updateDoc(doc(db, `sections/${selectedSection.id}/students`, studentId), { [`parentSignatureEnabled.${term}`]: val });
-                   const isEnabled = s.parentSignatureEnabled?.[q];
-                   {student.parentSignatureEnabled && (
-                          const isEnabled = student.parentSignatureEnabled?.[q];

@@ -545,6 +545,7 @@ import { AdminStudentListView } from "./components/AdminStudentListView";
 import { AnecdotalRecordsView, getOffensePenalty } from "./components/AnecdotalRecordsView";
 import { PTAFeesManagementView } from "./components/PTAFeesManagementView";
 import { TleDashboardView } from "./components/TleDashboardView";
+import { ClassRecordReportModal } from "./components/ClassRecordReportModal";
 
 const transmuteGrade = (initial: number): number => {
   if (initial >= 99.50) return 100;
@@ -17294,6 +17295,7 @@ function GradebookView({
 
   const showLockedState = currentUser?.role === 'teacher' && !hasAssignedSubjects;
   const [showDataEntryHint, setShowDataEntryHint] = useState(false);
+  const [showClassRecordReport, setShowClassRecordReport] = useState(false);
 
   const [showActivityModal, setShowActivityModal] = useState(false);
   const [showActivityLegend, setShowActivityLegend] = useState(true);
@@ -17531,31 +17533,102 @@ function GradebookView({
   const exportToExcel = () => {
     if (!selectedSubject || !selectedSection) return;
 
-    // SORTING: Group by Gender (Male first, then Female) then Alphabetical
-    const sortedStudents = [...students].sort((a, b) => {
-        const sexA = a.sex?.toLowerCase() || '';
-        const sexB = b.sex?.toLowerCase() || '';
-        if (sexA !== sexB) {                
-            if (sexA === 'male') return -1;
-            if (sexB === 'male') return 1;
-            return 1; // Female comes after male
-        }
-        return (formatStudentName(a)).localeCompare(formatStudentName(b));
+    // Filter out blank/inactive student records and sort
+    const validStudents = students.filter(s => {
+      const name = formatStudentName(s)?.trim();
+      const isInactive = s.status === 'Dropped Out' || s.status === 'Transferred Out';
+      return name && !isInactive;
     });
+
+    const sortedStudents = [...validStudents].sort((a, b) => {
+      const sexA = a.sex?.toLowerCase() || '';
+      const sexB = b.sex?.toLowerCase() || '';
+      if (sexA !== sexB) {                
+        if (sexA === 'male') return -1;
+        if (sexB === 'male') return 1;
+        return 1;
+      }
+      return (formatStudentName(a)).localeCompare(formatStudentName(b));
+    });
+
+    const refStudent = students[0] || { grades: {} };
+    const refData = getStudentTermData(refStudent as Student);
+
+    // Determine active columns (exclude blank columns from Written Works & Performance Tasks)
+    const activeWWIndices: number[] = [];
+    for (let i = 0; i < 5; i++) {
+      const maxScore = Number(refData?.writtenWorks?.maxScores?.[i]) || 0;
+      const name = refData?.writtenWorks?.names?.[i]?.trim();
+      const hasScore = validStudents.some(s => {
+        const d = getStudentTermData(s);
+        return (Number(d?.writtenWorks?.scores?.[i]) || 0) > 0;
+      });
+      if (maxScore > 0 || name || hasScore) {
+        activeWWIndices.push(i);
+      }
+    }
+    const finalWWIndices = activeWWIndices.length > 0 ? activeWWIndices : [0];
+
+    const activePTIndices: number[] = [];
+    for (let i = 0; i < 5; i++) {
+      const maxScore = Number(refData?.performanceTasks?.maxScores?.[i]) || 0;
+      const name = refData?.performanceTasks?.names?.[i]?.trim();
+      const hasScore = validStudents.some(s => {
+        const d = getStudentTermData(s);
+        return (Number(d?.performanceTasks?.scores?.[i]) || 0) > 0;
+      });
+      if (maxScore > 0 || name || hasScore) {
+        activePTIndices.push(i);
+      }
+    }
+    const finalPTIndices = activePTIndices.length > 0 ? activePTIndices : [0];
+
+    const activeSTIndices: number[] = [];
+    for (let i = 0; i < 2; i++) {
+      const maxScore = Number(refData?.summativeTests?.maxScores?.[i]) || 0;
+      const name = refData?.summativeTests?.names?.[i]?.trim();
+      const hasScore = validStudents.some(s => {
+        const d = getStudentTermData(s);
+        return (Number(d?.summativeTests?.scores?.[i]) || 0) > 0;
+      });
+      if (maxScore > 0 || name || hasScore) {
+        activeSTIndices.push(i);
+      }
+    }
+
+    const examMax = Number(refData?.termExam?.maxScore) || 0;
+    const hasExamScore = validStudents.some(s => {
+      const d = getStudentTermData(s);
+      return (Number(d?.termExam?.score) || 0) > 0;
+    });
+    const includeExam = examMax > 0 || hasExamScore || (activeSTIndices.length === 0);
+
+    const gWWMax = finalWWIndices.reduce((a: number, idx: number) => a + (Number(refData.writtenWorks?.maxScores?.[idx]) || 0), 0);
+    const gPTMax = finalPTIndices.reduce((a: number, idx: number) => a + (Number(refData.performanceTasks?.maxScores?.[idx]) || 0), 0);
+    const gSTMax = activeSTIndices.reduce((a: number, idx: number) => a + (Number(refData.summativeTests?.maxScores?.[idx]) || 0), 0);
+    const gExamMax = includeExam ? examMax : 0;
+    const gTAMax = gSTMax + gExamMax;
+
+    // Calculate total column spans
+    const wwColSpan = finalWWIndices.length + 3;
+    const ptColSpan = finalPTIndices.length + 3;
+    const saColSpan = activeSTIndices.length + (includeExam ? 1 : 0) + 3;
+    const totalCols = 1 + wwColSpan + ptColSpan + saColSpan + 2;
+    const lastColIdx = totalCols - 1;
 
     const workbook = XLSX.utils.book_new();
     const dataRows: any[] = [];
     const merges: XLSX.Range[] = [];
 
-    // Custom perfect styling helper compatible with xlsx-js-style
+    // Custom styling helper compatible with xlsx-js-style
     const createCell = (
       val: any,
       options: {
         bold?: boolean;
         italic?: boolean;
         align?: 'left' | 'center' | 'right';
-        bg?: string; // Hex color without '#'
-        color?: string; // Hex for font color
+        bg?: string;
+        color?: string;
         size?: number;
         borderTheme?: 'default' | 'none';
       } = {}
@@ -17591,7 +17664,7 @@ function GradebookView({
         };
       }
 
-      const borderCol = "A6A6A6"; // elegant medium-gray border like SF10
+      const borderCol = "A6A6A6";
       if (options.borderTheme === 'none') {
         style.border = {};
       } else {
@@ -17607,195 +17680,155 @@ function GradebookView({
       return cellObj;
     };
 
+    const emptyCell = (bg?: string) => createCell("", bg ? { bg } : { borderTheme: 'none' });
+
     // 1. Row 0: Header Section Banner
-    merges.push({ s: { r: 0, c: 0 }, e: { r: 0, c: 24 } });
+    merges.push({ s: { r: 0, c: 0 }, e: { r: 0, c: lastColIdx } });
     const bannerCells = [
       createCell("OFFICIAL ACADEMIC GRADES RECORD (GRADEBOOK)", { bold: true, size: 14, bg: "107C41", color: "FFFFFF", align: "center" }),
-      ...new Array(24).fill(createCell("", { bg: "107C41" }))
+      ...new Array(lastColIdx).fill(createCell("", { bg: "107C41" }))
     ];
     dataRows.push(bannerCells);
 
     // 2. Row 1: School Name & School ID Row
-    merges.push({ s: { r: 1, c: 0 }, e: { r: 1, c: 2 } });
-    merges.push({ s: { r: 1, c: 3 }, e: { r: 1, c: 10 } });
-    merges.push({ s: { r: 1, c: 11 }, e: { r: 1, c: 13 } });
-    merges.push({ s: { r: 1, c: 14 }, e: { r: 1, c: 18 } });
-    merges.push({ s: { r: 1, c: 19 }, e: { r: 1, c: 21 } });
-    merges.push({ s: { r: 1, c: 22 }, e: { r: 1, c: 24 } });
+    merges.push({ s: { r: 1, c: 0 }, e: { r: 1, c: 1 } });
+    merges.push({ s: { r: 1, c: 2 }, e: { r: 1, c: Math.min(8, lastColIdx - 8) } });
+    merges.push({ s: { r: 1, c: Math.min(9, lastColIdx - 7) }, e: { r: 1, c: Math.min(10, lastColIdx - 6) } });
+    merges.push({ s: { r: 1, c: Math.min(11, lastColIdx - 5) }, e: { r: 1, c: Math.min(14, lastColIdx - 3) } });
+    merges.push({ s: { r: 1, c: Math.min(15, lastColIdx - 2) }, e: { r: 1, c: Math.min(16, lastColIdx - 1) } });
+    merges.push({ s: { r: 1, c: Math.min(17, lastColIdx) }, e: { r: 1, c: lastColIdx } });
 
-    const r1Cells = [
-      createCell("School Name:", { bold: true, bg: "E6E6E6", align: "center" }),
-      ...new Array(2).fill(createCell("", { bg: "E6E6E6" })),
-      createCell(selectedSection.schoolName || 'N/A', { align: "left" }),
-      ...new Array(7).fill(createCell("", {})),
-      createCell("School ID:", { bold: true, bg: "E6E6E6", align: "center" }),
-      ...new Array(2).fill(createCell("", { bg: "E6E6E6" })),
-      createCell(selectedSection.schoolId || 'N/A', { align: "center" }),
-      ...new Array(4).fill(createCell("", {})),
-      createCell("School Year:", { bold: true, bg: "E6E6E6", align: "center" }),
-      ...new Array(2).fill(createCell("", { bg: "E6E6E6" })),
-      createCell(selectedSection.schoolYear || 'N/A', { align: "center" }),
-      ...new Array(2).fill(createCell("", {}))
-    ];
+    const r1Cells = new Array(totalCols).fill(null).map(() => emptyCell());
+    r1Cells[0] = createCell("School Name:", { bold: true, bg: "E6E6E6", align: "center" });
+    r1Cells[2] = createCell(selectedSection.schoolName || 'N/A', { align: "left" });
+    r1Cells[Math.min(9, lastColIdx - 7)] = createCell("School ID:", { bold: true, bg: "E6E6E6", align: "center" });
+    r1Cells[Math.min(11, lastColIdx - 5)] = createCell(selectedSection.schoolId || 'N/A', { align: "center" });
+    r1Cells[Math.min(15, lastColIdx - 2)] = createCell("School Year:", { bold: true, bg: "E6E6E6", align: "center" });
+    r1Cells[Math.min(17, lastColIdx)] = createCell(selectedSection.schoolYear || 'N/A', { align: "center" });
     dataRows.push(r1Cells);
 
     // 3. Row 2: Region, Division, District Row
-    merges.push({ s: { r: 2, c: 0 }, e: { r: 2, c: 2 } });
-    merges.push({ s: { r: 2, c: 3 }, e: { r: 2, c: 10 } });
-    merges.push({ s: { r: 2, c: 11 }, e: { r: 2, c: 13 } });
-    merges.push({ s: { r: 2, c: 14 }, e: { r: 2, c: 18 } });
-    merges.push({ s: { r: 2, c: 19 }, e: { r: 2, c: 21 } });
-    merges.push({ s: { r: 2, c: 22 }, e: { r: 2, c: 24 } });
+    merges.push({ s: { r: 2, c: 0 }, e: { r: 2, c: 1 } });
+    merges.push({ s: { r: 2, c: 2 }, e: { r: 2, c: Math.min(8, lastColIdx - 8) } });
+    merges.push({ s: { r: 2, c: Math.min(9, lastColIdx - 7) }, e: { r: 2, c: Math.min(10, lastColIdx - 6) } });
+    merges.push({ s: { r: 2, c: Math.min(11, lastColIdx - 5) }, e: { r: 2, c: Math.min(14, lastColIdx - 3) } });
+    merges.push({ s: { r: 2, c: Math.min(15, lastColIdx - 2) }, e: { r: 2, c: Math.min(16, lastColIdx - 1) } });
+    merges.push({ s: { r: 2, c: Math.min(17, lastColIdx) }, e: { r: 2, c: lastColIdx } });
 
-    const r2Cells = [
-      createCell("Region:", { bold: true, bg: "E6E6E6", align: "center" }),
-      ...new Array(2).fill(createCell("", { bg: "E6E6E6" })),
-      createCell(selectedSection.region || 'N/A', { align: "left" }),
-      ...new Array(7).fill(createCell("", {})),
-      createCell("Division:", { bold: true, bg: "E6E6E6", align: "center" }),
-      ...new Array(2).fill(createCell("", { bg: "E6E6E6" })),
-      createCell(selectedSection.division || 'N/A', { align: "left" }),
-      ...new Array(4).fill(createCell("", {})),
-      createCell("District:", { bold: true, bg: "E6E6E6", align: "center" }),
-      ...new Array(2).fill(createCell("", { bg: "E6E6E6" })),
-      createCell(selectedSection.district || 'N/A', { align: "left" }),
-      ...new Array(2).fill(createCell("", {}))
-    ];
+    const r2Cells = new Array(totalCols).fill(null).map(() => emptyCell());
+    r2Cells[0] = createCell("Region:", { bold: true, bg: "E6E6E6", align: "center" });
+    r2Cells[2] = createCell(selectedSection.region || 'N/A', { align: "left" });
+    r2Cells[Math.min(9, lastColIdx - 7)] = createCell("Division:", { bold: true, bg: "E6E6E6", align: "center" });
+    r2Cells[Math.min(11, lastColIdx - 5)] = createCell(selectedSection.division || 'N/A', { align: "left" });
+    r2Cells[Math.min(15, lastColIdx - 2)] = createCell("District:", { bold: true, bg: "E6E6E6", align: "center" });
+    r2Cells[Math.min(17, lastColIdx)] = createCell(selectedSection.district || 'N/A', { align: "left" });
     dataRows.push(r2Cells);
 
     // 4. Row 3: Grade & Section, Subject, Quarter/Term Row
     const termLabel = activeTerm === 1 ? '1st' : activeTerm === 2 ? '2nd' : activeTerm === 3 ? '3rd' : '4th';
-    merges.push({ s: { r: 3, c: 0 }, e: { r: 3, c: 2 } });
-    merges.push({ s: { r: 3, c: 3 }, e: { r: 3, c: 10 } });
-    merges.push({ s: { r: 3, c: 11 }, e: { r: 3, c: 13 } });
-    merges.push({ s: { r: 3, c: 14 }, e: { r: 3, c: 18 } });
-    merges.push({ s: { r: 3, c: 19 }, e: { r: 3, c: 21 } });
-    merges.push({ s: { r: 3, c: 22 }, e: { r: 3, c: 24 } });
+    merges.push({ s: { r: 3, c: 0 }, e: { r: 3, c: 1 } });
+    merges.push({ s: { r: 3, c: 2 }, e: { r: 3, c: Math.min(8, lastColIdx - 8) } });
+    merges.push({ s: { r: 3, c: Math.min(9, lastColIdx - 7) }, e: { r: 3, c: Math.min(10, lastColIdx - 6) } });
+    merges.push({ s: { r: 3, c: Math.min(11, lastColIdx - 5) }, e: { r: 3, c: Math.min(14, lastColIdx - 3) } });
+    merges.push({ s: { r: 3, c: Math.min(15, lastColIdx - 2) }, e: { r: 3, c: Math.min(16, lastColIdx - 1) } });
+    merges.push({ s: { r: 3, c: Math.min(17, lastColIdx) }, e: { r: 3, c: lastColIdx } });
 
-    const r3Cells = [
-      createCell("Grade & Section:", { bold: true, bg: "E6E6E6", align: "center" }),
-      ...new Array(2).fill(createCell("", { bg: "E6E6E6" })),
-      createCell(`Grade ${selectedSection.gradeLevel} - ${selectedSection.name}`, { align: "left" }),
-      ...new Array(7).fill(createCell("", {})),
-      createCell("Subject:", { bold: true, bg: "E6E6E6", align: "center" }),
-      ...new Array(2).fill(createCell("", { bg: "E6E6E6" })),
-      createCell(selectedSubject.name, { align: "left" }),
-      ...new Array(4).fill(createCell("", {})),
-      createCell("Term:", { bold: true, bg: "E6E6E6", align: "center" }),
-      ...new Array(2).fill(createCell("", { bg: "E6E6E6" })),
-      createCell(`${termLabel} Term`, { align: "center" }),
-      ...new Array(2).fill(createCell("", {}))
-    ];
+    const r3Cells = new Array(totalCols).fill(null).map(() => emptyCell());
+    r3Cells[0] = createCell("Grade & Section:", { bold: true, bg: "E6E6E6", align: "center" });
+    r3Cells[2] = createCell(`Grade ${selectedSection.gradeLevel} - ${selectedSection.name}`, { align: "left" });
+    r3Cells[Math.min(9, lastColIdx - 7)] = createCell("Subject:", { bold: true, bg: "E6E6E6", align: "center" });
+    r3Cells[Math.min(11, lastColIdx - 5)] = createCell(selectedSubject.name, { align: "left" });
+    r3Cells[Math.min(15, lastColIdx - 2)] = createCell("Term:", { bold: true, bg: "E6E6E6", align: "center" });
+    r3Cells[Math.min(17, lastColIdx)] = createCell(`${termLabel} Term`, { align: "center" });
     dataRows.push(r3Cells);
 
     // 5. Row 4: Class Adviser Row
-    merges.push({ s: { r: 4, c: 0 }, e: { r: 4, c: 2 } });
-    merges.push({ s: { r: 4, c: 3 }, e: { r: 4, c: 24 } });
+    merges.push({ s: { r: 4, c: 0 }, e: { r: 4, c: 1 } });
+    merges.push({ s: { r: 4, c: 2 }, e: { r: 4, c: lastColIdx } });
 
-    const r4Cells = [
-      createCell("Class Adviser:", { bold: true, bg: "E6E6E6", align: "center" }),
-      ...new Array(2).fill(createCell("", { bg: "E6E6E6" })),
-      createCell(selectedSection.adviserName || 'N/A', { align: "left" }),
-      ...new Array(21).fill(createCell("", {}))
-    ];
+    const r4Cells = new Array(totalCols).fill(null).map(() => emptyCell());
+    r4Cells[0] = createCell("Class Adviser:", { bold: true, bg: "E6E6E6", align: "center" });
+    r4Cells[2] = createCell(selectedSection.adviserName || 'N/A', { align: "left" });
     dataRows.push(r4Cells);
 
     // 6. Row 5: Blank Separator Row
-    const r5Spacer = new Array(25).fill(createCell("", { borderTheme: "none" }));
-    dataRows.push(r5Spacer);
+    dataRows.push(new Array(totalCols).fill(null).map(() => emptyCell()));
 
     // 7. Table Headers at Row 6 and Row 7
-    merges.push({ s: { r: 6, c: 0 }, e: { r: 7, c: 0 } });   // Learner Name
-    merges.push({ s: { r: 6, c: 1 }, e: { r: 6, c: 8 } });   // WW
-    merges.push({ s: { r: 6, c: 9 }, e: { r: 6, c: 16 } });  // PT
-    merges.push({ s: { r: 6, c: 17 }, e: { r: 6, c: 22 } }); // SA
-    merges.push({ s: { r: 6, c: 23 }, e: { r: 7, c: 23 } }); // Initial Grade
-    merges.push({ s: { r: 6, c: 24 }, e: { r: 7, c: 24 } }); // Final Grade
+    merges.push({ s: { r: 6, c: 0 }, e: { r: 7, c: 0 } }); // Learner Name
+    merges.push({ s: { r: 6, c: 1 }, e: { r: 6, c: wwColSpan } }); // WW
+    merges.push({ s: { r: 6, c: 1 + wwColSpan }, e: { r: 6, c: wwColSpan + ptColSpan } }); // PT
+    merges.push({ s: { r: 6, c: 1 + wwColSpan + ptColSpan }, e: { r: 6, c: wwColSpan + ptColSpan + saColSpan } }); // SA
+    merges.push({ s: { r: 6, c: lastColIdx - 1 }, e: { r: 7, c: lastColIdx - 1 } }); // Initial Grade
+    merges.push({ s: { r: 6, c: lastColIdx }, e: { r: 7, c: lastColIdx } }); // Final Grade
 
     const headerRow1 = [
       createCell("Learner Name", { bold: true, color: "FFFFFF", bg: "107C41", align: "center" }),
       
       // WW Header
       createCell(`Written Works (WW) - ${selectedSubject.wwWeight || 30}%`, { bold: true, color: "FFFFFF", bg: "107C41", align: "center" }),
-      ...new Array(7).fill(createCell("", { bg: "107C41" })), // pad WW
+      ...new Array(Math.max(0, wwColSpan - 1)).fill(createCell("", { bg: "107C41" })),
       
       // PT Header
       createCell(`Performance Tasks (PT) - ${selectedSubject.ptWeight || 50}%`, { bold: true, color: "FFFFFF", bg: "107C41", align: "center" }),
-      ...new Array(7).fill(createCell("", { bg: "107C41" })), // pad PT
+      ...new Array(Math.max(0, ptColSpan - 1)).fill(createCell("", { bg: "107C41" })),
       
       // SA Header
       createCell(`Summative Test and Term Exam (SA) - ${selectedSubject.taWeight || 20}%`, { bold: true, color: "FFFFFF", bg: "107C41", align: "center" }),
-      ...new Array(5).fill(createCell("", { bg: "107C41" })), // pad SA
+      ...new Array(Math.max(0, saColSpan - 1)).fill(createCell("", { bg: "107C41" })),
       
       createCell("Initial Grade", { bold: true, color: "FFFFFF", bg: "107C41", align: "center" }),
       createCell("Final Term Grade", { bold: true, color: "FFFFFF", bg: "107C41", align: "center" })
     ];
     
     const headerRow2 = [
-      createCell("", { bg: "107C41" }), // column 0 (Learner Name merged)
+      createCell("", { bg: "107C41" }),
       
-      // WW Subheaders
-      createCell("1", { bold: true, color: "FFFFFF", bg: "194D33", align: "center" }),
-      createCell("2", { bold: true, color: "FFFFFF", bg: "194D33", align: "center" }),
-      createCell("3", { bold: true, color: "FFFFFF", bg: "194D33", align: "center" }),
-      createCell("4", { bold: true, color: "FFFFFF", bg: "194D33", align: "center" }),
-      createCell("5", { bold: true, color: "FFFFFF", bg: "194D33", align: "center" }),
+      // WW Subheaders (active only)
+      ...finalWWIndices.map(idx => createCell(String(idx + 1), { bold: true, color: "FFFFFF", bg: "194D33", align: "center" })),
       createCell("Total", { bold: true, color: "000000", bg: "C6E0B4", align: "center" }),
       createCell("PS", { bold: true, color: "000000", bg: "C6E0B4", align: "center" }),
       createCell("WS", { bold: true, color: "000000", bg: "C6E0B4", align: "center" }),
       
-      // PT Subheaders
-      createCell("1", { bold: true, color: "FFFFFF", bg: "194D33", align: "center" }),
-      createCell("2", { bold: true, color: "FFFFFF", bg: "194D33", align: "center" }),
-      createCell("3", { bold: true, color: "FFFFFF", bg: "194D33", align: "center" }),
-      createCell("4", { bold: true, color: "FFFFFF", bg: "194D33", align: "center" }),
-      createCell("5", { bold: true, color: "FFFFFF", bg: "194D33", align: "center" }),
+      // PT Subheaders (active only)
+      ...finalPTIndices.map(idx => createCell(String(idx + 1), { bold: true, color: "FFFFFF", bg: "194D33", align: "center" })),
       createCell("Total", { bold: true, color: "000000", bg: "C6E0B4", align: "center" }),
       createCell("PS", { bold: true, color: "000000", bg: "C6E0B4", align: "center" }),
       createCell("WS", { bold: true, color: "000000", bg: "C6E0B4", align: "center" }),
       
-      // SA Subheaders
-      createCell("ST 1", { bold: true, color: "FFFFFF", bg: "194D33", align: "center" }),
-      createCell("ST 2", { bold: true, color: "FFFFFF", bg: "194D33", align: "center" }),
-      createCell("Term Exam", { bold: true, color: "FFFFFF", bg: "194D33", align: "center" }),
+      // SA Subheaders (active only)
+      ...activeSTIndices.map(idx => createCell(`ST ${idx + 1}`, { bold: true, color: "FFFFFF", bg: "194D33", align: "center" })),
+      ...(includeExam ? [createCell("Term Exam", { bold: true, color: "FFFFFF", bg: "194D33", align: "center" })] : []),
       createCell("Total", { bold: true, color: "000000", bg: "C6E0B4", align: "center" }),
       createCell("PS", { bold: true, color: "000000", bg: "C6E0B4", align: "center" }),
       createCell("WS", { bold: true, color: "000000", bg: "C6E0B4", align: "center" }),
       
-      createCell("", { bg: "107C41" }), // Initial Grade merged space
-      createCell("", { bg: "107C41" })  // Final Grade merged space
+      createCell("", { bg: "107C41" }),
+      createCell("", { bg: "107C41" })
     ];
 
     dataRows.push(headerRow1);
     dataRows.push(headerRow2);
 
     // 8. Row 8: HIGHEST POSSIBLE SCORE (HPS) Row
-    const refStudent = students[0] || { grades: {} };
-    const refData = getStudentTermData(refStudent as Student);
-    const gWWMax = (refData.writtenWorks?.maxScores || []).reduce((a: number, b: any) => a + (Number(b) || 0), 0);
-    const gPTMax = (refData.performanceTasks?.maxScores || []).reduce((a: number, b: any) => a + (Number(b) || 0), 0);
-    const gSTMax = (refData.summativeTests?.maxScores || []).reduce((a: number, b: any) => a + (Number(b) || 0), 0);
-    const gExamMax = refData.termExam?.maxScore || 0;
-    const gTAMax = gSTMax + gExamMax;
-
     const hpsRow = [
       createCell("HIGHEST POSSIBLE SCORE (HPS)", { bold: true, bg: "FFF2CC", color: "333333", align: "left" }),
       
-      // WW HPS 1-5
-      ...(refData.writtenWorks?.maxScores || [0,0,0,0,0]).map(v => createCell(v || 0, { bold: true, bg: "FFF2CC", align: "center" })),
+      // WW HPS
+      ...finalWWIndices.map(idx => createCell(Number(refData.writtenWorks?.maxScores?.[idx]) || 0, { bold: true, bg: "FFF2CC", align: "center" })),
       createCell(gWWMax, { bold: true, bg: "FFE599", align: "center" }),
       createCell("100.0", { bold: true, bg: "FFE599", align: "center" }),
       createCell(selectedSubject.wwWeight ? `${selectedSubject.wwWeight.toFixed(0)}%` : "-", { bold: true, bg: "FFD966", align: "center" }),
       
-      // PT HPS 1-5
-      ...(refData.performanceTasks?.maxScores || [0,0,0,0,0]).map(v => createCell(v || 0, { bold: true, bg: "FFF2CC", align: "center" })),
+      // PT HPS
+      ...finalPTIndices.map(idx => createCell(Number(refData.performanceTasks?.maxScores?.[idx]) || 0, { bold: true, bg: "FFF2CC", align: "center" })),
       createCell(gPTMax, { bold: true, bg: "FFE599", align: "center" }),
       createCell("100.0", { bold: true, bg: "FFE599", align: "center" }),
       createCell(selectedSubject.ptWeight ? `${selectedSubject.ptWeight.toFixed(0)}%` : "-", { bold: true, bg: "FFD966", align: "center" }),
       
-      // ST HPS 1-2
-      ...(refData.summativeTests?.maxScores || [0,0]).map(v => createCell(v || 0, { bold: true, bg: "FFF2CC", align: "center" })),
-      createCell(gExamMax, { bold: true, bg: "FFF2CC", align: "center" }),
+      // SA HPS
+      ...activeSTIndices.map(idx => createCell(Number(refData.summativeTests?.maxScores?.[idx]) || 0, { bold: true, bg: "FFF2CC", align: "center" })),
+      ...(includeExam ? [createCell(gExamMax, { bold: true, bg: "FFF2CC", align: "center" })] : []),
       createCell(gTAMax, { bold: true, bg: "FFE599", align: "center" }),
       createCell("100.0", { bold: true, bg: "FFE599", align: "center" }),
       createCell(selectedSubject.taWeight ? `${selectedSubject.taWeight.toFixed(0)}%` : "-", { bold: true, bg: "FFD966", align: "center" }),
@@ -17813,55 +17846,55 @@ function GradebookView({
         const sexLabel = currentSex === 'male' ? 'MALE' : currentSex === 'female' ? 'FEMALE' : 'OTHER';
         const sexHeaderRowIndex = dataRows.length;
         
-        merges.push({ s: { r: sexHeaderRowIndex, c: 0 }, e: { r: sexHeaderRowIndex, c: 24 } });
+        merges.push({ s: { r: sexHeaderRowIndex, c: 0 }, e: { r: sexHeaderRowIndex, c: lastColIdx } });
         
-        // Push beautiful colored full row for Male and Female separation exactly like SF10
         dataRows.push([
           createCell(sexLabel + " LEARNERS", { bold: true, bg: "D9EAD3", color: "137E3E", size: 10, align: "left" }),
-          ...new Array(24).fill(createCell("", { bg: "D9EAD3" }))
+          ...new Array(lastColIdx).fill(createCell("", { bg: "D9EAD3" }))
         ]);
       }
 
       const g = calculateGrade(student, selectedSubject, activeTerm);
       const data = getStudentTermData(student);
-      
-      const wwMax = (refData.writtenWorks?.maxScores || []).reduce((a: number, b: any) => a + (Number(b) || 0), 0);
-      const ptMax = (refData.performanceTasks?.maxScores || []).reduce((a: number, b: any) => a + (Number(b) || 0), 0);
-      const taMax = (refData.summativeTests?.maxScores || []).reduce((a: number, b: any) => a + (Number(b) || 0), 0) + (refData.termExam?.maxScore || 0);
 
       const row = [
         createCell(formatStudentName(student), { align: "left" }),
         
-        // Written Works
-        ...(data.writtenWorks?.scores || [0,0,0,0,0]).map((v, i) => {
+        // Written Works (Active only)
+        ...finalWWIndices.map(i => {
           const hasHps = (refData.writtenWorks?.maxScores?.[i] || 0) > 0;
-          return createCell(hasHps ? v : "-", { align: "center" });
+          const score = data.writtenWorks?.scores?.[i];
+          return createCell(hasHps || (score !== undefined && score !== '') ? (score ?? 0) : "-", { align: "center" });
         }),
-        createCell(wwMax > 0 ? g.ww.total : "-", { bold: true, align: "center", bg: "F9FAFB" }), 
-        createCell(wwMax > 0 ? g.ww.ps.toFixed(1) : "-", { align: "center", bg: "F3F4F6" }), 
-        createCell(wwMax > 0 ? g.ww.ws.toFixed(2) : "-", { align: "center", bg: "E5E7EB" }),
+        createCell(gWWMax > 0 ? (g.ww.total > 0 ? g.ww.total : (g.hasData ? 0 : "-")) : "-", { bold: true, align: "center", bg: "F9FAFB" }), 
+        createCell(gWWMax > 0 ? (g.ww.ps > 0 ? g.ww.ps.toFixed(1) : (g.hasData ? "0.0" : "-")) : "-", { align: "center", bg: "F3F4F6" }), 
+        createCell(gWWMax > 0 ? (g.ww.ws > 0 ? g.ww.ws.toFixed(2) : (g.hasData ? "0.00" : "-")) : "-", { align: "center", bg: "E5E7EB" }),
         
-        // Performance Tasks
-        ...(data.performanceTasks?.scores || [0,0,0,0,0]).map((v, i) => {
+        // Performance Tasks (Active only)
+        ...finalPTIndices.map(i => {
           const hasHps = (refData.performanceTasks?.maxScores?.[i] || 0) > 0;
-          return createCell(hasHps ? v : "-", { align: "center" });
+          const score = data.performanceTasks?.scores?.[i];
+          return createCell(hasHps || (score !== undefined && score !== '') ? (score ?? 0) : "-", { align: "center" });
         }),
-        createCell(ptMax > 0 ? g.pt.total : "-", { bold: true, align: "center", bg: "F9FAFB" }), 
-        createCell(ptMax > 0 ? g.pt.ps.toFixed(1) : "-", { align: "center", bg: "F3F4F6" }), 
-        createCell(ptMax > 0 ? g.pt.ws.toFixed(2) : "-", { align: "center", bg: "E5E7EB" }),
+        createCell(gPTMax > 0 ? (g.pt.total > 0 ? g.pt.total : (g.hasData ? 0 : "-")) : "-", { bold: true, align: "center", bg: "F9FAFB" }), 
+        createCell(gPTMax > 0 ? (g.pt.ps > 0 ? g.pt.ps.toFixed(1) : (g.hasData ? "0.0" : "-")) : "-", { align: "center", bg: "F3F4F6" }), 
+        createCell(gPTMax > 0 ? (g.pt.ws > 0 ? g.pt.ws.toFixed(2) : (g.hasData ? "0.00" : "-")) : "-", { align: "center", bg: "E5E7EB" }),
         
-        // Summative Tests
-        ...(data.summativeTests?.scores || [0,0]).map((v, i) => {
+        // Summative Tests & Exam (Active only)
+        ...activeSTIndices.map(i => {
           const hasHps = (refData.summativeTests?.maxScores?.[i] || 0) > 0;
-          return createCell(hasHps ? v : "-", { align: "center" });
+          const score = data.summativeTests?.scores?.[i];
+          return createCell(hasHps || (score !== undefined && score !== '') ? (score ?? 0) : "-", { align: "center" });
         }),
-        createCell((refData.termExam?.maxScore || 0) > 0 ? (data.termExam?.score || 0) : "-", { align: "center" }),
-        createCell(taMax > 0 ? g.ta.total : "-", { bold: true, align: "center", bg: "F9FAFB" }), 
-        createCell(taMax > 0 ? g.ta.ps.toFixed(1) : "-", { align: "center", bg: "F3F4F6" }), 
-        createCell(taMax > 0 ? g.ta.ws.toFixed(2) : "-", { align: "center", bg: "E5E7EB" }),
+        ...(includeExam ? [
+          createCell((refData.termExam?.maxScore || 0) > 0 || data.termExam?.score !== undefined ? (data.termExam?.score ?? (g.hasData ? 0 : "-")) : "-", { align: "center" })
+        ] : []),
+        createCell(gTAMax > 0 ? (g.ta.total > 0 ? g.ta.total : (g.hasData ? 0 : "-")) : "-", { bold: true, align: "center", bg: "F9FAFB" }), 
+        createCell(gTAMax > 0 ? (g.ta.ps > 0 ? g.ta.ps.toFixed(1) : (g.hasData ? "0.0" : "-")) : "-", { align: "center", bg: "F3F4F6" }), 
+        createCell(gTAMax > 0 ? (g.ta.ws > 0 ? g.ta.ws.toFixed(2) : (g.hasData ? "0.00" : "-")) : "-", { align: "center", bg: "E5E7EB" }),
         
-        createCell(g.hasData ? g.initial.toFixed(2) : "-", { bold: true, align: "center", bg: "FFE599" }), 
-        createCell(g.hasData ? g.final : "-", { bold: true, align: "center", bg: "FFE599", color: g.final >= 75 ? "107C41" : "DE350B" })
+        createCell(g.hasData && g.initial > 0 ? g.initial.toFixed(2) : "-", { bold: true, align: "center", bg: "FFE599" }), 
+        createCell(g.hasData && g.final > 0 ? g.final : "-", { bold: true, align: "center", bg: "FFE599", color: g.final >= 75 ? "107C41" : "DE350B" })
       ];
       dataRows.push(row);
     });
@@ -17869,38 +17902,31 @@ function GradebookView({
     // 9. Add statistics & Signatures section at bottom
     const statMale = calculateMPS(studentsMale);
     const statFemale = calculateMPS(studentsFemale);
-    const statOverall = calculateMPS(students);
+    const statOverall = calculateMPS(validStudents);
 
     // Padding spacers
-    dataRows.push(new Array(25).fill(createCell("", { borderTheme: "none" })));
-    dataRows.push(new Array(25).fill(createCell("", { borderTheme: "none" })));
+    dataRows.push(new Array(totalCols).fill(null).map(() => emptyCell()));
+    dataRows.push(new Array(totalCols).fill(null).map(() => emptyCell()));
 
     const summaryStartRow = dataRows.length;
-    merges.push({ s: { r: summaryStartRow, c: 0 }, e: { r: summaryStartRow, c: 9 } });
+    merges.push({ s: { r: summaryStartRow, c: 0 }, e: { r: summaryStartRow, c: Math.min(9, lastColIdx) } });
 
     dataRows.push([
       createCell("CLASS GRADE SUMMARY & PROFILE STATISTICS", { bold: true, size: 11, bg: "1F4E78", color: "FFFFFF", align: "left" }),
-      ...new Array(24).fill(createCell("", { borderTheme: "none" }))
+      ...new Array(lastColIdx).fill(createCell("", { borderTheme: "none" }))
     ]);
 
     const headerMergesRow = dataRows.length;
     merges.push({ s: { r: headerMergesRow, c: 1 }, e: { r: headerMergesRow, c: 3 } });
     merges.push({ s: { r: headerMergesRow, c: 4 }, e: { r: headerMergesRow, c: 6 } });
-    merges.push({ s: { r: headerMergesRow, c: 7 }, e: { r: headerMergesRow, c: 9 } });
+    merges.push({ s: { r: headerMergesRow, c: 7 }, e: { r: headerMergesRow, c: Math.min(9, lastColIdx) } });
 
-    dataRows.push([
-      createCell("METRIC / INDICATOR", { bold: true, bg: "D9E1F2", align: "left" }),
-      createCell("MALE", { bold: true, bg: "D9E1F2", align: "center" }),
-      createCell("", { borderTheme: "default" }),
-      createCell("", { borderTheme: "default" }),
-      createCell("FEMALE", { bold: true, bg: "D9E1F2", align: "center" }),
-      createCell("", { borderTheme: "default" }),
-      createCell("", { borderTheme: "default" }),
-      createCell("TOTAL (CLASS)", { bold: true, bg: "D9E1F2", align: "center" }),
-      createCell("", { borderTheme: "default" }),
-      createCell("", { borderTheme: "default" }),
-      ...new Array(15).fill(createCell("", { borderTheme: "none" }))
-    ]);
+    const statsHeaderRow = new Array(totalCols).fill(null).map(() => emptyCell());
+    statsHeaderRow[0] = createCell("METRIC / INDICATOR", { bold: true, bg: "D9E1F2", align: "left" });
+    statsHeaderRow[1] = createCell("MALE", { bold: true, bg: "D9E1F2", align: "center" });
+    statsHeaderRow[4] = createCell("FEMALE", { bold: true, bg: "D9E1F2", align: "center" });
+    statsHeaderRow[7] = createCell("TOTAL (CLASS)", { bold: true, bg: "D9E1F2", align: "center" });
+    dataRows.push(statsHeaderRow);
 
     const statsDataRows = [
       { label: "No. of Learners Enrolled", m: statMale.takers, f: statFemale.takers, t: statOverall.takers },
@@ -17926,82 +17952,60 @@ function GradebookView({
       const rowIdx = dataRows.length;
       merges.push({ s: { r: rowIdx, c: 1 }, e: { r: rowIdx, c: 3 } });
       merges.push({ s: { r: rowIdx, c: 4 }, e: { r: rowIdx, c: 6 } });
-      merges.push({ s: { r: rowIdx, c: 7 }, e: { r: rowIdx, c: 9 } });
+      merges.push({ s: { r: rowIdx, c: 7 }, e: { r: rowIdx, c: Math.min(9, lastColIdx) } });
 
-      dataRows.push([
-        createCell(stat.label, { align: "left" }),
-        createCell(stat.m, { align: "center" }),
-        createCell("", { borderTheme: "default" }),
-        createCell("", { borderTheme: "default" }),
-        createCell(stat.f, { align: "center" }),
-        createCell("", { borderTheme: "default" }),
-        createCell("", { borderTheme: "default" }),
-        createCell(stat.t, { bold: true, align: "center" }),
-        createCell("", { borderTheme: "default" }),
-        createCell("", { borderTheme: "default" }),
-        ...new Array(15).fill(createCell("", { borderTheme: "none" }))
-      ]);
+      const row = new Array(totalCols).fill(null).map(() => emptyCell());
+      row[0] = createCell(stat.label, { align: "left" });
+      row[1] = createCell(stat.m, { align: "center" });
+      row[4] = createCell(stat.f, { align: "center" });
+      row[7] = createCell(stat.t, { bold: true, align: "center" });
+      dataRows.push(row);
     });
 
     // Spacers for signatures
-    dataRows.push(new Array(25).fill(createCell("", { borderTheme: "none" })));
-    dataRows.push(new Array(25).fill(createCell("", { borderTheme: "none" })));
+    dataRows.push(new Array(totalCols).fill(null).map(() => emptyCell()));
+    dataRows.push(new Array(totalCols).fill(null).map(() => emptyCell()));
 
     const sigStartRow = dataRows.length;
-    merges.push({ s: { r: sigStartRow, c: 1 }, e: { r: sigStartRow, c: 6 } });
-    merges.push({ s: { r: sigStartRow, c: 16 }, e: { r: sigStartRow, c: 21 } });
+    merges.push({ s: { r: sigStartRow, c: 1 }, e: { r: sigStartRow, c: Math.min(4, Math.floor(lastColIdx / 2)) } });
+    merges.push({ s: { r: sigStartRow, c: Math.min(6, Math.floor(lastColIdx / 2) + 1) }, e: { r: sigStartRow, c: lastColIdx } });
     
-    dataRows.push([
-      createCell("", { borderTheme: "none" }),
-      createCell("Prepared by:", { bold: true, italic: true, align: "left", borderTheme: "none" }),
-      ...new Array(5).fill(createCell("", { borderTheme: "none" })),
-      ...new Array(9).fill(createCell("", { borderTheme: "none" })),
-      createCell("Checked & Approved by:", { bold: true, italic: true, align: "left", borderTheme: "none" }),
-      ...new Array(5).fill(createCell("", { borderTheme: "none" })),
-      ...new Array(3).fill(createCell("", { borderTheme: "none" }))
-    ]);
+    const sigRow1 = new Array(totalCols).fill(null).map(() => emptyCell());
+    sigRow1[1] = createCell("Prepared by:", { bold: true, italic: true, align: "left", borderTheme: "none" });
+    sigRow1[Math.min(6, Math.floor(lastColIdx / 2) + 1)] = createCell("Checked & Approved by:", { bold: true, italic: true, align: "left", borderTheme: "none" });
+    dataRows.push(sigRow1);
 
-    dataRows.push(new Array(25).fill(createCell("", { borderTheme: "none" })));
+    dataRows.push(new Array(totalCols).fill(null).map(() => emptyCell()));
 
     const teacherName = currentUser?.name || currentUser?.displayName || currentUser?.email || "N/A";
     const adviserName = selectedSection.adviserName || "N/A";
 
-    merges.push({ s: { r: sigStartRow + 2, c: 1 }, e: { r: sigStartRow + 2, c: 6 } });
-    merges.push({ s: { r: sigStartRow + 2, c: 16 }, e: { r: sigStartRow + 2, c: 21 } });
+    merges.push({ s: { r: sigStartRow + 2, c: 1 }, e: { r: sigStartRow + 2, c: Math.min(4, Math.floor(lastColIdx / 2)) } });
+    merges.push({ s: { r: sigStartRow + 2, c: Math.min(6, Math.floor(lastColIdx / 2) + 1) }, e: { r: sigStartRow + 2, c: lastColIdx } });
 
-    dataRows.push([
-      createCell("", { borderTheme: "none" }),
-      createCell(teacherName.toUpperCase(), { bold: true, align: "center", borderTheme: "none" }),
-      ...new Array(5).fill(createCell("", { borderTheme: "none" })),
-      ...new Array(9).fill(createCell("", { borderTheme: "none" })),
-      createCell(adviserName.toUpperCase(), { bold: true, align: "center", borderTheme: "none" }),
-      ...new Array(5).fill(createCell("", { borderTheme: "none" })),
-      ...new Array(3).fill(createCell("", { borderTheme: "none" }))
-    ]);
+    const sigRow2 = new Array(totalCols).fill(null).map(() => emptyCell());
+    sigRow2[1] = createCell(teacherName.toUpperCase(), { bold: true, align: "center", borderTheme: "none" });
+    sigRow2[Math.min(6, Math.floor(lastColIdx / 2) + 1)] = createCell(adviserName.toUpperCase(), { bold: true, align: "center", borderTheme: "none" });
+    dataRows.push(sigRow2);
 
-    merges.push({ s: { r: sigStartRow + 3, c: 1 }, e: { r: sigStartRow + 3, c: 6 } });
-    merges.push({ s: { r: sigStartRow + 3, c: 16 }, e: { r: sigStartRow + 3, c: 21 } });
+    merges.push({ s: { r: sigStartRow + 3, c: 1 }, e: { r: sigStartRow + 3, c: Math.min(4, Math.floor(lastColIdx / 2)) } });
+    merges.push({ s: { r: sigStartRow + 3, c: Math.min(6, Math.floor(lastColIdx / 2) + 1) }, e: { r: sigStartRow + 3, c: lastColIdx } });
     
-    dataRows.push([
-      createCell("", { borderTheme: "none" }),
-      createCell("Subject Teacher", { size: 9, align: "center", borderTheme: "none" }),
-      ...new Array(5).fill(createCell("", { borderTheme: "none" })),
-      ...new Array(9).fill(createCell("", { borderTheme: "none" })),
-      createCell("Class Adviser / Principal", { size: 9, align: "center", borderTheme: "none" }),
-      ...new Array(5).fill(createCell("", { borderTheme: "none" })),
-      ...new Array(3).fill(createCell("", { borderTheme: "none" }))
-    ]);
+    const sigRow3 = new Array(totalCols).fill(null).map(() => emptyCell());
+    sigRow3[1] = createCell("Subject Teacher", { size: 9, align: "center", borderTheme: "none" });
+    sigRow3[Math.min(6, Math.floor(lastColIdx / 2) + 1)] = createCell("Class Adviser / Principal", { size: 9, align: "center", borderTheme: "none" });
+    dataRows.push(sigRow3);
 
     const worksheet = XLSX.utils.aoa_to_sheet(dataRows);
     worksheet["!merges"] = merges;
     
-    // Set column widths
+    // Dynamic column widths
     const cols = [
       { wch: 30 }, // Name
-      { wch: 5 }, { wch: 5 }, { wch: 5 }, { wch: 5 }, { wch: 5 }, { wch: 8 }, { wch: 8 }, { wch: 8 }, // WW
-      { wch: 5 }, { wch: 5 }, { wch: 5 }, { wch: 5 }, { wch: 5 }, { wch: 8 }, { wch: 8 }, { wch: 8 }, // PT
-      { wch: 8 }, { wch: 8 }, { wch: 8 }, { wch: 8 }, { wch: 8 }, { wch: 8 }, // SA
-      { wch: 12 }, { wch: 12 } // Grades
+      ...new Array(wwColSpan).fill({ wch: 7 }),
+      ...new Array(ptColSpan).fill({ wch: 7 }),
+      ...new Array(saColSpan).fill({ wch: 8 }),
+      { wch: 12 }, { wch: 12 }
     ];
     worksheet['!cols'] = cols;
     
@@ -18593,6 +18597,13 @@ function GradebookView({
             >
               <Edit size={14} />
               Config
+            </button>
+            <button 
+              onClick={() => setShowClassRecordReport(true)}
+              className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer"
+            >
+              <FileSpreadsheet size={14} />
+              Class Record Report
             </button>
             <button 
               onClick={exportToExcel}
@@ -19318,6 +19329,19 @@ function GradebookView({
           </div>
         </div>
       )}
+
+      {/* Class Record Report (DepEd SF2/SF4 layout) Modal */}
+      <ClassRecordReportModal
+        isOpen={showClassRecordReport}
+        onClose={() => setShowClassRecordReport(false)}
+        students={students}
+        selectedSubject={selectedSubject}
+        activeTerm={activeTerm}
+        selectedSection={selectedSection}
+        currentUser={currentUser}
+        calculateGrade={calculateGrade}
+        refData={refData}
+      />
     </div>
   );
 }
