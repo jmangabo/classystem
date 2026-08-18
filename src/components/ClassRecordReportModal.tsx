@@ -391,6 +391,70 @@ export const ClassRecordReportModal: React.FC<ClassRecordReportModalProps> = ({
     .font-bold { font-weight: bold; }
     .font-black { font-weight: 900; }
     .font-mono { font-family: monospace; }
+
+    /* Summary Grid - 2 columns side by side */
+    .summary-grid {
+      display: grid !important;
+      grid-template-columns: 1fr 1fr !important;
+      gap: 12px !important;
+      margin-top: 12px !important;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+    }
+
+    /* Signatures Section - Strict Horizontal View Across the Page */
+    .signature-section {
+      display: flex !important;
+      flex-direction: row !important;
+      justify-content: space-between !important;
+      align-items: flex-start !important;
+      width: 100% !important;
+      margin-top: 24px !important;
+      padding-top: 10px !important;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+    }
+    .signature-col {
+      flex: 1 1 0% !important;
+      width: 32% !important;
+      max-width: 32% !important;
+      text-align: center !important;
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: center !important;
+    }
+    .sig-role {
+      font-size: 8px !important;
+      font-weight: 700 !important;
+      color: #334155 !important;
+      text-transform: uppercase !important;
+      margin-bottom: 24px !important;
+      text-align: center !important;
+    }
+    .sig-name {
+      font-weight: 900 !important;
+      font-size: 9.5px !important;
+      text-transform: uppercase !important;
+      border-bottom: 1px solid #000 !important;
+      width: 90% !important;
+      padding-bottom: 2px !important;
+      margin: 0 auto 2px auto !important;
+      text-align: center !important;
+    }
+    .sig-title {
+      font-size: 8px !important;
+      font-weight: 600 !important;
+      color: #475569 !important;
+      text-transform: uppercase !important;
+      margin: 0 0 3px 0 !important;
+      text-align: center !important;
+    }
+    .sig-date {
+      font-size: 7px !important;
+      color: #64748b !important;
+      margin: 0 !important;
+      text-align: center !important;
+    }
   </style>
 </head>
 <body>
@@ -960,26 +1024,6 @@ export const ClassRecordReportModal: React.FC<ClassRecordReportModalProps> = ({
                   })
                 )}
 
-                {/* Male Average Summary Row */}
-                {maleStats.rows.length > 0 && (
-                  <tr className="bg-slate-100 font-bold text-[7.5px] border-t border-b border-slate-900">
-                    <td colSpan={3} className="border border-slate-900 p-1 text-right">MALE AVERAGE:</td>
-                    {activeWWIndices.map(i => <td key={`m-avg-ww-${i}`} className="border border-slate-900 p-1">-</td>)}
-                    <td className="border border-slate-900 p-1">{maleStats.avgWW.toFixed(2)}</td>
-                    <td colSpan={2} className="border border-slate-900 p-1">-</td>
-                    {activePTIndices.map(i => <td key={`m-avg-pt-${i}`} className="border border-slate-900 p-1">-</td>)}
-                    <td className="border border-slate-900 p-1">{maleStats.avgPT.toFixed(2)}</td>
-                    <td colSpan={2} className="border border-slate-900 p-1">-</td>
-                    {activeSTIndices.map(i => <td key={`m-avg-st-${i}`} className="border border-slate-900 p-1">-</td>)}
-                    {hasExam && <td className="border border-slate-900 p-1">-</td>}
-                    <td className="border border-slate-900 p-1">{maleStats.avgQA.toFixed(2)}</td>
-                    <td colSpan={2} className="border border-slate-900 p-1">-</td>
-                    <td className="border border-slate-900 p-1">-</td>
-                    <td className="border border-slate-900 p-1 font-black bg-slate-200">{maleStats.mps.toFixed(2)}</td>
-                    <td className="border border-slate-900 p-1 text-emerald-700">{maleStats.passingRate.toFixed(1)}%</td>
-                  </tr>
-                )}
-
                 {/* FEMALE LEARNERS SECTION */}
                 <tr className="bg-slate-200 font-black text-[8px] uppercase">
                   <td colSpan={totalTableColumns} className="border border-slate-900 p-1.5 text-left tracking-wider">
@@ -1050,31 +1094,11 @@ export const ClassRecordReportModal: React.FC<ClassRecordReportModalProps> = ({
                     );
                   })
                 )}
-
-                {/* Female Average Summary Row */}
-                {femaleStats.rows.length > 0 && (
-                  <tr className="bg-slate-100 font-bold text-[7.5px] border-t border-b border-slate-900">
-                    <td colSpan={3} className="border border-slate-900 p-1 text-right">FEMALE AVERAGE:</td>
-                    {activeWWIndices.map(i => <td key={`f-avg-ww-${i}`} className="border border-slate-900 p-1">-</td>)}
-                    <td className="border border-slate-900 p-1">{femaleStats.avgWW.toFixed(2)}</td>
-                    <td colSpan={2} className="border border-slate-900 p-1">-</td>
-                    {activePTIndices.map(i => <td key={`f-avg-pt-${i}`} className="border border-slate-900 p-1">-</td>)}
-                    <td className="border border-slate-900 p-1">{femaleStats.avgPT.toFixed(2)}</td>
-                    <td colSpan={2} className="border border-slate-900 p-1">-</td>
-                    {activeSTIndices.map(i => <td key={`f-avg-st-${i}`} className="border border-slate-900 p-1">-</td>)}
-                    {hasExam && <td className="border border-slate-900 p-1">-</td>}
-                    <td className="border border-slate-900 p-1">{femaleStats.avgQA.toFixed(2)}</td>
-                    <td colSpan={2} className="border border-slate-900 p-1">-</td>
-                    <td className="border border-slate-900 p-1">-</td>
-                    <td className="border border-slate-900 p-1 font-black bg-slate-200">{femaleStats.mps.toFixed(2)}</td>
-                    <td className="border border-slate-900 p-1 text-emerald-700">{femaleStats.passingRate.toFixed(1)}%</td>
-                  </tr>
-                )}
               </tbody>
             </table>
 
             {/* Statistical Performance Analysis Box */}
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="summary-grid mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
               
               {/* Summary Performance Table */}
               <div>
@@ -1186,24 +1210,27 @@ export const ClassRecordReportModal: React.FC<ClassRecordReportModalProps> = ({
 
             </div>
 
-            {/* Official Certification & Signature Blocks */}
-            <div className="flex justify-between items-end mt-8 pt-4 text-[9px]">
-              <div className="text-center w-60">
-                <p className="font-bold border-b border-black pb-1 mb-1 text-[10px] uppercase">{teacherName}</p>
-                <p className="text-slate-600 uppercase font-semibold text-[8px]">Prepared by: (Subject Teacher)</p>
-                <p className="text-slate-400 text-[7px]">Date: ________________________</p>
+            {/* Official Certification & Signature Blocks - Pure Horizontal Layout */}
+            <div className="signature-section flex flex-row justify-between items-start mt-8 pt-4 w-full gap-4 text-[9px]">
+              <div className="signature-col flex-1 max-w-[32%] text-center flex flex-col items-center">
+                <p className="sig-role text-slate-700 uppercase font-bold text-[8px] mb-6">Prepared by:</p>
+                <p className="sig-name font-black border-b border-black pb-1 mb-1 text-[10px] uppercase w-full max-w-[220px] text-center">{teacherName}</p>
+                <p className="sig-title text-slate-600 uppercase font-semibold text-[8px]">Subject Teacher</p>
+                <p className="sig-date text-slate-500 text-[7px] mt-1">Date: ________________________</p>
               </div>
 
-              <div className="text-center w-60">
-                <p className="font-bold border-b border-black pb-1 mb-1 text-[10px] uppercase">{adviserName}</p>
-                <p className="text-slate-600 uppercase font-semibold text-[8px]">Checked by: (Class Adviser)</p>
-                <p className="text-slate-400 text-[7px]">Date: ________________________</p>
+              <div className="signature-col flex-1 max-w-[32%] text-center flex flex-col items-center">
+                <p className="sig-role text-slate-700 uppercase font-bold text-[8px] mb-6">Checked by:</p>
+                <p className="sig-name font-black border-b border-black pb-1 mb-1 text-[10px] uppercase w-full max-w-[220px] text-center">{adviserName}</p>
+                <p className="sig-title text-slate-600 uppercase font-semibold text-[8px]">Class Adviser</p>
+                <p className="sig-date text-slate-500 text-[7px] mt-1">Date: ________________________</p>
               </div>
 
-              <div className="text-center w-60">
-                <p className="font-bold border-b border-black pb-1 mb-1 text-[10px] uppercase">{schoolHeadName}</p>
-                <p className="text-slate-600 uppercase font-semibold text-[8px]">Certified Correct: (School Head / Principal)</p>
-                <p className="text-slate-400 text-[7px]">Date: ________________________</p>
+              <div className="signature-col flex-1 max-w-[32%] text-center flex flex-col items-center">
+                <p className="sig-role text-slate-700 uppercase font-bold text-[8px] mb-6">Certified Correct:</p>
+                <p className="sig-name font-black border-b border-black pb-1 mb-1 text-[10px] uppercase w-full max-w-[220px] text-center">{schoolHeadName}</p>
+                <p className="sig-title text-slate-600 uppercase font-semibold text-[8px]">School Head / Principal</p>
+                <p className="sig-date text-slate-500 text-[7px] mt-1">Date: ________________________</p>
               </div>
             </div>
 
