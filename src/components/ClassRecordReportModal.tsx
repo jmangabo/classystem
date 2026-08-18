@@ -363,11 +363,26 @@ export const ClassRecordReportModal: React.FC<ClassRecordReportModalProps> = ({
       margin-bottom: 8px;
       font-size: 7.5px;
     }
+    thead {
+      display: table-header-group !important;
+    }
+    tfoot {
+      display: table-footer-group !important;
+    }
+    tbody {
+      display: table-row-group !important;
+    }
+    tr {
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+    }
     th, td {
       border: 1px solid #000;
       padding: 2.5px 2px;
       text-align: center;
       vertical-align: middle;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
     }
     th {
       background-color: #f1f5f9 !important;
@@ -378,13 +393,21 @@ export const ClassRecordReportModal: React.FC<ClassRecordReportModalProps> = ({
       background-color: #fef3c7 !important;
       font-weight: 800;
     }
-    .section-header {
+    .section-header, .section-header-row, tr.section-header-row {
       background-color: #e2e8f0 !important;
       font-weight: 900;
       text-align: left;
       padding-left: 6px;
       text-transform: uppercase;
       font-size: 8px;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+      page-break-after: avoid !important;
+      break-after: avoid !important;
+    }
+    .student-row, tr.student-row {
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
     }
     .text-left { text-align: left !important; }
     .text-right { text-align: right !important; }
@@ -960,14 +983,14 @@ export const ClassRecordReportModal: React.FC<ClassRecordReportModalProps> = ({
 
               <tbody>
                 {/* MALE LEARNERS SECTION */}
-                <tr className="bg-slate-200 font-black text-[8px] uppercase">
+                <tr className="section-header-row bg-slate-200 font-black text-[8px] uppercase">
                   <td colSpan={totalTableColumns} className="border border-slate-900 p-1.5 text-left tracking-wider">
                     MALE LEARNERS ({maleStats.count})
                   </td>
                 </tr>
 
                 {maleStats.rows.length === 0 ? (
-                  <tr>
+                  <tr className="student-row">
                     <td colSpan={totalTableColumns} className="border border-slate-900 p-2 text-center text-slate-400 italic">
                       No male learners registered.
                     </td>
@@ -977,7 +1000,7 @@ export const ClassRecordReportModal: React.FC<ClassRecordReportModalProps> = ({
                     const isPassed = row.finalGrade >= 75;
 
                     return (
-                      <tr key={row.student.id} className="hover:bg-slate-50 text-center">
+                      <tr key={row.student.id} className="student-row hover:bg-slate-50 text-center">
                         <td className="border border-slate-900 p-1">{idx + 1}</td>
                         <td className="border border-slate-900 p-1 text-left font-bold truncate max-w-[160px]">
                           {formatStudentName(row.student)}
@@ -1031,14 +1054,14 @@ export const ClassRecordReportModal: React.FC<ClassRecordReportModalProps> = ({
                 )}
 
                 {/* FEMALE LEARNERS SECTION */}
-                <tr className="bg-slate-200 font-black text-[8px] uppercase">
+                <tr className="section-header-row bg-slate-200 font-black text-[8px] uppercase">
                   <td colSpan={totalTableColumns} className="border border-slate-900 p-1.5 text-left tracking-wider">
                     FEMALE LEARNERS ({femaleStats.count})
                   </td>
                 </tr>
 
                 {femaleStats.rows.length === 0 ? (
-                  <tr>
+                  <tr className="student-row">
                     <td colSpan={totalTableColumns} className="border border-slate-900 p-2 text-center text-slate-400 italic">
                       No female learners registered.
                     </td>
@@ -1048,7 +1071,7 @@ export const ClassRecordReportModal: React.FC<ClassRecordReportModalProps> = ({
                     const isPassed = row.finalGrade >= 75;
 
                     return (
-                      <tr key={row.student.id} className="hover:bg-slate-50 text-center">
+                      <tr key={row.student.id} className="student-row hover:bg-slate-50 text-center">
                         <td className="border border-slate-900 p-1">{idx + 1}</td>
                         <td className="border border-slate-900 p-1 text-left font-bold truncate max-w-[160px]">
                           {formatStudentName(row.student)}
