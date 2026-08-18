@@ -290,6 +290,41 @@ export const ClassRecordReportModal: React.FC<ClassRecordReportModalProps> = ({
       margin: 0 auto;
     }
     
+    /* Reset Tailwind constraints for print */
+    .print-wrapper > div {
+      max-width: none !important;
+      width: 100% !important;
+      padding: 0 !important;
+      border: none !important;
+      box-shadow: none !important;
+      margin: 0 !important;
+    }
+
+    /* Print Table Auto-Fitting */
+    table {
+      table-layout: auto !important;
+      font-size: 6.5px !important; /* Smaller font to fit more columns */
+    }
+    
+    th, td {
+      padding: 1.5px 1px !important; /* Tighter padding */
+      word-wrap: break-word !important;
+    }
+    
+    /* Remove all forced width classes so the browser calculates optimal table layout */
+    .w-6, .w-7, .w-8, .w-12, .w-14, .w-20, .min-w-\[140px\], .max-w-\[160px\] {
+      width: auto !important;
+      min-width: 0 !important;
+      max-width: none !important;
+    }
+
+    /* Allow names to wrap instead of cutting off */
+    .truncate { 
+      white-space: normal !important;
+      overflow: visible !important;
+      text-overflow: clip !important;
+    }
+    
     /* Header & Metadata Styles */
     .report-header {
       text-align: center;
@@ -441,7 +476,7 @@ export const ClassRecordReportModal: React.FC<ClassRecordReportModalProps> = ({
       padding: 0 12px !important;
       text-align: center !important;
       vertical-align: top !important;
-      width: 33.333% !important;
+      width: 50% !important;
     }
     .sig-role {
       font-size: 8px !important;
@@ -1243,21 +1278,14 @@ export const ClassRecordReportModal: React.FC<ClassRecordReportModalProps> = ({
             <table className="signature-table w-full mt-8 pt-4 border-none border-collapse text-[9px]">
               <tbody>
                 <tr className="border-none">
-                  <td className="w-1/3 border-none p-2 text-center align-top">
+                  <td className="w-1/2 border-none p-2 text-center align-top">
                     <p className="sig-role text-slate-700 uppercase font-bold text-[8px] mb-6">Prepared by:</p>
                     <p className="sig-name font-black border-b border-black pb-1 mb-1 text-[10px] uppercase w-full max-w-[220px] mx-auto text-center">{teacherName}</p>
                     <p className="sig-title text-slate-600 uppercase font-semibold text-[8px]">Subject Teacher</p>
                     <p className="sig-date text-slate-500 text-[7px] mt-1">Date: ________________________</p>
                   </td>
 
-                  <td className="w-1/3 border-none p-2 text-center align-top">
-                    <p className="sig-role text-slate-700 uppercase font-bold text-[8px] mb-6">Checked by:</p>
-                    <p className="sig-name font-black border-b border-black pb-1 mb-1 text-[10px] uppercase w-full max-w-[220px] mx-auto text-center">{adviserName}</p>
-                    <p className="sig-title text-slate-600 uppercase font-semibold text-[8px]">Class Adviser</p>
-                    <p className="sig-date text-slate-500 text-[7px] mt-1">Date: ________________________</p>
-                  </td>
-
-                  <td className="w-1/3 border-none p-2 text-center align-top">
+                  <td className="w-1/2 border-none p-2 text-center align-top">
                     <p className="sig-role text-slate-700 uppercase font-bold text-[8px] mb-6">Certified Correct:</p>
                     <p className="sig-name font-black border-b border-black pb-1 mb-1 text-[10px] uppercase w-full max-w-[220px] mx-auto text-center">{schoolHeadName}</p>
                     <p className="sig-title text-slate-600 uppercase font-semibold text-[8px]">School Head / Principal</p>
