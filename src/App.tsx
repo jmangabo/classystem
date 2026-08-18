@@ -17294,6 +17294,7 @@ function GradebookView({
 
   const showLockedState = currentUser?.role === 'teacher' && !hasAssignedSubjects;
   const [showDataEntryHint, setShowDataEntryHint] = useState(false);
+
   const [showActivityModal, setShowActivityModal] = useState(false);
   const [showActivityLegend, setShowActivityLegend] = useState(true);
   const [confirmFinalizeConfig, setConfirmFinalizeConfig] = useState<{ subjectId: string, term: number, finalize: boolean } | null>(null);
@@ -18600,6 +18601,7 @@ function GradebookView({
               <Download size={14} />
               Export
             </button>
+
             <button 
               onClick={() => setShowDataEntryHint(true)}
               className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer"
