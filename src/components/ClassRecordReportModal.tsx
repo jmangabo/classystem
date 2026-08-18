@@ -403,25 +403,22 @@ export const ClassRecordReportModal: React.FC<ClassRecordReportModalProps> = ({
     }
 
     /* Signatures Section - Strict Horizontal View Across the Page */
-    .signature-section {
-      display: flex !important;
-      flex-direction: row !important;
-      justify-content: space-between !important;
-      align-items: flex-start !important;
+    table.signature-table {
       width: 100% !important;
+      border: none !important;
+      border-collapse: collapse !important;
       margin-top: 24px !important;
       padding-top: 10px !important;
       page-break-inside: avoid !important;
       break-inside: avoid !important;
+      table-layout: fixed !important;
     }
-    .signature-col {
-      flex: 1 1 0% !important;
-      width: 32% !important;
-      max-width: 32% !important;
+    table.signature-table td {
+      border: none !important;
+      padding: 0 12px !important;
       text-align: center !important;
-      display: flex !important;
-      flex-direction: column !important;
-      align-items: center !important;
+      vertical-align: top !important;
+      width: 33.333% !important;
     }
     .sig-role {
       font-size: 8px !important;
@@ -461,6 +458,15 @@ export const ClassRecordReportModal: React.FC<ClassRecordReportModalProps> = ({
   <div class="print-wrapper">
     ${content}
   </div>
+  <script>
+    window.onload = function() {
+      setTimeout(function() {
+        window.onafterprint = function() { window.close(); };
+        window.onfocus = function() { setTimeout(function() { window.close(); }, 800); };
+        window.print();
+      }, 500);
+    };
+  </script>
 </body>
 </html>`;
     printHTMLContent(html);
@@ -1210,29 +1216,33 @@ export const ClassRecordReportModal: React.FC<ClassRecordReportModalProps> = ({
 
             </div>
 
-            {/* Official Certification & Signature Blocks - Pure Horizontal Layout */}
-            <div className="signature-section flex flex-row justify-between items-start mt-8 pt-4 w-full gap-4 text-[9px]">
-              <div className="signature-col flex-1 max-w-[32%] text-center flex flex-col items-center">
-                <p className="sig-role text-slate-700 uppercase font-bold text-[8px] mb-6">Prepared by:</p>
-                <p className="sig-name font-black border-b border-black pb-1 mb-1 text-[10px] uppercase w-full max-w-[220px] text-center">{teacherName}</p>
-                <p className="sig-title text-slate-600 uppercase font-semibold text-[8px]">Subject Teacher</p>
-                <p className="sig-date text-slate-500 text-[7px] mt-1">Date: ________________________</p>
-              </div>
+            {/* Official Certification & Signature Blocks - Pure Horizontal Layout for Screen, Print & PDF */}
+            <table className="signature-table w-full mt-8 pt-4 border-none border-collapse text-[9px]">
+              <tbody>
+                <tr className="border-none">
+                  <td className="w-1/3 border-none p-2 text-center align-top">
+                    <p className="sig-role text-slate-700 uppercase font-bold text-[8px] mb-6">Prepared by:</p>
+                    <p className="sig-name font-black border-b border-black pb-1 mb-1 text-[10px] uppercase w-full max-w-[220px] mx-auto text-center">{teacherName}</p>
+                    <p className="sig-title text-slate-600 uppercase font-semibold text-[8px]">Subject Teacher</p>
+                    <p className="sig-date text-slate-500 text-[7px] mt-1">Date: ________________________</p>
+                  </td>
 
-              <div className="signature-col flex-1 max-w-[32%] text-center flex flex-col items-center">
-                <p className="sig-role text-slate-700 uppercase font-bold text-[8px] mb-6">Checked by:</p>
-                <p className="sig-name font-black border-b border-black pb-1 mb-1 text-[10px] uppercase w-full max-w-[220px] text-center">{adviserName}</p>
-                <p className="sig-title text-slate-600 uppercase font-semibold text-[8px]">Class Adviser</p>
-                <p className="sig-date text-slate-500 text-[7px] mt-1">Date: ________________________</p>
-              </div>
+                  <td className="w-1/3 border-none p-2 text-center align-top">
+                    <p className="sig-role text-slate-700 uppercase font-bold text-[8px] mb-6">Checked by:</p>
+                    <p className="sig-name font-black border-b border-black pb-1 mb-1 text-[10px] uppercase w-full max-w-[220px] mx-auto text-center">{adviserName}</p>
+                    <p className="sig-title text-slate-600 uppercase font-semibold text-[8px]">Class Adviser</p>
+                    <p className="sig-date text-slate-500 text-[7px] mt-1">Date: ________________________</p>
+                  </td>
 
-              <div className="signature-col flex-1 max-w-[32%] text-center flex flex-col items-center">
-                <p className="sig-role text-slate-700 uppercase font-bold text-[8px] mb-6">Certified Correct:</p>
-                <p className="sig-name font-black border-b border-black pb-1 mb-1 text-[10px] uppercase w-full max-w-[220px] text-center">{schoolHeadName}</p>
-                <p className="sig-title text-slate-600 uppercase font-semibold text-[8px]">School Head / Principal</p>
-                <p className="sig-date text-slate-500 text-[7px] mt-1">Date: ________________________</p>
-              </div>
-            </div>
+                  <td className="w-1/3 border-none p-2 text-center align-top">
+                    <p className="sig-role text-slate-700 uppercase font-bold text-[8px] mb-6">Certified Correct:</p>
+                    <p className="sig-name font-black border-b border-black pb-1 mb-1 text-[10px] uppercase w-full max-w-[220px] mx-auto text-center">{schoolHeadName}</p>
+                    <p className="sig-title text-slate-600 uppercase font-semibold text-[8px]">School Head / Principal</p>
+                    <p className="sig-date text-slate-500 text-[7px] mt-1">Date: ________________________</p>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
 
           </div>
         </div>
