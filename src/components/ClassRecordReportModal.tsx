@@ -224,14 +224,14 @@ export const ClassRecordReportModal: React.FC<ClassRecordReportModalProps> = ({
   const qaColSpan = activeSTIndices.length + (hasExam ? 1 : 0) + 3;
   const totalTableColumns = 3 + wwColSpan + ptColSpan + qaColSpan + 3;
 
-  // Print function
+  // Print function with complete CSS styling for the report header and tables
   const handlePrint = () => {
     if (!printableRef.current) return;
     const content = printableRef.current.innerHTML;
     const html = `<!DOCTYPE html>
 <html>
 <head>
-  <title>Class Record Report - ${selectedSubject.name} - Q${activeTerm}</title>
+  <title>Class Record Report - ${selectedSubject.name} - Quarter ${activeTerm}</title>
   <meta charset="utf-8" />
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
@@ -256,10 +256,78 @@ export const ClassRecordReportModal: React.FC<ClassRecordReportModalProps> = ({
       width: 100%;
       margin: 0 auto;
     }
+    
+    /* Header & Metadata Styles */
+    .report-header {
+      text-align: center;
+      margin-bottom: 12px;
+    }
+    .report-header p.sub-title {
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: #475569;
+      margin: 0 0 2px 0;
+    }
+    .report-header h2.dept-title {
+      font-size: 13px;
+      font-weight: 900;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      color: #0f172a;
+      margin: 0 0 4px 0;
+    }
+    .report-header h1.main-title {
+      font-size: 15px;
+      font-weight: 900;
+      text-transform: uppercase;
+      color: #1e1b4b;
+      margin: 0;
+    }
+    
+    .meta-box {
+      border: 1px solid #000;
+      background-color: #f8fafc !important;
+      padding: 6px 8px;
+      margin-bottom: 8px;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px 12px;
+      font-size: 9px;
+    }
+    .meta-item {
+      display: flex;
+      flex-direction: column;
+    }
+    .meta-label {
+      font-size: 7.5px;
+      font-weight: 700;
+      color: #64748b;
+      text-transform: uppercase;
+    }
+    .meta-value {
+      font-weight: 800;
+      color: #0f172a;
+      text-transform: uppercase;
+    }
+    
+    .legend-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 4px 8px;
+      background-color: #f1f5f9 !important;
+      border: 1px solid #cbd5e1;
+      font-size: 8.5px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    
     table {
       width: 100%;
       border-collapse: collapse;
-      margin-bottom: 6px;
+      margin-bottom: 8px;
       font-size: 7.5px;
     }
     th, td {
@@ -288,6 +356,7 @@ export const ClassRecordReportModal: React.FC<ClassRecordReportModalProps> = ({
     .text-left { text-align: left !important; }
     .text-right { text-align: right !important; }
     .font-bold { font-weight: bold; }
+    .font-black { font-weight: 900; }
     .font-mono { font-family: monospace; }
   </style>
 </head>
@@ -329,7 +398,7 @@ export const ClassRecordReportModal: React.FC<ClassRecordReportModalProps> = ({
     // Header Lines
     rows.push([createCell("Republic of the Philippines", { bold: true, sz: 10, align: 'center' })]);
     rows.push([createCell("Department of Education", { bold: true, sz: 11, align: 'center' })]);
-    rows.push([createCell("CLASS RECORD REPORT (QUARTERLY SUMMARY - SF2/SF4 FORMAT)", { bold: true, sz: 12, align: 'center', bg: 'E2E8F0' })]);
+    rows.push([createCell("CLASS RECORD REPORT (QUARTERLY SUMMARY)", { bold: true, sz: 12, align: 'center', bg: 'E2E8F0' })]);
     rows.push([]);
 
     // Metadata
@@ -560,7 +629,7 @@ export const ClassRecordReportModal: React.FC<ClassRecordReportModalProps> = ({
               <FileSpreadsheet size={18} />
             </div>
             <div>
-              <h3 className="font-bold text-slate-800 dark:text-white text-base">Class Record Report (DepEd SF2/SF4 Layout)</h3>
+              <h3 className="font-bold text-slate-800 dark:text-white text-base">Class Record Report</h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 {selectedSubject.name} • Quarter {activeTerm} • Grade {selectedSection?.gradeLevel || ""} - {selectedSection?.name || ""}
               </p>
@@ -599,55 +668,52 @@ export const ClassRecordReportModal: React.FC<ClassRecordReportModalProps> = ({
             style={{ fontFamily: "'Inter', Arial, sans-serif" }}
           >
             {/* DepEd Official Header */}
-            <div className="text-center mb-4">
-              <p className="text-[10px] font-semibold tracking-wider uppercase text-slate-500">Republic of the Philippines</p>
-              <h2 className="text-sm font-black tracking-wide uppercase text-slate-800">Department of Education</h2>
-              <h1 className="text-base font-black uppercase text-indigo-900 mt-1">CLASS RECORD REPORT</h1>
-              <p className="text-[10px] font-bold text-slate-600 italic">
-                (Standard DepEd School Form Layout • DepEd Order No. 8, s. 2015)
-              </p>
+            <div className="report-header text-center mb-4">
+              <p className="sub-title text-[10px] font-semibold tracking-wider uppercase text-slate-500 mb-0.5">Republic of the Philippines</p>
+              <h2 className="dept-title text-sm font-black tracking-wide uppercase text-slate-800 mb-1">Department of Education</h2>
+              <h1 className="main-title text-base font-black uppercase text-indigo-900">CLASS RECORD REPORT</h1>
             </div>
 
             {/* School & Section Metadata Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4 p-3 border border-slate-900 bg-slate-50 text-[10px]">
-              <div>
-                <span className="text-slate-500 font-bold uppercase block text-[8px]">School Name:</span>
-                <span className="font-extrabold uppercase">{selectedSection?.schoolName || "Department of Education School"}</span>
+            <div className="meta-box grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4 p-3 border border-slate-900 bg-slate-50 text-[10px]">
+              <div className="meta-item">
+                <span className="meta-label text-slate-500 font-bold uppercase block text-[8px]">School Name:</span>
+                <span className="meta-value font-extrabold uppercase">{selectedSection?.schoolName || "Department of Education School"}</span>
               </div>
-              <div>
-                <span className="text-slate-500 font-bold uppercase block text-[8px]">School ID:</span>
-                <span className="font-extrabold font-mono">{selectedSection?.schoolId || "-"}</span>
+              <div className="meta-item">
+                <span className="meta-label text-slate-500 font-bold uppercase block text-[8px]">School ID:</span>
+                <span className="meta-value font-extrabold font-mono">{selectedSection?.schoolId || "-"}</span>
               </div>
-              <div>
-                <span className="text-slate-500 font-bold uppercase block text-[8px]">School Year:</span>
-                <span className="font-extrabold">{selectedSection?.schoolYear || "2025-2026"}</span>
+              <div className="meta-item">
+                <span className="meta-label text-slate-500 font-bold uppercase block text-[8px]">School Year:</span>
+                <span className="meta-value font-extrabold">{selectedSection?.schoolYear || "2025-2026"}</span>
               </div>
-              <div>
-                <span className="text-slate-500 font-bold uppercase block text-[8px]">Grade & Section:</span>
-                <span className="font-extrabold uppercase">
+              <div className="meta-item">
+                <span className="meta-label text-slate-500 font-bold uppercase block text-[8px]">Grade & Section:</span>
+                <span className="meta-value font-extrabold uppercase">
                   {selectedSection ? (Number(selectedSection.gradeLevel) === 0 ? "Kindergarten - " + selectedSection.name : "Grade " + selectedSection.gradeLevel + " - " + selectedSection.name) : "-"}
                 </span>
               </div>
-              <div>
-                <span className="text-slate-500 font-bold uppercase block text-[8px]">Learning Area (Subject):</span>
-                <span className="font-extrabold uppercase text-indigo-700">{selectedSubject.name}</span>
+              <div className="meta-item">
+                <span className="meta-label text-slate-500 font-bold uppercase block text-[8px]">Learning Area (Subject):</span>
+                <span className="meta-value font-extrabold uppercase text-indigo-700">{selectedSubject.name}</span>
               </div>
-              <div>
-                <span className="text-slate-500 font-bold uppercase block text-[8px]">Term / Quarter:</span>
-                <span className="font-extrabold uppercase">Quarter {activeTerm}</span>
+              <div className="meta-item">
+                <span className="meta-label text-slate-500 font-bold uppercase block text-[8px]">Term / Quarter:</span>
+                <span className="meta-value font-extrabold uppercase">Quarter {activeTerm}</span>
               </div>
-              <div>
-                <span className="text-slate-500 font-bold uppercase block text-[8px]">Subject Teacher:</span>
-                <span className="font-extrabold uppercase">{teacherName}</span>
+              <div className="meta-item">
+                <span className="meta-label text-slate-500 font-bold uppercase block text-[8px]">Subject Teacher:</span>
+                <span className="meta-value font-extrabold uppercase">{teacherName}</span>
               </div>
-              <div>
-                <span className="text-slate-500 font-bold uppercase block text-[8px]">Class Adviser:</span>
-                <span className="font-extrabold uppercase">{selectedSection?.adviserName || teacherName}</span>
+              <div className="meta-item">
+                <span className="meta-label text-slate-500 font-bold uppercase block text-[8px]">Class Adviser:</span>
+                <span className="meta-value font-extrabold uppercase">{selectedSection?.adviserName || teacherName}</span>
               </div>
             </div>
 
             {/* Component Summary Legend */}
-            <div className="flex flex-wrap items-center justify-between gap-2 mb-2 px-2 py-1 bg-slate-100 border border-slate-300 text-[9px] font-bold">
+            <div className="legend-bar flex flex-wrap items-center justify-between gap-2 mb-2 px-2 py-1 bg-slate-100 border border-slate-300 text-[9px] font-bold">
               <div className="flex items-center gap-4">
                 <span>Components:</span>
                 <span className="text-blue-800">Written Works (WW): {selectedSubject.wwWeight}%</span>
