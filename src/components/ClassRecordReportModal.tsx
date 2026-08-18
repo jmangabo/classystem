@@ -1,8 +1,10 @@
-import React, { useRef, useMemo } from 'react';
-import { Student, Subject, Section, TermNumber } from '../types';
+import React, { useRef, useMemo, useState, useEffect } from 'react';
+import { Student, Subject, Section, School, TermNumber } from '../types';
 import { formatStudentName, printHTMLContent } from '../utils';
 import { FileSpreadsheet, Printer, Download, X } from 'lucide-react';
 import * as XLSX from 'xlsx-js-style';
+import { db, safeGetDocs as getDocs } from '../firebase';
+import { query, collection, where } from 'firebase/firestore';
 
 interface ClassRecordReportModalProps {
   isOpen: boolean;
@@ -28,6 +30,30 @@ export const ClassRecordReportModal: React.FC<ClassRecordReportModalProps> = ({
   refData,
 }) => {
   const printableRef = useRef<HTMLDivElement>(null);
+  const [headOfSchool, setHeadOfSchool] = useState<string>(selectedSection?.headOfSchool || '');
+  const [schoolName, setSchoolName] = useState<string>(selectedSection?.schoolName || '');
+
+  useEffect(() => {
+    setHeadOfSchool(selectedSection?.headOfSchool || '');
+    setSchoolName(selectedSection?.schoolName || '');
+
+    if (selectedSection?.schoolId) {
+      const q = query(collection(db, "schools"), where("schoolId", "==", selectedSection.schoolId));
+      getDocs(q).then(snapshot => {
+        if (!snapshot.empty) {
+          const schoolData = snapshot.docs[0].data() as School;
+          if (schoolData.headOfSchool) {
+            setHeadOfSchool(schoolData.headOfSchool);
+          }
+          if (schoolData.name) {
+            setSchoolName(schoolData.name);
+          }
+        }
+      }).catch(err => {
+        console.error("Error fetching school details for Class Record:", err);
+      });
+    }
+  }, [selectedSection?.schoolId, selectedSection?.headOfSchool, selectedSection?.schoolName]);
 
   // Filter out blank/dropped/transferred students and sort
   const sortedStudents = useMemo(() => {
@@ -215,8 +241,15 @@ export const ClassRecordReportModal: React.FC<ClassRecordReportModalProps> = ({
   const femaleStats = useMemo(() => computeStats(sortedStudents.female), [sortedStudents.female, selectedSubject, activeTerm, refData]);
   const overallStats = useMemo(() => computeStats(sortedStudents.all), [sortedStudents.all, selectedSubject, activeTerm, refData]);
 
-  const teacherName = selectedSection?.adviserName || currentUser?.name || currentUser?.displayName || "Subject Teacher";
-  const schoolHead = selectedSection?.headOfSchool || "School Principal / Head";
+  const teacherName = useMemo(() => {
+    if (selectedSubject?.teacherEmail && currentUser?.email && selectedSubject.teacherEmail.trim().toLowerCase() === currentUser.email.trim().toLowerCase()) {
+      return currentUser?.name || currentUser?.displayName || currentUser?.email || "Subject Teacher";
+    }
+    return currentUser?.name || currentUser?.displayName || selectedSection?.adviserName || "Subject Teacher";
+  }, [selectedSubject, currentUser, selectedSection]);
+
+  const adviserName = selectedSection?.adviserName || "Class Adviser";
+  const schoolHeadName = headOfSchool || selectedSection?.headOfSchool || "School Head / Principal";
 
   // Total columns span calculation
   const wwColSpan = activeWWIndices.length + 3;
@@ -403,7 +436,7 @@ export const ClassRecordReportModal: React.FC<ClassRecordReportModalProps> = ({
 
     // Metadata
     rows.push([
-      createCell(`School: ${selectedSection?.schoolName || "DepEd School"}`, { bold: true, align: 'left' }),
+      createCell(`School: ${schoolName || selectedSection?.schoolName || "DepEd School"}`, { bold: true, align: 'left' }),
       createCell(`School ID: ${selectedSection?.schoolId || "-"}`, { bold: true }),
       createCell(`School Year: ${selectedSection?.schoolYear || "2025-2026"}`, { bold: true }),
       createCell(`Grade & Section: Grade ${selectedSection?.gradeLevel || ""} - ${selectedSection?.name || ""}`, { bold: true })
@@ -412,7 +445,7 @@ export const ClassRecordReportModal: React.FC<ClassRecordReportModalProps> = ({
       createCell(`Learning Area: ${selectedSubject.name}`, { bold: true, align: 'left' }),
       createCell(`Quarter / Term: Quarter ${activeTerm}`, { bold: true }),
       createCell(`Teacher: ${teacherName}`, { bold: true }),
-      createCell(`Adviser: ${selectedSection?.adviserName || teacherName}`, { bold: true })
+      createCell(`Adviser: ${adviserName}`, { bold: true })
     ]);
     rows.push([]);
 
@@ -605,11 +638,29 @@ export const ClassRecordReportModal: React.FC<ClassRecordReportModalProps> = ({
 
     // Signatures
     rows.push([]);
-    rows.push([
-      createCell(`Prepared by: ${teacherName}`, { bold: true, align: 'left' }),
-      emptyCell(), emptyCell(),
-      createCell(`Certified Correct: ${schoolHead}`, { bold: true, align: 'left' })
-    ]);
+    rows.push([]);
+    const colMid1 = Math.max(1, Math.floor(totalTableColumns / 3));
+    const colMid2 = Math.max(2, Math.floor((2 * totalTableColumns) / 3));
+
+    const sigLeadRow = new Array(totalTableColumns).fill(null).map(() => emptyCell());
+    sigLeadRow[1] = createCell("Prepared by:", { bold: true, align: 'left', sz: 9 });
+    sigLeadRow[colMid1] = createCell("Checked by:", { bold: true, align: 'left', sz: 9 });
+    sigLeadRow[colMid2] = createCell("Certified Correct:", { bold: true, align: 'left', sz: 9 });
+    rows.push(sigLeadRow);
+
+    rows.push(new Array(totalTableColumns).fill(null).map(() => emptyCell()));
+
+    const sigNamesRow = new Array(totalTableColumns).fill(null).map(() => emptyCell());
+    sigNamesRow[1] = createCell(teacherName.toUpperCase(), { bold: true, align: 'center', sz: 10 });
+    sigNamesRow[colMid1] = createCell(adviserName.toUpperCase(), { bold: true, align: 'center', sz: 10 });
+    sigNamesRow[colMid2] = createCell(schoolHeadName.toUpperCase(), { bold: true, align: 'center', sz: 10 });
+    rows.push(sigNamesRow);
+
+    const sigRolesRow = new Array(totalTableColumns).fill(null).map(() => emptyCell());
+    sigRolesRow[1] = createCell("Subject Teacher", { sz: 8, align: 'center' });
+    sigRolesRow[colMid1] = createCell("Class Adviser", { sz: 8, align: 'center' });
+    sigRolesRow[colMid2] = createCell("School Head / Principal", { sz: 8, align: 'center' });
+    rows.push(sigRolesRow);
 
     const ws = XLSX.utils.aoa_to_sheet(rows);
     XLSX.utils.book_append_sheet(wb, ws, `Q${activeTerm}_Class_Record`);
@@ -678,7 +729,7 @@ export const ClassRecordReportModal: React.FC<ClassRecordReportModalProps> = ({
             <div className="meta-box grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4 p-3 border border-slate-900 bg-slate-50 text-[10px]">
               <div className="meta-item">
                 <span className="meta-label text-slate-500 font-bold uppercase block text-[8px]">School Name:</span>
-                <span className="meta-value font-extrabold uppercase">{selectedSection?.schoolName || "Department of Education School"}</span>
+                <span className="meta-value font-extrabold uppercase">{schoolName || selectedSection?.schoolName || "Department of Education School"}</span>
               </div>
               <div className="meta-item">
                 <span className="meta-label text-slate-500 font-bold uppercase block text-[8px]">School ID:</span>
@@ -708,7 +759,7 @@ export const ClassRecordReportModal: React.FC<ClassRecordReportModalProps> = ({
               </div>
               <div className="meta-item">
                 <span className="meta-label text-slate-500 font-bold uppercase block text-[8px]">Class Adviser:</span>
-                <span className="meta-value font-extrabold uppercase">{selectedSection?.adviserName || teacherName}</span>
+                <span className="meta-value font-extrabold uppercase">{adviserName}</span>
               </div>
             </div>
 
@@ -1144,13 +1195,13 @@ export const ClassRecordReportModal: React.FC<ClassRecordReportModalProps> = ({
               </div>
 
               <div className="text-center w-60">
-                <p className="font-bold border-b border-black pb-1 mb-1 text-[10px] uppercase">{selectedSection?.adviserName || teacherName}</p>
+                <p className="font-bold border-b border-black pb-1 mb-1 text-[10px] uppercase">{adviserName}</p>
                 <p className="text-slate-600 uppercase font-semibold text-[8px]">Checked by: (Class Adviser)</p>
                 <p className="text-slate-400 text-[7px]">Date: ________________________</p>
               </div>
 
               <div className="text-center w-60">
-                <p className="font-bold border-b border-black pb-1 mb-1 text-[10px] uppercase">{schoolHead}</p>
+                <p className="font-bold border-b border-black pb-1 mb-1 text-[10px] uppercase">{schoolHeadName}</p>
                 <p className="text-slate-600 uppercase font-semibold text-[8px]">Certified Correct: (School Head / Principal)</p>
                 <p className="text-slate-400 text-[7px]">Date: ________________________</p>
               </div>

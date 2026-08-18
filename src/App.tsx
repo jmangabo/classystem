@@ -17297,6 +17297,25 @@ function GradebookView({
   const [showDataEntryHint, setShowDataEntryHint] = useState(false);
   const [showClassRecordReport, setShowClassRecordReport] = useState(false);
 
+  const [headOfSchool, setHeadOfSchool] = useState<string>(selectedSection?.headOfSchool || '');
+
+  useEffect(() => {
+    setHeadOfSchool(selectedSection?.headOfSchool || '');
+    if (selectedSection?.schoolId) {
+      const q = query(collection(db, "schools"), where("schoolId", "==", selectedSection.schoolId));
+      getDocs(q).then(snapshot => {
+        if (!snapshot.empty) {
+          const schoolData = snapshot.docs[0].data() as School;
+          if (schoolData.headOfSchool) {
+            setHeadOfSchool(schoolData.headOfSchool);
+          }
+        }
+      }).catch(err => {
+        console.error("Error fetching school head for Gradebook:", err);
+      });
+    }
+  }, [selectedSection?.schoolId, selectedSection?.headOfSchool]);
+
   const [showActivityModal, setShowActivityModal] = useState(false);
   const [showActivityLegend, setShowActivityLegend] = useState(true);
   const [confirmFinalizeConfig, setConfirmFinalizeConfig] = useState<{ subjectId: string, term: number, finalize: boolean } | null>(null);
@@ -17967,33 +17986,47 @@ function GradebookView({
     dataRows.push(new Array(totalCols).fill(null).map(() => emptyCell()));
 
     const sigStartRow = dataRows.length;
-    merges.push({ s: { r: sigStartRow, c: 1 }, e: { r: sigStartRow, c: Math.min(4, Math.floor(lastColIdx / 2)) } });
-    merges.push({ s: { r: sigStartRow, c: Math.min(6, Math.floor(lastColIdx / 2) + 1) }, e: { r: sigStartRow, c: lastColIdx } });
+    
+    const teacherName = (selectedSubject?.teacherEmail && currentUser?.email && selectedSubject.teacherEmail.trim().toLowerCase() === currentUser.email.trim().toLowerCase()) 
+      ? (currentUser?.name || currentUser?.displayName || currentUser?.email || "Subject Teacher") 
+      : (currentUser?.name || currentUser?.displayName || selectedSection.adviserName || "Subject Teacher");
+    const adviserName = selectedSection.adviserName || "Class Adviser";
+    const schoolHeadName = headOfSchool || selectedSection.headOfSchool || "School Head / Principal";
+
+    const colWidth = Math.max(1, Math.floor(lastColIdx / 3));
+    const colMid1 = Math.max(1, colWidth);
+    const colMid2 = Math.max(2, colWidth * 2);
+
+    merges.push({ s: { r: sigStartRow, c: 1 }, e: { r: sigStartRow, c: Math.max(1, colMid1 - 1) } });
+    merges.push({ s: { r: sigStartRow, c: colMid1 }, e: { r: sigStartRow, c: Math.max(colMid1, colMid2 - 1) } });
+    merges.push({ s: { r: sigStartRow, c: colMid2 }, e: { r: sigStartRow, c: lastColIdx } });
     
     const sigRow1 = new Array(totalCols).fill(null).map(() => emptyCell());
     sigRow1[1] = createCell("Prepared by:", { bold: true, italic: true, align: "left", borderTheme: "none" });
-    sigRow1[Math.min(6, Math.floor(lastColIdx / 2) + 1)] = createCell("Checked & Approved by:", { bold: true, italic: true, align: "left", borderTheme: "none" });
+    sigRow1[colMid1] = createCell("Checked by:", { bold: true, italic: true, align: "left", borderTheme: "none" });
+    sigRow1[colMid2] = createCell("Certified Correct:", { bold: true, italic: true, align: "left", borderTheme: "none" });
     dataRows.push(sigRow1);
 
     dataRows.push(new Array(totalCols).fill(null).map(() => emptyCell()));
 
-    const teacherName = currentUser?.name || currentUser?.displayName || currentUser?.email || "N/A";
-    const adviserName = selectedSection.adviserName || "N/A";
-
-    merges.push({ s: { r: sigStartRow + 2, c: 1 }, e: { r: sigStartRow + 2, c: Math.min(4, Math.floor(lastColIdx / 2)) } });
-    merges.push({ s: { r: sigStartRow + 2, c: Math.min(6, Math.floor(lastColIdx / 2) + 1) }, e: { r: sigStartRow + 2, c: lastColIdx } });
+    merges.push({ s: { r: sigStartRow + 2, c: 1 }, e: { r: sigStartRow + 2, c: Math.max(1, colMid1 - 1) } });
+    merges.push({ s: { r: sigStartRow + 2, c: colMid1 }, e: { r: sigStartRow + 2, c: Math.max(colMid1, colMid2 - 1) } });
+    merges.push({ s: { r: sigStartRow + 2, c: colMid2 }, e: { r: sigStartRow + 2, c: lastColIdx } });
 
     const sigRow2 = new Array(totalCols).fill(null).map(() => emptyCell());
     sigRow2[1] = createCell(teacherName.toUpperCase(), { bold: true, align: "center", borderTheme: "none" });
-    sigRow2[Math.min(6, Math.floor(lastColIdx / 2) + 1)] = createCell(adviserName.toUpperCase(), { bold: true, align: "center", borderTheme: "none" });
+    sigRow2[colMid1] = createCell(adviserName.toUpperCase(), { bold: true, align: "center", borderTheme: "none" });
+    sigRow2[colMid2] = createCell(schoolHeadName.toUpperCase(), { bold: true, align: "center", borderTheme: "none" });
     dataRows.push(sigRow2);
 
-    merges.push({ s: { r: sigStartRow + 3, c: 1 }, e: { r: sigStartRow + 3, c: Math.min(4, Math.floor(lastColIdx / 2)) } });
-    merges.push({ s: { r: sigStartRow + 3, c: Math.min(6, Math.floor(lastColIdx / 2) + 1) }, e: { r: sigStartRow + 3, c: lastColIdx } });
+    merges.push({ s: { r: sigStartRow + 3, c: 1 }, e: { r: sigStartRow + 3, c: Math.max(1, colMid1 - 1) } });
+    merges.push({ s: { r: sigStartRow + 3, c: colMid1 }, e: { r: sigStartRow + 3, c: Math.max(colMid1, colMid2 - 1) } });
+    merges.push({ s: { r: sigStartRow + 3, c: colMid2 }, e: { r: sigStartRow + 3, c: lastColIdx } });
     
     const sigRow3 = new Array(totalCols).fill(null).map(() => emptyCell());
     sigRow3[1] = createCell("Subject Teacher", { size: 9, align: "center", borderTheme: "none" });
-    sigRow3[Math.min(6, Math.floor(lastColIdx / 2) + 1)] = createCell("Class Adviser / Principal", { size: 9, align: "center", borderTheme: "none" });
+    sigRow3[colMid1] = createCell("Class Adviser", { size: 9, align: "center", borderTheme: "none" });
+    sigRow3[colMid2] = createCell("School Head / Principal", { size: 9, align: "center", borderTheme: "none" });
     dataRows.push(sigRow3);
 
     const worksheet = XLSX.utils.aoa_to_sheet(dataRows);
