@@ -35,7 +35,6 @@ const PHILIPPINE_HOLIDAYS: Record<string, string> = {
   '05-01': 'Labor Day',
   '06-12': 'Independence Day',
   '08-21': 'Ninoy Aquino Day',
-  '08-25': 'National Heroes Day',
   '11-01': 'All Saints Day',
   '11-30': 'Bonifacio Day',
   '12-25': 'Christmas Day',

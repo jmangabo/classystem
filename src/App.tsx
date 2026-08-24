@@ -102,6 +102,7 @@ import { SystemDocumentationView } from "./components/SystemDocumentationView";
 import { SF8View } from "./components/SF8View";
 import { ManualSiblingSelector } from "./components/ManualSiblingSelector";
 import { PhotoCropModal } from "./components/PhotoCropModal";
+import { SF10ReportModal } from "./components/SF10ReportModal";
 import { AralProgram } from "./components/AralProgram";
 import { AralMasterData } from "./components/AralMasterData";
 import { 
@@ -695,7 +696,7 @@ const calculateGrade = (student: Student, subject: Subject, term: TermNumber) =>
 };
 
 const PHILIPPINE_HOLIDAYS = [
-  '01-01', '04-09', '05-01', '06-12', '08-21', '08-25', '11-01', '11-30', '12-25', '12-30'
+  '01-01', '04-09', '05-01', '06-12', '08-21', '11-01', '11-30', '12-25', '12-30'
 ];
 
 const MONTH_INDICES: { [key: string]: number } = {
@@ -1167,6 +1168,7 @@ export default function App() {
   const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(null);
   const [combinedTleStudents, setCombinedTleStudents] = useState<Student[]>([]);
   const [selectedStudentForReport, setSelectedStudentForReport] = useState<Student | null>(null);
+  const [selectedStudentForBlankReport, setSelectedStudentForBlankReport] = useState<Student | null>(null);
   const [statusChangeTarget, setStatusChangeTarget] = useState<{ student: Student, newStatus: 'Active' | 'Transferred Out' | 'Dropped Out' | 'Retained' | 'Promoted' } | null>(null);
   const [statusChangeDate, setStatusChangeDate] = useState(new Date().toISOString().split('T')[0]);
   const [statusChangeReason, setStatusChangeReason] = useState("");
@@ -5167,6 +5169,7 @@ export default function App() {
                   onToggleSF9Download={handleToggleSF9Download}
                   onToggleStudentStatus={handleToggleStudentStatus}
                   onViewReport={setSelectedStudentForReport}
+                  onViewBlankReport={setSelectedStudentForBlankReport}
                 />
               </motion.div>
             )}
@@ -5182,6 +5185,7 @@ export default function App() {
                   students={students}
                   onToggleStatus={handleToggleStudentStatus}
                   onViewReport={setSelectedStudentForReport}
+                  onViewBlankReport={setSelectedStudentForBlankReport}
                 />
               </motion.div>
             )}
@@ -5224,6 +5228,7 @@ export default function App() {
                   globalSettings={globalSettings}
                   onToggleStatus={handleToggleStudentStatus}
                   onViewReport={setSelectedStudentForReport}
+                  onViewBlankReport={setSelectedStudentForBlankReport}
                   onTogglePublishGrades={handleTogglePublishGrades}
                   onToggleParentSignature={handleToggleParentSignature}
                   section={selectedSection}
@@ -11767,6 +11772,7 @@ function AddLearnerView({
   globalSettings,
   onToggleStatus,
   onViewReport,
+  onViewBlankReport,
   onTogglePublishGrades,
   onToggleParentSignature,
   section,
@@ -11798,6 +11804,7 @@ function AddLearnerView({
   globalSettings?: any,
   onToggleStatus?: (studentId: string, status: 'Active' | 'Transferred Out' | 'Dropped Out') => void,
   onViewReport?: (s: Student) => void,
+  onViewBlankReport?: (s: Student) => void,
   onTogglePublishGrades?: (id: string, term: number, val: boolean) => void,
   onToggleParentSignature?: (id: string, term: number, val: boolean) => void,
   section?: Section | null,
@@ -12011,6 +12018,18 @@ function AddLearnerView({
                 title="View SF 9"
               >
                 <FileText size={14} />
+              </button>
+            )}
+            {onViewBlankReport && (
+              <button 
+                onClick={(e) => { 
+                  e.stopPropagation(); 
+                  onViewBlankReport(s); 
+                }}
+                className="p-2 bg-slate-50 border border-slate-200 text-slate-600 hover:bg-slate-600 hover:text-white rounded-xl transition-all shadow-sm active:scale-95"
+                title="View Blank SF 9"
+              >
+                <Download size={14} />
               </button>
             )}
             {onViewAnecdotals && (
@@ -17990,42 +18009,34 @@ function GradebookView({
     const teacherName = (selectedSubject?.teacherEmail && currentUser?.email && selectedSubject.teacherEmail.trim().toLowerCase() === currentUser.email.trim().toLowerCase()) 
       ? (currentUser?.name || currentUser?.displayName || currentUser?.email || "Subject Teacher") 
       : (currentUser?.name || currentUser?.displayName || selectedSection.adviserName || "Subject Teacher");
-    const adviserName = selectedSection.adviserName || "Class Adviser";
     const schoolHeadName = headOfSchool || selectedSection.headOfSchool || "School Head / Principal";
 
-    const colWidth = Math.max(1, Math.floor(lastColIdx / 3));
-    const colMid1 = Math.max(1, colWidth);
-    const colMid2 = Math.max(2, colWidth * 2);
+    const colWidth = Math.floor(lastColIdx / 2);
+    const colMid2 = Math.max(2, colWidth);
 
-    merges.push({ s: { r: sigStartRow, c: 1 }, e: { r: sigStartRow, c: Math.max(1, colMid1 - 1) } });
-    merges.push({ s: { r: sigStartRow, c: colMid1 }, e: { r: sigStartRow, c: Math.max(colMid1, colMid2 - 1) } });
+    merges.push({ s: { r: sigStartRow, c: 1 }, e: { r: sigStartRow, c: Math.max(1, colMid2 - 1) } });
     merges.push({ s: { r: sigStartRow, c: colMid2 }, e: { r: sigStartRow, c: lastColIdx } });
     
     const sigRow1 = new Array(totalCols).fill(null).map(() => emptyCell());
     sigRow1[1] = createCell("Prepared by:", { bold: true, italic: true, align: "left", borderTheme: "none" });
-    sigRow1[colMid1] = createCell("Checked by:", { bold: true, italic: true, align: "left", borderTheme: "none" });
     sigRow1[colMid2] = createCell("Certified Correct:", { bold: true, italic: true, align: "left", borderTheme: "none" });
     dataRows.push(sigRow1);
 
     dataRows.push(new Array(totalCols).fill(null).map(() => emptyCell()));
 
-    merges.push({ s: { r: sigStartRow + 2, c: 1 }, e: { r: sigStartRow + 2, c: Math.max(1, colMid1 - 1) } });
-    merges.push({ s: { r: sigStartRow + 2, c: colMid1 }, e: { r: sigStartRow + 2, c: Math.max(colMid1, colMid2 - 1) } });
+    merges.push({ s: { r: sigStartRow + 2, c: 1 }, e: { r: sigStartRow + 2, c: Math.max(1, colMid2 - 1) } });
     merges.push({ s: { r: sigStartRow + 2, c: colMid2 }, e: { r: sigStartRow + 2, c: lastColIdx } });
 
     const sigRow2 = new Array(totalCols).fill(null).map(() => emptyCell());
     sigRow2[1] = createCell(teacherName.toUpperCase(), { bold: true, align: "center", borderTheme: "none" });
-    sigRow2[colMid1] = createCell(adviserName.toUpperCase(), { bold: true, align: "center", borderTheme: "none" });
     sigRow2[colMid2] = createCell(schoolHeadName.toUpperCase(), { bold: true, align: "center", borderTheme: "none" });
     dataRows.push(sigRow2);
 
-    merges.push({ s: { r: sigStartRow + 3, c: 1 }, e: { r: sigStartRow + 3, c: Math.max(1, colMid1 - 1) } });
-    merges.push({ s: { r: sigStartRow + 3, c: colMid1 }, e: { r: sigStartRow + 3, c: Math.max(colMid1, colMid2 - 1) } });
+    merges.push({ s: { r: sigStartRow + 3, c: 1 }, e: { r: sigStartRow + 3, c: Math.max(1, colMid2 - 1) } });
     merges.push({ s: { r: sigStartRow + 3, c: colMid2 }, e: { r: sigStartRow + 3, c: lastColIdx } });
     
     const sigRow3 = new Array(totalCols).fill(null).map(() => emptyCell());
     sigRow3[1] = createCell("Subject Teacher", { size: 9, align: "center", borderTheme: "none" });
-    sigRow3[colMid1] = createCell("Class Adviser", { size: 9, align: "center", borderTheme: "none" });
     sigRow3[colMid2] = createCell("School Head / Principal", { size: 9, align: "center", borderTheme: "none" });
     dataRows.push(sigRow3);
 
@@ -21640,7 +21651,8 @@ function MATATAGReportCardModal({
   onClose,
   calendar,
   isStudentView = false,
-  globalNumTerms
+  globalNumTerms,
+  isBlank = false
 }: { 
   student: Student, 
   section: Section, 
@@ -21648,7 +21660,8 @@ function MATATAGReportCardModal({
   onClose: () => void,
   calendar?: any[],
   isStudentView?: boolean,
-  globalNumTerms?: number
+  globalNumTerms?: number,
+  isBlank?: boolean
 }) {
   const [useDescriptiveGrading, setUseDescriptiveGrading] = useState(false);
   const isGrade1To3 = useMemo(() => {
@@ -21658,11 +21671,13 @@ function MATATAGReportCardModal({
   }, [section.gradeLevel]);
 
   const isTermReleased = (q: number) => {
+    if (isBlank) return true;
     if (!isStudentView) return true;
     return student.publishGrades?.[q as TermNumber] || false;
   };
 
   const renderGradeCell = (grade: number, term: number, subject?: Subject) => {
+    if (isBlank) return '';
     if (subject?.offeredTerms && !subject.offeredTerms.includes(term as TermNumber)) {
       return <span className="text-slate-400 font-bold">-</span>;
     }
@@ -21758,7 +21773,8 @@ function MATATAGReportCardModal({
     return map;
   }, [filteredCalendar]);
 
-  const studentAttendance = student.attendance || {};
+  const studentAttendance = (isBlank ? {} : student.attendance) || {};
+  const studentObservedValues = (isBlank ? {} : student.observedValues) || {};
 
   // DepEd Revised K-12 Subject Arrangement Logic
   const displaySubjectsList = (() => {
@@ -21999,6 +22015,7 @@ function MATATAGReportCardModal({
   }, [studentAttendance, calendarMap, visibleAttendanceEntries]);
 
   const getSubjectTermGrade = (s: Subject, term: TermNumber) => {
+    if (isBlank) return 0;
     if (s.offeredTerms && !s.offeredTerms.includes(term)) {
       return -1; // Not offered this term
     }
@@ -22009,6 +22026,7 @@ function MATATAGReportCardModal({
   };
 
   const getSubjectFinalGrade = (s: Subject) => {
+    if (isBlank) return 0;
     let expectedTerms = numTerms === 4 ? [1, 2, 3, 4] as TermNumber[] : [1, 2, 3] as TermNumber[];
     if (semView === '1st') expectedTerms = [1, 2];
     else if (semView === '2nd') expectedTerms = [3, 4].filter(x => x <= numTerms) as TermNumber[];
@@ -22035,7 +22053,7 @@ function MATATAGReportCardModal({
       let observedValuesHtml = "";
       termsToShow.forEach(q => {
         const isReleased = isTermReleased(q);
-        const comment = isReleased ? (student.observedValues?.[q]?.['comment'] || '') : 'LOCKED';
+        const comment = isReleased ? (studentObservedValues?.[q]?.['comment'] || '') : 'LOCKED';
         observedValuesHtml += `
           <tr style="font-size: 8.5pt; height: 50px;">
             <td style="border: 1px solid #000000; padding: 8px 6px; font-weight: bold; background-color: #f8fafc; text-align: center; width: 80px; vertical-align: middle;">Term ${q}</td>
@@ -22084,17 +22102,17 @@ function MATATAGReportCardModal({
               <td style="border: 1px solid #000000; padding: 4px; font-weight: bold;">No. of Days Present</td>
               ${visibleAttendanceEntries.map(entry => {
                 const data = studentAttendance[entry.key] || studentAttendance[entry.month] || { present: 0 };
-                return `<td style="border: 1px solid #000000; padding: 4px; text-align: center; font-weight: bold;">${data.present || 0}</td>`;
+                return `<td style="border: 1px solid #000000; padding: 4px; text-align: center; font-weight: bold;">${isBlank ? '' : (data.present || 0)}</td>`;
               }).join('')}
-              <td style="border: 1px solid #000000; padding: 4px; text-align: center; font-weight: bold; background-color: #f1f5f9;">${attendanceTotals.p}</td>
+              <td style="border: 1px solid #000000; padding: 4px; text-align: center; font-weight: bold; background-color: #f1f5f9;">${isBlank ? '' : attendanceTotals.p}</td>
             </tr>
             <tr>
               <td style="border: 1px solid #000000; padding: 4px; font-weight: bold;">No. of Days Absent</td>
               ${visibleAttendanceEntries.map(entry => {
                 const data = studentAttendance[entry.key] || studentAttendance[entry.month] || { absent: 0 };
-                return `<td style="border: 1px solid #000000; padding: 4px; text-align: center;">${data.absent || 0}</td>`;
+                return `<td style="border: 1px solid #000000; padding: 4px; text-align: center;">${isBlank ? '' : (data.absent || 0)}</td>`;
               }).join('')}
-              <td style="border: 1px solid #000000; padding: 4px; text-align: center; font-weight: bold; background-color: #f1f5f9;">${attendanceTotals.a}</td>
+              <td style="border: 1px solid #000000; padding: 4px; text-align: center; font-weight: bold; background-color: #f1f5f9;">${isBlank ? '' : attendanceTotals.a}</td>
             </tr>
           </tbody>
         </table>
@@ -23013,7 +23031,7 @@ function MATATAGReportCardModal({
     for (let q = 1; q <= numTerms; q++) {
       const rowIdx = dataRows.length;
       const isReleased = isTermReleased(q);
-      const val = isReleased ? (student.observedValues?.[q]?.['comment'] || '') : 'LOCKED';
+      const val = isReleased ? (studentObservedValues?.[q]?.['comment'] || '') : 'LOCKED';
       const cells = [
         createCell(`Term ${q}`, { bold: true, bg: "F8FAFC", align: "center" }),
         createCell(val, { size: 10, italic: !isReleased, color: isReleased ? undefined : "94A3B8" })
@@ -23054,9 +23072,9 @@ function MATATAGReportCardModal({
     const daysPresentRow = [createCell("No. of Days Present", { bold: true })];
     visibleAttendanceEntries.forEach(entry => {
       const data = studentAttendance[entry.key] || studentAttendance[entry.month] || { present: 0 };
-      daysPresentRow.push(createCell(data.present || 0, {}));
+      daysPresentRow.push(createCell(isBlank ? "" : (data.present || 0), {}));
     });
-    daysPresentRow.push(createCell(attendanceTotals.p, { bold: true, bg: "E2EFDA" }));
+    daysPresentRow.push(createCell(isBlank ? "" : attendanceTotals.p, { bold: true, bg: "E2EFDA" }));
     padRowWithNone(daysPresentRow, maxCols);
     dataRows.push(daysPresentRow);
 
@@ -23064,9 +23082,9 @@ function MATATAGReportCardModal({
     const daysAbsentRow = [createCell("No. of Days Absent", { bold: true, bg: "F8FAFC" })];
     visibleAttendanceEntries.forEach(entry => {
       const data = studentAttendance[entry.key] || studentAttendance[entry.month] || { absent: 0 };
-      daysAbsentRow.push(createCell(data.absent || 0, { bg: "F8FAFC" }));
+      daysAbsentRow.push(createCell(isBlank ? "" : (data.absent || 0), { bg: "F8FAFC" }));
     });
-    daysAbsentRow.push(createCell(attendanceTotals.a, { bold: true, bg: "E2EFDA" }));
+    daysAbsentRow.push(createCell(isBlank ? "" : attendanceTotals.a, { bold: true, bg: "E2EFDA" }));
     padRowWithNone(daysAbsentRow, maxCols);
     dataRows.push(daysAbsentRow);
 
@@ -23400,7 +23418,7 @@ function MATATAGReportCardModal({
                 <tbody>
                   ${termsToShow.map(q => {
                     const isReleased = isTermReleased(q);
-                    const comment = isReleased ? (student.observedValues?.[q]?.['comment'] || '') : 'LOCKED';
+                    const comment = isReleased ? (studentObservedValues?.[q]?.['comment'] || '') : 'LOCKED';
                     return `
                       <tr style="height: 50px;">
                         <td style="font-weight: bold; text-align: center; background: #f8fafc; font-size: 8.5px; padding: 8px 6px; vertical-align: middle; width: 60px;">Term ${q}</td>
@@ -23444,17 +23462,17 @@ function MATATAGReportCardModal({
                         <td class="font-bold">Days Present</td>
                         ${visibleAttendanceEntries.map(e => {
                           const att = studentAttendance[e.key] || studentAttendance[e.month] || { present: 0 };
-                          return `<td style="text-align: center; font-weight: bold;">${att.present || 0}</td>`;
+                          return `<td style="text-align: center; font-weight: bold;">${isBlank ? '' : (att.present || 0)}</td>`;
                         }).join('')}
-                        <td style="text-align: center; font-weight: bold;">${attendanceTotals.p}</td>
+                        <td style="text-align: center; font-weight: bold;">${isBlank ? '' : attendanceTotals.p}</td>
                       </tr>
                       <tr>
                         <td class="font-bold">Days Absent</td>
                         ${visibleAttendanceEntries.map(e => {
                           const att = studentAttendance[e.key] || studentAttendance[e.month] || { absent: 0 };
-                          return `<td style="text-align: center;">${att.absent || 0}</td>`;
+                          return `<td style="text-align: center;">${isBlank ? '' : (att.absent || 0)}</td>`;
                         }).join('')}
-                        <td style="text-align: center; font-weight: bold;">${attendanceTotals.a}</td>
+                        <td style="text-align: center; font-weight: bold;">${isBlank ? '' : attendanceTotals.a}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -23716,7 +23734,7 @@ function MATATAGReportCardModal({
                               <td className="border border-black p-2.5 px-3 font-bold text-center bg-slate-50/50 align-middle">Term {q}</td>
                               <td className="border border-black p-2.5 px-3 text-left whitespace-pre-wrap leading-relaxed h-[55px] align-top">
                                 {isTermReleased(q) ? (
-                                  student.observedValues?.[q]?.['comment'] || <span className="text-slate-300 italic">No comments or remarks recorded.</span>
+                                  studentObservedValues?.[q]?.['comment'] || <span className="text-slate-300 italic">No comments or remarks recorded.</span>
                                 ) : (
                                   <div className="flex items-center gap-1 text-slate-400">
                                     <Lock size={12} />
@@ -23781,17 +23799,17 @@ function MATATAGReportCardModal({
                           <td className="border border-black p-1 font-bold">No. of Days Present</td>
                           {visibleAttendanceEntries.map(entry => {
                             const data = studentAttendance[entry.key] || studentAttendance[entry.month] || { present: 0 };
-                            return <td key={entry.key} className="border border-black p-1 text-center font-black">{data.present || 0}</td>;
+                            return <td key={entry.key} className="border border-black p-1 text-center font-black">{isBlank ? '' : (data.present || 0)}</td>;
                           })}
-                          <td className="border border-black p-1 text-center font-black">{attendanceTotals.p}</td>
+                          <td className="border border-black p-1 text-center font-black">{isBlank ? '' : attendanceTotals.p}</td>
                         </tr>
                         <tr>
                           <td className="border border-black p-1 font-bold">No. of Days Absent</td>
                           {visibleAttendanceEntries.map(entry => {
                              const data = studentAttendance[entry.key] || studentAttendance[entry.month] || { absent: 0 };
-                             return <td key={entry.key} className="border border-black p-1 text-center">{data.absent || 0}</td>;
+                             return <td key={entry.key} className="border border-black p-1 text-center">{isBlank ? '' : (data.absent || 0)}</td>;
                           })}
-                          <td className="border border-black p-1 text-center font-black">{attendanceTotals.a}</td>
+                          <td className="border border-black p-1 text-center font-black">{isBlank ? '' : attendanceTotals.a}</td>
                         </tr>
                       </tbody>
                     </table>
@@ -23904,10 +23922,6 @@ function MATATAGReportCardModal({
                   <div className="space-y-1.5 px-6">
                     <p className="flex items-center gap-3 text-[10px]">Admitted to Grade <span className="border-b border-black px-12 h-4 inline-block"></span> Section: <span className="border-b border-black px-12 h-4 inline-block"></span></p>
                     <p className="flex items-center gap-3 text-[10px]">Eligible for Admission to Grade: <span className="border-b border-black flex-1 h-4"></span></p>
-                    <p className="flex items-center gap-8 text-[10px]">
-                      <span>Approved: <span className="border-b border-black px-12 inline-block h-4"></span></span>
-                      <span>Room: <span className="border-b border-black px-12 inline-block h-4"></span></span>
-                    </p>
                     
                     <div className="grid grid-cols-2 gap-12 text-center pt-2">
                       <div>
@@ -24235,6 +24249,7 @@ function SummarySheetView({
   onToggleSF9Download,
   onToggleStudentStatus,
   onViewReport,
+  onViewBlankReport,
 }: { 
   students: Student[], 
   subjects: Subject[], 
@@ -25401,6 +25416,15 @@ function TransferFacilityView({
                       <FileText size={16} />
                     </button>
                   )}
+                  {onViewBlankReport && (
+                    <button 
+                      onClick={() => onViewBlankReport(student)}
+                      className="px-4 bg-slate-50 text-slate-600 rounded-xl font-bold text-[10px] uppercase tracking-widest hover:bg-slate-600 hover:text-white transition-all flex items-center justify-center"
+                      title="View Blank SF 9"
+                    >
+                      <Download size={16} />
+                    </button>
+                  )}
                   <button
                     onClick={() => onToggleStatus?.(student.id, 'Active')}
                     className="flex-1 h-10 bg-slate-900 text-white rounded-xl font-bold text-[10px] uppercase tracking-widest hover:bg-slate-800 transition-all flex items-center justify-center gap-2"
@@ -25802,6 +25826,8 @@ function StudentPortal({
 }) { 
   const [activeTab, setActiveTab] = useState<'grades' | 'profile' | 'attendance' | 'contributions' | 'anecdotal'>('grades');
   const [showReportCard, setShowReportCard] = useState(false);
+  const [showBlankReportCard, setShowBlankReportCard] = useState(false);
+  const [showSF10, setShowSF10] = useState(false);
   const [selectedTermDetail, setSelectedTermDetail] = useState<{ subject: Subject, term: TermNumber } | null>(null);
 
   const [ptaFees, setPtaFees] = useState<any[]>([]);
@@ -26099,14 +26125,34 @@ function StudentPortal({
                     Anecdotal
                   </button>
                 </div>
-                {activeTab === 'grades' && student.sf9CardUnlocked && (
-                  <button 
-                    onClick={() => setShowReportCard(true)}
-                    className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold transition-all shadow-sm"
-                  >
-                    <Download size={14} />
-                    Report Card (SF9)
-                  </button>
+                {activeTab === 'grades' && (
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={() => setShowSF10(true)}
+                      className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold transition-all shadow-sm"
+                    >
+                      <HistoryIcon size={14} />
+                      Permanent Record (SF10)
+                    </button>
+                    {student.sf9CardUnlocked && (
+                      <div className="flex items-center gap-2">
+                        <button 
+                          onClick={() => setShowBlankReportCard(true)}
+                          className="flex items-center gap-2 px-4 py-2 bg-slate-600 hover:bg-slate-700 text-white rounded-lg text-xs font-semibold transition-all shadow-sm"
+                        >
+                          <Download size={14} />
+                          Blank Card (SF9)
+                        </button>
+                        <button 
+                          onClick={() => setShowReportCard(true)}
+                          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold transition-all shadow-sm"
+                        >
+                          <Download size={14} />
+                          Report Card (SF9)
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 )}
              </div>
 
@@ -26959,6 +27005,27 @@ function StudentPortal({
               calendar={schoolCalendar}
               isStudentView={true}
               globalNumTerms={numTerms}
+            />
+          )}
+          {showBlankReportCard && (
+            <MATATAGReportCardModal 
+              student={student}
+              section={section}
+              subjects={subjects}
+              onClose={() => setShowBlankReportCard(false)}
+              calendar={schoolCalendar}
+              isStudentView={true}
+              globalNumTerms={numTerms}
+              isBlank={true}
+            />
+          )}
+          {showSF10 && (
+            <SF10ReportModal
+              isOpen={showSF10}
+              onClose={() => setShowSF10(false)}
+              student={student}
+              allEnrollments={allEnrollments}
+              schoolCalendar={schoolCalendar}
             />
           )}
        </AnimatePresence>

@@ -344,8 +344,19 @@ export function AdminSchoolCalendarView({ onBack, onShowFeedback, isFeedbackOpen
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Special Holidays</label>
-                <div className="grid grid-cols-7 gap-1 bg-slate-50 p-2 rounded-lg border border-slate-100">
+                <div className="flex items-center justify-between mb-2 ml-1 mr-1">
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Special Holidays</label>
+                  {form.localHolidays.length > 0 && (
+                    <button 
+                      type="button" 
+                      onClick={() => setForm(prev => ({ ...prev, localHolidays: [] }))}
+                      className="text-[10px] text-rose-500 font-bold hover:text-rose-700 uppercase tracking-wider"
+                    >
+                      Clear All
+                    </button>
+                  )}
+                </div>
+                <div className="grid grid-cols-7 gap-1 bg-slate-50 p-2 rounded-lg border border-slate-100 mb-1">
                   {Array.from({ length: 31 }, (_, i) => i + 1).map(day => {
                     const isHoliday = form.localHolidays.includes(day);
                     return (
@@ -353,6 +364,7 @@ export function AdminSchoolCalendarView({ onBack, onShowFeedback, isFeedbackOpen
                         key={day}
                         type="button"
                         onClick={() => toggleLocalHoliday(day)}
+                        title={isHoliday ? "Click to remove holiday" : "Click to mark as holiday"}
                         className={`h-7 w-full flex items-center justify-center rounded text-[10px] font-bold transition-all ${
                           isHoliday
                             ? 'bg-rose-600 text-white'
@@ -364,6 +376,7 @@ export function AdminSchoolCalendarView({ onBack, onShowFeedback, isFeedbackOpen
                     );
                   })}
                 </div>
+                <p className="text-[10px] text-slate-400 font-medium ml-1">Click a day to mark it as a holiday. Click it again to remove it.</p>
               </div>
 
               <button 

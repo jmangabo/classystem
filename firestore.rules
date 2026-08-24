@@ -122,6 +122,7 @@ service cloud.firestore {
     }
 
     match /school_calendar/{entryId} {
+      allow read, write: if true;
       allow read: if isSignedIn();
       allow write: if isAdmin() || isSystemAdmin();
     }

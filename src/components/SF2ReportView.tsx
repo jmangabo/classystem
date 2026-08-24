@@ -18,7 +18,7 @@ interface SF2ReportViewProps {
 }
 
 const PHILIPPINE_HOLIDAYS = [
-  '01-01', '04-09', '05-01', '06-12', '08-21', '08-25', '11-01', '11-30', '12-25', '12-30'
+  '01-01', '04-09', '05-01', '06-12', '08-21', '11-01', '11-30', '12-25', '12-30'
 ];
 
 export const SF2ReportView: React.FC<SF2ReportViewProps> = ({ students, calendar, section, userId }) => {

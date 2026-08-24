@@ -767,12 +767,10 @@ export const ClassRecordReportModal: React.FC<ClassRecordReportModalProps> = ({
     // Signatures
     rows.push([]);
     rows.push([]);
-    const colMid1 = Math.max(1, Math.floor(totalTableColumns / 3));
     const colMid2 = Math.max(2, Math.floor((2 * totalTableColumns) / 3));
 
     const sigLeadRow = new Array(totalTableColumns).fill(null).map(() => emptyCell());
     sigLeadRow[1] = createCell("Prepared by:", { bold: true, align: 'left', sz: 9 });
-    sigLeadRow[colMid1] = createCell("Checked by:", { bold: true, align: 'left', sz: 9 });
     sigLeadRow[colMid2] = createCell("Certified Correct:", { bold: true, align: 'left', sz: 9 });
     rows.push(sigLeadRow);
 
@@ -780,13 +778,11 @@ export const ClassRecordReportModal: React.FC<ClassRecordReportModalProps> = ({
 
     const sigNamesRow = new Array(totalTableColumns).fill(null).map(() => emptyCell());
     sigNamesRow[1] = createCell(teacherName.toUpperCase(), { bold: true, align: 'center', sz: 10 });
-    sigNamesRow[colMid1] = createCell(adviserName.toUpperCase(), { bold: true, align: 'center', sz: 10 });
     sigNamesRow[colMid2] = createCell(schoolHeadName.toUpperCase(), { bold: true, align: 'center', sz: 10 });
     rows.push(sigNamesRow);
 
     const sigRolesRow = new Array(totalTableColumns).fill(null).map(() => emptyCell());
     sigRolesRow[1] = createCell("Subject Teacher", { sz: 8, align: 'center' });
-    sigRolesRow[colMid1] = createCell("Class Adviser", { sz: 8, align: 'center' });
     sigRolesRow[colMid2] = createCell("School Head / Principal", { sz: 8, align: 'center' });
     rows.push(sigRolesRow);
 
