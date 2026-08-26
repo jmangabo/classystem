@@ -26,7 +26,6 @@ const app = initializeApp(firebaseConfig);
 // Enable stable connectivity settings with extremely robust fallback mechanisms for sandboxed iFrame restrictions
 let dbInstance;
 try {
-  // Initialize Firestore with default settings which auto-detect persistent/IndexedDB cache and fall back gracefully to memory
   dbInstance = initializeFirestore(app, { experimentalForceLongPolling: true }, firebaseConfig.firestoreDatabaseId);
 } catch (error: any) {
   if (error.message?.includes('already been initialized') || error.code === 'failed-precondition') {
@@ -41,8 +40,8 @@ try {
     }
   }
 }
-
 export const db = dbInstance;
+console.log("Firebase DB initialized as:", db);
 
 
 // Custom safe data fetching wrappers to avoid unhandled "client is offline" crashes

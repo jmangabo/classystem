@@ -6,6 +6,36 @@ import * as XLSX from 'xlsx-js-style';
 import { db, safeGetDocs as getDocs } from '../firebase';
 import { query, collection, where } from 'firebase/firestore';
 
+export const getGradeDescriptor = (grade: number | string): string => {
+  const numericGrade = typeof grade === 'string' ? parseFloat(grade) : grade;
+  if (isNaN(numericGrade) || numericGrade <= 0) return "-";
+  if (numericGrade >= 90) return "Advancing";
+  if (numericGrade >= 80) return "Benchmarking";
+  if (numericGrade >= 75) return "Connecting";
+  if (numericGrade >= 65) return "Developing";
+  return "Emerging";
+};
+
+export const getDescriptorColorClass = (grade: number | string): string => {
+  const numericGrade = typeof grade === 'string' ? parseFloat(grade) : grade;
+  if (isNaN(numericGrade) || numericGrade <= 0) return "text-slate-400";
+  if (numericGrade >= 90) return "text-emerald-800 font-black";
+  if (numericGrade >= 80) return "text-blue-800 font-black";
+  if (numericGrade >= 75) return "text-cyan-800 font-black";
+  if (numericGrade >= 65) return "text-amber-800 font-black";
+  return "text-rose-800 font-black";
+};
+
+export const getDescriptorHexColor = (grade: number | string): string => {
+  const numericGrade = typeof grade === 'string' ? parseFloat(grade) : grade;
+  if (isNaN(numericGrade) || numericGrade <= 0) return "000000";
+  if (numericGrade >= 90) return "065F46";
+  if (numericGrade >= 80) return "1E40AF";
+  if (numericGrade >= 75) return "155E75";
+  if (numericGrade >= 65) return "92400E";
+  return "9F1239";
+};
+
 interface ClassRecordReportModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -148,11 +178,11 @@ export const ClassRecordReportModal: React.FC<ClassRecordReportModalProps> = ({
         failed: 0,
         passingRate: 0,
         mps: 0,
-        outstanding: 0,
-        verySatisfactory: 0,
-        satisfactory: 0,
-        fairlySatisfactory: 0,
-        didNotMeet: 0,
+        advancing: 0,
+        benchmarking: 0,
+        connecting: 0,
+        developing: 0,
+        emerging: 0,
         avgWW: 0,
         avgPT: 0,
         avgQA: 0,
@@ -199,19 +229,19 @@ export const ClassRecordReportModal: React.FC<ClassRecordReportModalProps> = ({
     const passingRate = takers > 0 ? (passed / takers) * 100 : 0;
     const mps = takers > 0 ? takersList.reduce((acc, c) => acc + c.finalGrade, 0) / takers : 0;
 
-    let outstanding = 0;
-    let verySatisfactory = 0;
-    let satisfactory = 0;
-    let fairlySatisfactory = 0;
-    let didNotMeet = 0;
+    let advancing = 0;
+    let benchmarking = 0;
+    let connecting = 0;
+    let developing = 0;
+    let emerging = 0;
 
     takersList.forEach(c => {
       const f = c.finalGrade;
-      if (f >= 90) outstanding++;
-      else if (f >= 85) verySatisfactory++;
-      else if (f >= 80) satisfactory++;
-      else if (f >= 75) fairlySatisfactory++;
-      else if (f > 0) didNotMeet++;
+      if (f >= 90) advancing++;
+      else if (f >= 80) benchmarking++;
+      else if (f >= 75) connecting++;
+      else if (f >= 65) developing++;
+      else if (f > 0) emerging++;
     });
 
     const avgWW = takers > 0 ? takersList.reduce((acc, c) => acc + c.wwTotal, 0) / takers : 0;
@@ -225,11 +255,11 @@ export const ClassRecordReportModal: React.FC<ClassRecordReportModalProps> = ({
       failed,
       passingRate,
       mps,
-      outstanding,
-      verySatisfactory,
-      satisfactory,
-      fairlySatisfactory,
-      didNotMeet,
+      advancing,
+      benchmarking,
+      connecting,
+      developing,
+      emerging,
       avgWW,
       avgPT,
       avgQA,
@@ -531,7 +561,7 @@ export const ClassRecordReportModal: React.FC<ClassRecordReportModalProps> = ({
   };
 
   // Export to Excel without blank records
-  const handleExportExcel = () => {
+  const handleExportExcel = (isBlank: boolean = false) => {
     const wb = XLSX.utils.book_new();
 
     const createCell = (v: any, options: any = {}) => {
@@ -677,44 +707,43 @@ export const ClassRecordReportModal: React.FC<ClassRecordReportModalProps> = ({
           createCell(idx + 1, {}),
           createCell(formatStudentName(r.student), { align: 'left', bold: true }),
           createCell(r.student.lrn || "-", {}),
-
           // Active WW Scores
           ...activeWWIndices.map(i => {
             const sc = r.wwScores[i];
             const hasHps = (Number(refData?.writtenWorks?.maxScores?.[i]) || 0) > 0;
-            return createCell(hasHps || sc > 0 ? sc : "-", {});
+            return createCell(isBlank ? "" : (hasHps || sc > 0 ? sc : "-"), {});
           }),
-          createCell(r.wwTotal > 0 ? r.wwTotal : (r.hasData ? 0 : "-"), { bold: true }),
-          createCell(r.wwPs > 0 ? r.wwPs.toFixed(2) : "-", {}),
-          createCell(r.wwWs > 0 ? r.wwWs.toFixed(2) : "-", {}),
+          createCell(isBlank ? "" : (r.wwTotal > 0 ? r.wwTotal : (r.hasData ? 0 : "-")), { bold: true }),
+          createCell(isBlank ? "" : (r.wwPs > 0 ? r.wwPs.toFixed(2) : "-"), {}),
+          createCell(isBlank ? "" : (r.wwWs > 0 ? r.wwWs.toFixed(2) : "-"), {}),
 
           // Active PT Scores
           ...activePTIndices.map(i => {
             const sc = r.ptScores[i];
             const hasHps = (Number(refData?.performanceTasks?.maxScores?.[i]) || 0) > 0;
-            return createCell(hasHps || sc > 0 ? sc : "-", {});
+            return createCell(isBlank ? "" : (hasHps || sc > 0 ? sc : "-"), {});
           }),
-          createCell(r.ptTotal > 0 ? r.ptTotal : (r.hasData ? 0 : "-"), { bold: true }),
-          createCell(r.ptPs > 0 ? r.ptPs.toFixed(2) : "-", {}),
-          createCell(r.ptWs > 0 ? r.ptWs.toFixed(2) : "-", {}),
+          createCell(isBlank ? "" : (r.ptTotal > 0 ? r.ptTotal : (r.hasData ? 0 : "-")), { bold: true }),
+          createCell(isBlank ? "" : (r.ptPs > 0 ? r.ptPs.toFixed(2) : "-"), {}),
+          createCell(isBlank ? "" : (r.ptWs > 0 ? r.ptWs.toFixed(2) : "-"), {}),
 
           // Active QA Scores
           ...activeSTIndices.map(i => {
             const sc = r.stScores[i];
             const hasHps = (Number(refData?.summativeTests?.maxScores?.[i]) || 0) > 0;
-            return createCell(hasHps || sc > 0 ? sc : "-", {});
+            return createCell(isBlank ? "" : (hasHps || sc > 0 ? sc : "-"), {});
           }),
-          ...(hasExam ? [createCell(r.examScore > 0 ? r.examScore : (r.hasData ? 0 : "-"), {})] : []),
-          createCell(r.qaScore > 0 ? r.qaScore : (r.hasData ? 0 : "-"), { bold: true }),
-          createCell(r.qaPs > 0 ? r.qaPs.toFixed(2) : "-", {}),
-          createCell(r.qaWs > 0 ? r.qaWs.toFixed(2) : "-", {}),
+          ...(hasExam ? [createCell(isBlank ? "" : (r.examScore > 0 ? r.examScore : (r.hasData ? 0 : "-")), {})] : []),
+          createCell(isBlank ? "" : (r.qaScore > 0 ? r.qaScore : (r.hasData ? 0 : "-")), { bold: true }),
+          createCell(isBlank ? "" : (r.qaPs > 0 ? r.qaPs.toFixed(2) : "-"), {}),
+          createCell(isBlank ? "" : (r.qaWs > 0 ? r.qaWs.toFixed(2) : "-"), {}),
 
           // Final Grades
-          createCell(r.initialGrade > 0 ? r.initialGrade.toFixed(2) : "-", {}),
-          createCell(r.finalGrade > 0 ? r.finalGrade : "-", { bold: true }),
-          createCell(r.finalGrade >= 75 ? "PASSED" : (r.finalGrade > 0 ? "FAILED" : "-"), {
+          createCell(isBlank ? "" : (r.initialGrade > 0 ? r.initialGrade.toFixed(2) : "-"), {}),
+          createCell(isBlank ? "" : (r.finalGrade > 0 ? r.finalGrade : "-"), { bold: true }),
+          createCell(isBlank ? "" : (r.finalGrade > 0 ? getGradeDescriptor(r.finalGrade) : "-"), {
             bold: true,
-            color: r.finalGrade >= 75 ? '15803D' : 'B91C1C'
+            color: isBlank ? '000000' : (r.finalGrade > 0 ? getDescriptorHexColor(r.finalGrade) : '000000')
           })
         ];
         rows.push(row);
@@ -764,6 +793,46 @@ export const ClassRecordReportModal: React.FC<ClassRecordReportModalProps> = ({
       createCell(overallStats.mps.toFixed(2), { bold: true, bg: 'FEF3C7' })
     ]);
 
+    // Grading Scale Distribution
+    rows.push([]);
+    rows.push([createCell("LEARNING AREA GRADING SCALE DISTRIBUTION", { bold: true, bg: 'E2E8F0', align: 'left' })]);
+    rows.push([
+      createCell("Level of Proficiency", { bold: true, bg: 'F1F5F9' }),
+      createCell("Grading Scale", { bold: true, bg: 'F1F5F9' }),
+      createCell("Count", { bold: true, bg: 'F1F5F9' }),
+      createCell("% Share", { bold: true, bg: 'F1F5F9' })
+    ]);
+    rows.push([
+      createCell("Advancing", { bold: true, color: '065F46' }),
+      createCell("90 - 100", {}),
+      createCell(overallStats.advancing, { bold: true }),
+      createCell(`${overallStats.takers > 0 ? ((overallStats.advancing / overallStats.takers) * 100).toFixed(1) : "0.0"}%`, {})
+    ]);
+    rows.push([
+      createCell("Benchmarking", { bold: true, color: '1E40AF' }),
+      createCell("80 - 89", {}),
+      createCell(overallStats.benchmarking, { bold: true }),
+      createCell(`${overallStats.takers > 0 ? ((overallStats.benchmarking / overallStats.takers) * 100).toFixed(1) : "0.0"}%`, {})
+    ]);
+    rows.push([
+      createCell("Connecting", { bold: true, color: '155E75' }),
+      createCell("75 - 79", {}),
+      createCell(overallStats.connecting, { bold: true }),
+      createCell(`${overallStats.takers > 0 ? ((overallStats.connecting / overallStats.takers) * 100).toFixed(1) : "0.0"}%`, {})
+    ]);
+    rows.push([
+      createCell("Developing", { bold: true, color: '92400E' }),
+      createCell("65 - 74", {}),
+      createCell(overallStats.developing, { bold: true }),
+      createCell(`${overallStats.takers > 0 ? ((overallStats.developing / overallStats.takers) * 100).toFixed(1) : "0.0"}%`, {})
+    ]);
+    rows.push([
+      createCell("Emerging", { bold: true, color: '9F1239' }),
+      createCell("0 - 64", {}),
+      createCell(overallStats.emerging, { bold: true, color: '9F1239' }),
+      createCell(`${overallStats.takers > 0 ? ((overallStats.emerging / overallStats.takers) * 100).toFixed(1) : "0.0"}%`, { bold: true, color: '9F1239' })
+    ]);
+
     // Signatures
     rows.push([]);
     rows.push([]);
@@ -787,6 +856,22 @@ export const ClassRecordReportModal: React.FC<ClassRecordReportModalProps> = ({
     rows.push(sigRolesRow);
 
     const ws = XLSX.utils.aoa_to_sheet(rows);
+    const cols = [
+      { wch: 5 }, // No.
+      { wch: 30 }, // Name
+      { wch: 14 }, // LRN
+      ...new Array(activeWWIndices.length).fill({ wch: 7 }),
+      { wch: 8 }, { wch: 8 }, { wch: 8 }, // WW totals
+      ...new Array(activePTIndices.length).fill({ wch: 7 }),
+      { wch: 8 }, { wch: 8 }, { wch: 8 }, // PT totals
+      ...new Array(activeSTIndices.length).fill({ wch: 7 }),
+      ...(hasExam ? [{ wch: 7 }] : []),
+      { wch: 8 }, { wch: 8 }, { wch: 8 }, // QA totals
+      { wch: 12 }, // Initial Grade
+      { wch: 12 }, // Quarter Grade
+      { wch: 24 }  // Remarks (Descriptor)
+    ];
+    ws["!cols"] = cols;
     XLSX.utils.book_append_sheet(wb, ws, `Q${activeTerm}_Class_Record`);
     XLSX.writeFile(wb, `Class_Record_Report_${selectedSubject.name}_Q${activeTerm}.xlsx`);
   };
@@ -813,11 +898,18 @@ export const ClassRecordReportModal: React.FC<ClassRecordReportModalProps> = ({
 
           <div className="flex items-center gap-2">
             <button
-              onClick={handleExportExcel}
+              onClick={() => handleExportExcel(false)}
               className="px-3.5 py-1.5 bg-white dark:bg-slate-700 hover:bg-slate-100 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-600 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
             >
               <Download size={14} className="text-emerald-600" />
               Excel (XLSX)
+            </button>
+            <button
+              onClick={() => handleExportExcel(true)}
+              className="px-3.5 py-1.5 bg-white dark:bg-slate-700 hover:bg-slate-100 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-600 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
+            >
+              <Download size={14} className="text-slate-600" />
+              Blank Excel (XLSX)
             </button>
             <button
               onClick={handlePrint}
@@ -927,7 +1019,7 @@ export const ClassRecordReportModal: React.FC<ClassRecordReportModalProps> = ({
                   {/* Final Columns */}
                   <th rowSpan={2} className="border border-slate-900 p-1 w-12 bg-slate-200">Initial Grade</th>
                   <th rowSpan={2} className="border border-slate-900 p-1 w-12 bg-slate-200">Quarter Grade</th>
-                  <th rowSpan={2} className="border border-slate-900 p-1 w-14 bg-slate-200">Remarks</th>
+                  <th rowSpan={2} className="border border-slate-900 p-1 min-w-[95px] w-24 bg-slate-200">Remarks</th>
                 </tr>
 
                 {/* Level 2 Sub-Headers for Active Columns */}
@@ -1076,8 +1168,8 @@ export const ClassRecordReportModal: React.FC<ClassRecordReportModalProps> = ({
                         {/* Final Grades */}
                         <td className="border border-slate-900 p-1 font-mono">{row.initialGrade > 0 ? row.initialGrade.toFixed(2) : "-"}</td>
                         <td className="border border-slate-900 p-1 font-black bg-slate-100">{row.finalGrade > 0 ? row.finalGrade : "-"}</td>
-                        <td className={`border border-slate-900 p-1 font-extrabold ${isPassed ? 'text-emerald-700' : (row.finalGrade > 0 ? 'text-rose-700' : 'text-slate-400')}`}>
-                          {row.finalGrade > 0 ? (isPassed ? "PASSED" : "FAILED") : "-"}
+                        <td className={`border border-slate-900 p-1 text-[7.5px] whitespace-nowrap leading-none ${getDescriptorColorClass(row.finalGrade)}`}>
+                          {row.finalGrade > 0 ? getGradeDescriptor(row.finalGrade) : "-"}
                         </td>
                       </tr>
                     );
@@ -1147,8 +1239,8 @@ export const ClassRecordReportModal: React.FC<ClassRecordReportModalProps> = ({
                         {/* Final Grades */}
                         <td className="border border-slate-900 p-1 font-mono">{row.initialGrade > 0 ? row.initialGrade.toFixed(2) : "-"}</td>
                         <td className="border border-slate-900 p-1 font-black bg-slate-100">{row.finalGrade > 0 ? row.finalGrade : "-"}</td>
-                        <td className={`border border-slate-900 p-1 font-extrabold ${isPassed ? 'text-emerald-700' : (row.finalGrade > 0 ? 'text-rose-700' : 'text-slate-400')}`}>
-                          {row.finalGrade > 0 ? (isPassed ? "PASSED" : "FAILED") : "-"}
+                        <td className={`border border-slate-900 p-1 text-[7.5px] whitespace-nowrap leading-none ${getDescriptorColorClass(row.finalGrade)}`}>
+                          {row.finalGrade > 0 ? getGradeDescriptor(row.finalGrade) : "-"}
                         </td>
                       </tr>
                     );
@@ -1225,43 +1317,43 @@ export const ClassRecordReportModal: React.FC<ClassRecordReportModalProps> = ({
                   </thead>
                   <tbody>
                     <tr>
-                      <td className="border border-slate-900 p-1 font-bold text-emerald-800">Outstanding</td>
+                      <td className="border border-slate-900 p-1 font-bold text-emerald-800">Advancing</td>
                       <td className="border border-slate-900 p-1 text-center font-mono">90 - 100</td>
-                      <td className="border border-slate-900 p-1 text-center font-bold">{overallStats.outstanding}</td>
+                      <td className="border border-slate-900 p-1 text-center font-bold">{overallStats.advancing}</td>
                       <td className="border border-slate-900 p-1 text-center">
-                        {overallStats.takers > 0 ? ((overallStats.outstanding / overallStats.takers) * 100).toFixed(1) : "0.0"}%
+                        {overallStats.takers > 0 ? ((overallStats.advancing / overallStats.takers) * 100).toFixed(1) : "0.0"}%
                       </td>
                     </tr>
                     <tr>
-                      <td className="border border-slate-900 p-1 font-bold text-blue-800">Very Satisfactory</td>
-                      <td className="border border-slate-900 p-1 text-center font-mono">85 - 89</td>
-                      <td className="border border-slate-900 p-1 text-center font-bold">{overallStats.verySatisfactory}</td>
+                      <td className="border border-slate-900 p-1 font-bold text-blue-800">Benchmarking</td>
+                      <td className="border border-slate-900 p-1 text-center font-mono">80 - 89</td>
+                      <td className="border border-slate-900 p-1 text-center font-bold">{overallStats.benchmarking}</td>
                       <td className="border border-slate-900 p-1 text-center">
-                        {overallStats.takers > 0 ? ((overallStats.verySatisfactory / overallStats.takers) * 100).toFixed(1) : "0.0"}%
+                        {overallStats.takers > 0 ? ((overallStats.benchmarking / overallStats.takers) * 100).toFixed(1) : "0.0"}%
                       </td>
                     </tr>
                     <tr>
-                      <td className="border border-slate-900 p-1 font-bold text-cyan-800">Satisfactory</td>
-                      <td className="border border-slate-900 p-1 text-center font-mono">80 - 84</td>
-                      <td className="border border-slate-900 p-1 text-center font-bold">{overallStats.satisfactory}</td>
-                      <td className="border border-slate-900 p-1 text-center">
-                        {overallStats.takers > 0 ? ((overallStats.satisfactory / overallStats.takers) * 100).toFixed(1) : "0.0"}%
-                      </td>
-                    </tr>
-                    <tr>
-                      <td className="border border-slate-900 p-1 font-bold text-amber-800">Fairly Satisfactory</td>
+                      <td className="border border-slate-900 p-1 font-bold text-cyan-800">Connecting</td>
                       <td className="border border-slate-900 p-1 text-center font-mono">75 - 79</td>
-                      <td className="border border-slate-900 p-1 text-center font-bold">{overallStats.fairlySatisfactory}</td>
+                      <td className="border border-slate-900 p-1 text-center font-bold">{overallStats.connecting}</td>
                       <td className="border border-slate-900 p-1 text-center">
-                        {overallStats.takers > 0 ? ((overallStats.fairlySatisfactory / overallStats.takers) * 100).toFixed(1) : "0.0"}%
+                        {overallStats.takers > 0 ? ((overallStats.connecting / overallStats.takers) * 100).toFixed(1) : "0.0"}%
                       </td>
                     </tr>
                     <tr>
-                      <td className="border border-slate-900 p-1 font-bold text-rose-800">Did Not Meet Expectations</td>
-                      <td className="border border-slate-900 p-1 text-center font-mono">Below 75</td>
-                      <td className="border border-slate-900 p-1 text-center font-bold text-rose-700">{overallStats.didNotMeet}</td>
+                      <td className="border border-slate-900 p-1 font-bold text-amber-800">Developing</td>
+                      <td className="border border-slate-900 p-1 text-center font-mono">65 - 74</td>
+                      <td className="border border-slate-900 p-1 text-center font-bold">{overallStats.developing}</td>
+                      <td className="border border-slate-900 p-1 text-center">
+                        {overallStats.takers > 0 ? ((overallStats.developing / overallStats.takers) * 100).toFixed(1) : "0.0"}%
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-900 p-1 font-bold text-rose-800">Emerging</td>
+                      <td className="border border-slate-900 p-1 text-center font-mono">0 - 64</td>
+                      <td className="border border-slate-900 p-1 text-center font-bold text-rose-700">{overallStats.emerging}</td>
                       <td className="border border-slate-900 p-1 text-center text-rose-700 font-bold">
-                        {overallStats.takers > 0 ? ((overallStats.didNotMeet / overallStats.takers) * 100).toFixed(1) : "0.0"}%
+                        {overallStats.takers > 0 ? ((overallStats.emerging / overallStats.takers) * 100).toFixed(1) : "0.0"}%
                       </td>
                     </tr>
                   </tbody>
